@@ -23,6 +23,7 @@
 #include "theory/quantifiers/single_inv_partition.h"
 #include "theory/quantifiers/sygus/ce_guided_single_inv_sol.h"
 #include "theory/quantifiers/sygus/transition_inference.h"
+#include "theory/quantifiers/sygus/sygus_reconstruct.h"
 
 namespace CVC4 {
 namespace theory {
@@ -60,6 +61,8 @@ class CegSingleInv
   std::map< Node, TransitionInference > d_ti;
   // solution reconstruction
   CegSingleInvSol* d_sol;
+  /** new version of solution reconstruction */
+  SygusReconstruct d_srcons;
 
   // list of skolems for each argument of programs
   std::vector<Node> d_single_inv_arg_sk;

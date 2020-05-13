@@ -44,7 +44,6 @@ class CegSingleInvSol
 
  private:
   QuantifiersEngine * d_qe;
-  std::vector< Node > d_varList;
   std::map< Node, int > d_dterm_size;
   std::map< Node, int > d_dterm_ite_size;
 //solution simplification
@@ -76,7 +75,7 @@ private:
    * This is used as a heuristic to find terms in the original conjecture which
    * may be helpful for using during reconstruction.
    */
-  void preregisterConjecture(Node q);
+  void preregisterConjecture(Node q, TypeNode stn);
 
  private:
   int d_id_count;
