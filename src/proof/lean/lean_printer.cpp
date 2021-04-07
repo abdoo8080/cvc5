@@ -29,19 +29,72 @@ const char* toString(LeanRule id)
 {
   switch (id)
   {
+    case LeanRule::ASSUME: return "assume";
+    case LeanRule::SCOPE: return "scope";
+    case LeanRule::CL_ASSUME: return "clAssume";
+    case LeanRule::CL_OR: return "clOr";
+
     case LeanRule::R0: return "R0";
     case LeanRule::R1: return "R1";
-    case LeanRule::SMTCONG: return "SMTCONG";
-    case LeanRule::SMTREFL: return "SMTREFL";
-    case LeanRule::SMTSYMM: return "SMTSYMM";
-    case LeanRule::SMTSYMM_NEG: return "SMTSYMM_NEG";
-    case LeanRule::TRUST: return "TRUST";
-    case LeanRule::ASSUME: return "ASSUME";
-    case LeanRule::SCOPE: return "SCOPE";
+
+    case LeanRule::FACTORING: return "factoring";
+    case LeanRule::REORDER: return "reorder";
+    case LeanRule::EQ_RESOLVE: return "eqResolve";
+    case LeanRule::MODUS_PONENS: return "modusPonens";
+    case LeanRule::NOT_NOT_ELIM: return "notNotElim";
+    case LeanRule::CONTRADICTION: return "contradiction";
+    case LeanRule::AND_ELIM: return "andElim";
+    case LeanRule::AND_INTRO: return "andIntro";
+    case LeanRule::NOT_OR_ELIM: return "notOrElim";
+    case LeanRule::IMPLIES_ELIM: return "impliesElim";
+    case LeanRule::NOT_IMPLIES1: return "notImplies1";
+    case LeanRule::NOT_IMPLIES2: return "notImplies2";
+    case LeanRule::EQUIV_ELIM1: return "equivElim1";
+    case LeanRule::EQUIV_ELIM2: return "equivElim2";
+    case LeanRule::NOT_EQUIV_ELIM1: return "notEquivElim1";
+    case LeanRule::NOT_EQUIV_ELIM2: return "notEquivElim2";
+    case LeanRule::XOR_ELIM1: return "xorElim1";
+    case LeanRule::XOR_ELIM2: return "xorElim2";
+    case LeanRule::NOT_XOR_ELIM1: return "notXorElim1";
+    case LeanRule::NOT_XOR_ELIM2: return "notXorElim2";
+    case LeanRule::ITE_ELIM1: return "iteElim1";
+    case LeanRule::ITE_ELIM2: return "iteElim2";
+    case LeanRule::NOT_ITE_ELIM1: return "notIteElim1";
+    case LeanRule::NOT_ITE_ELIM2: return "notIteElim2";
+    case LeanRule::NOT_AND: return "notAnd";
+    case LeanRule::CNF_AND_POS: return "cnfAndPos";
+    case LeanRule::CNF_AND_NEG: return "cnfAndNeg";
+    case LeanRule::CNF_IMPLIES_POS: return "cnfImpliesPos";
+    case LeanRule::CNF_IMPLIES_NEG1: return "cnfImpliesNeg1";
+    case LeanRule::CNF_IMPLIES_NEG2: return "cnfImpliesNeg2";
+    case LeanRule::CNF_EQUIV_POS1: return "cnfEquivPos1";
+    case LeanRule::CNF_EQUIV_POS2: return "cnfEquivPos2";
+    case LeanRule::CNF_EQUIV_NEG1: return "cnfEquivNeg1";
+    case LeanRule::CNF_EQUIV_NEG2: return "cnfEquivNeg2";
+    case LeanRule::CNF_XOR_POS1: return "cnfXorPos1";
+    case LeanRule::CNF_XOR_POS2: return "cnfXorPos2";
+    case LeanRule::CNF_XOR_NEG1: return "cnfXorNeg1";
+    case LeanRule::CNF_XOR_NEG2: return "cnfXorNeg2";
+    case LeanRule::CNF_ITE_POS1: return "cnfItePos1";
+    case LeanRule::CNF_ITE_POS2: return "cnfItePos2";
+    case LeanRule::CNF_ITE_POS3: return "cnfItePos3";
+    case LeanRule::CNF_ITE_NEG1: return "cnfIteNeg1";
+    case LeanRule::CNF_ITE_NEG2: return "cnfIteNeg2";
+    case LeanRule::CNF_ITE_NEG3: return "cnfIteNeg3";
+    case LeanRule::TRUST: return "trust";
+    case LeanRule::TH_TRUST: return "thTrust";
+
+    case LeanRule::CONG: return "cong";
+    case LeanRule::REFL: return "refl";
+    case LeanRule::TRANS: return "trans";
+    case LeanRule::SYMM: return "symm";
+    case LeanRule::NEG_SYMM: return "negSymm";
+
     case LeanRule::UNKNOWN: return "UNKNOWN";
     default: return "?";
   }
 }
+
 std::ostream& operator<<(std::ostream& out, LeanRule id)
 {
   out << toString(id);
@@ -128,11 +181,14 @@ void LeanPrinter::printProof(std::ostream& out,
                              std::shared_ptr<ProofNode> pfn,
                              std::map<Node, std::string>& passumeMap)
 {
+
   // print rule specific lean syntax, traversing children before parents in
   // ProofNode tree
   const std::vector<Node>& args = pfn->getArguments();
   const std::vector<std::shared_ptr<ProofNode>>& children = pfn->getChildren();
+  Trace("test-lean") << "printProof: args " << args << "\n";
   LeanRule id = getLeanRule(args[0]);
+  Trace("test-lean") << "printProof: id " << id << "\n";
   if (id == LeanRule::SCOPE)
   {
     // each argument to the scope proof node corresponds to one scope
@@ -197,7 +253,18 @@ void LeanPrinter::printProof(std::ostream& out,
       printLeanString(out, args[2]);
       break;
     }
-    case LeanRule::SMTSYMM:
+    // case LeanRule::SMTREFL:
+    // {
+    //   size_t varIndex = passumeMap.size();
+    //   std::stringstream varString;
+    //   varString << "v" << varIndex;
+    //   passumeMap[args[1]] = varString.str();
+    //   out << "let " << passumeMap[args[1]];
+    //   out << " := symm " << passumeMap[children[0]->getArguments()[0]];
+    //   out << " in \n";
+    //   break;
+    // }
+    case LeanRule::SYMM:
     {
       size_t varIndex = passumeMap.size();
       std::stringstream varString;
@@ -208,7 +275,7 @@ void LeanPrinter::printProof(std::ostream& out,
       out << " in \n";
       break;
     }
-    case LeanRule::SMTSYMM_NEG:
+    case LeanRule::NEG_SYMM:
     {
       size_t varIndex = passumeMap.size();
       std::stringstream varString;
@@ -267,6 +334,7 @@ void LeanPrinter::print(std::ostream& out,
                         std::shared_ptr<ProofNode> pfn)
 {
   // outer method to print valid Lean output from a ProofNode
+  Trace("test-lean") << "Post-processed proof " << *pfn.get() << "\n";
   std::map<Node, std::string> passumeMap;
   const std::vector<Node>& args = pfn->getArguments();
   out << "open smt\n";
@@ -275,7 +343,15 @@ void LeanPrinter::print(std::ostream& out,
   out << "noncomputable theorem th0 : ";
   printLeanTypeToBottom(out, args[1]);
   out << " := \n";
+  std::stringstream ss;
+  ss << out.rdbuf();
+  Trace("test-lean") << "Before getting to proof node:\n"
+                     << ss.str() << "==================\n\n";
   printProof(out, pfn, passumeMap);
+  ss.clear();
+  ss << out.rdbuf();
+  Trace("test-lean") << "After getting to proof node:\n"
+                     << ss.str() << "==================\n\n";
   out << "\n";
 }
 

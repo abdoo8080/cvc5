@@ -18,6 +18,8 @@
 #define CVC4__PROOF__LEAN_PROOF_PRINTER_H
 
 #include <iostream>
+#include <sstream>
+#include <string>
 
 #include "expr/node_algorithm.h"
 #include "expr/proof_checker.h"

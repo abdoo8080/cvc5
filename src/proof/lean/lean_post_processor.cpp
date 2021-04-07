@@ -92,19 +92,21 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::REFL:
     {
-      return addLeanStep(res, LeanRule::SMTREFL, {}, {}, *cdp);
+      return addLeanStep(res, LeanRule::REFL, {}, {}, *cdp);
     }
     case PfRule::SYMM:
     {
       addLeanStep(res,
-                  res.getKind() == kind::EQUAL ? LeanRule::SMTSYMM
-                                               : LeanRule::SMTSYMM_NEG,
-                  {},
+                  res.getKind() == kind::EQUAL ? LeanRule::SYMM
+                                               : LeanRule::NEG_SYMM,
+                  children,
                   {},
                   *cdp);
       break;
     }
-    default: { return false;
+    default:
+    {
+      addLeanStep(res, LeanRule::UNKNOWN, children, args, *cdp);
     }
   };
   return true;
