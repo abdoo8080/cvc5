@@ -87,6 +87,7 @@ enum class LeanRule : uint32_t
   // holes
   TRUST,
   TH_TRUST,
+  TH_TRUST_VALID,
 
   UNKNOWN
 };

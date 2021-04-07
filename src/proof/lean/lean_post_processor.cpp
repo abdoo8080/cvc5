@@ -73,10 +73,14 @@ bool LeanProofPostprocessCallback::update(Node res,
     {
       return addLeanStep(res, LeanRule::SCOPE, children, args, *cdp);
     }
+    case PfRule::EQ_RESOLVE:
+    {
+      return addLeanStep(res, LeanRule::EQ_RESOLVE, children, args, *cdp);
+    }
     case PfRule::CHAIN_RESOLUTION:
     {
       Node cur = children[0];
-      for (size_t i = 1, size = children.size(); i < size; i++)
+      for (size_t i = 1, size = children.size(); i < size; ++i)
       {
         std::vector<Node> newChildren{cur, children[i]};
         std::vector<Node> newArgs{args[(i - 1) * 2], args[(i - 1) * 2 + 1]};
@@ -90,9 +94,31 @@ bool LeanProofPostprocessCallback::update(Node res,
       }
       break;
     }
+    case PfRule::AND_ELIM:
+    {
+      return addLeanStep(res, LeanRule::AND_ELIM, children, args, *cdp);
+    }
     case PfRule::REFL:
     {
       return addLeanStep(res, LeanRule::REFL, {}, {}, *cdp);
+    }
+    case PfRule::TRANS:
+    {
+      // break chain
+      Node cur = children[0];
+      for (size_t i = 1, size = children.size(); i < size; ++i)
+      {
+        std::vector<Node> newChildren{cur, children[i]};
+        std::vector<Node> newArgs{args[(i - 1) * 2], args[(i - 1) * 2 + 1]};
+        cur = d_pc->checkDebug(
+            PfRule::RESOLUTION, newChildren, newArgs, Node(), "");
+        addLeanStep(cur,
+                    newArgs[0].getConst<bool>() ? LeanRule::R1 : LeanRule::R0,
+                    newChildren,
+                    {newArgs[1]},
+                    *cdp);
+      }
+      break;
     }
     case PfRule::SYMM:
     {
@@ -103,6 +129,10 @@ bool LeanProofPostprocessCallback::update(Node res,
                   {},
                   *cdp);
       break;
+    }
+    case PfRule::THEORY_REWRITE:
+    {
+      return addLeanStep(res, LeanRule::TH_THRUST_VALID, {}, {}, *cdp);
     }
     default:
     {
