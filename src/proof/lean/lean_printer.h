@@ -88,6 +88,9 @@ class LeanPrinter
    *  in "-> holds []", which acts like a proof of contradiction, or false.
    */
   static void printLeanTypeToBottom(std::ostream& s, Node n);
+
+  static void printSort(std::ostream& out, TypeNode tn);
+
   /**
    * Print user defined sorts and constants of those sorts
    */

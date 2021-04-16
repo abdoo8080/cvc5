@@ -297,6 +297,42 @@ void LeanPrinter::printProof(std::ostream& out,
   }
 }
 
+void LeanPrinter::printSort(std::ostream& out, TypeNode sort)
+{
+  // functional sort
+  if (sort.isFunction())
+  {
+    out << "(mkArrowN [";
+    // print each arg sort
+    unsigned size = sort.getNumChildren();
+    for (unsigned i = 0, n_arg_types = size - 1; i < n_arg_types; ++i)
+    {
+      printSort(out, sort[i]);
+      out << ", ";
+    }
+    // print return sort
+    printSort(out, sort[size - 1]);
+    out << "])";
+    return;
+  }
+  // boolean sort
+  if (sort.isBoolean())
+  {
+    out << "boolSort";
+    return;
+  }
+  if (sort.isInteger())
+  {
+    out << "intSort";
+    return;
+  }
+  // TODO HB will need to add cases for other theories
+
+  // uninterpreted sort
+  AlwaysAssert(sort.isSort());
+  out << sort;
+}
+
 void LeanPrinter::printSortsAndConstants(std::ostream& out,
                                          const std::vector<Node>& assertions,
                                          std::shared_ptr<ProofNode> pfn)
@@ -312,22 +348,26 @@ void LeanPrinter::printSortsAndConstants(std::ostream& out,
   }
   int sortCount = 1000;
   int symCount = 1000;
+  // uninterpreted sorts
   std::unordered_set<TypeNode, TypeNodeHashFunction> sts;
   for (const Node& s : syms)
   {
     TypeNode st = s.getType();
     if (st.isSort() && sts.find(st) == sts.end())
     {
-      // declare a user defined sort, if that sort has not been encountered
-      // before
       sts.insert(st);
-      out << "def " << st << " := sort.atom " << sortCount << std::endl;
-      sortCount += 1;
+      out << "def " << st << " := sort.atom " << sortCount++ << "\n";
     }
-    // declare a constant of a predefined sort
-    out << "def " << s << " := const " << symCount << " " << st << std::endl;
-    symCount += 1;
   }
+  // uninterpreted functions
+  for (const Node& s : syms)
+  {
+    out << "def " << s << " const " << symCount++
+        << " ";
+    printSort(out, s.getType());
+    out << "\n";
+  }
+  // TOOD compute letification
 }
 
 void LeanPrinter::print(std::ostream& out,
