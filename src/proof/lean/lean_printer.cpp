@@ -310,8 +310,8 @@ void LeanPrinter::printSortsAndConstants(std::ostream& out,
     expr::getSymbols(a, syms, visited);
     iasserts.push_back(a);
   }
-  int sortCount = 1;
-  int symCount = 1;
+  int sortCount = 1000;
+  int symCount = 1000;
   std::unordered_set<TypeNode, TypeNodeHashFunction> sts;
   for (const Node& s : syms)
   {
@@ -338,8 +338,11 @@ void LeanPrinter::print(std::ostream& out,
   Trace("test-lean") << "Post-processed proof " << *pfn.get() << "\n";
   std::map<Node, std::string> passumeMap;
   const std::vector<Node>& args = pfn->getArguments();
-  out << "open smt\n";
-  out << "open smt.sort smt.term\n";
+  // TODO preamble should be theory dependent
+  out << "import Cdclt.Euf\n\n";
+  out << "open proof\nopen proof.sort proof.term\n";
+  out << "open rules eufRules\n\n";
+
   printSortsAndConstants(out, assertions, pfn);
   out << "noncomputable theorem th0 : ";
   printLeanTypeToBottom(out, args[1]);

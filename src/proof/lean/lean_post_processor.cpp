@@ -63,6 +63,9 @@ bool LeanProofPostprocessCallback::update(Node res,
                                           CDProof* cdp,
                                           bool& continueUpdate)
 {
+  Trace("test-lean") << "Updating rule:\nres: " << res << "\nid: " << id
+                     << "\nchildren: " << children << "\nargs: " << args
+                     << "\n";
   switch (id)
   {
     case PfRule::ASSUME:
@@ -122,17 +125,16 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::SYMM:
     {
-      addLeanStep(res,
+      return addLeanStep(res,
                   res.getKind() == kind::EQUAL ? LeanRule::SYMM
                                                : LeanRule::NEG_SYMM,
                   children,
                   {},
                   *cdp);
-      break;
     }
     case PfRule::THEORY_REWRITE:
     {
-      return addLeanStep(res, LeanRule::TH_THRUST_VALID, {}, {}, *cdp);
+      return addLeanStep(res, LeanRule::TH_TRUST_VALID, {}, {}, *cdp);
     }
     default:
     {
@@ -144,7 +146,7 @@ bool LeanProofPostprocessCallback::update(Node res,
 
 void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
 {
-  ProofNodeUpdater updater(d_pnm, *(d_cb.get()));
+  ProofNodeUpdater updater(d_pnm, *(d_cb.get()), false, false, false);
   updater.process(pf);
 };
 
