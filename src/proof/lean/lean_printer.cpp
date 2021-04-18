@@ -333,18 +333,156 @@ void LeanPrinter::printSort(std::ostream& out, TypeNode sort)
   out << sort;
 }
 
-void LeanPrinter::printSortsAndConstants(std::ostream& out,
-                                         const std::vector<Node>& assertions,
-                                         std::shared_ptr<ProofNode> pfn)
+void LeanPrinter::printConstant(std::ostream& out, TNode n)
 {
+  Kind k = n.getKind();
+  if (k == kind::CONST_BOOLEAN)
+  {
+    out << "val (value.bool " << n.getConst<bool>() << ") boolSort)";
+    return;
+  }
+  // uninterpreted
+  out << n;
+}
+
+void LeanPrinter::printTermList(std::ostream& out, LetBinding& lbind, TNode n)
+{
+  out << "[";
+  for (unsigned i = 0, size = n.getNumChildren(); i < size; ++i)
+  {
+    printTerm(out, lbind, n[i]);
+    out << (i < size - 1 ? ", " : "]");
+  }
+}
+
+void LeanPrinter::printTermList(std::ostream& out,
+                                LetBinding& lbind,
+                                const std::vector<Node>& children)
+{
+  out << "[";
+  for (unsigned i = 0, size = children.size(); i < size; ++i)
+  {
+    printTerm(out, lbind, children[i]);
+    out << (i < size - 1 ? ", " : "]");
+  }
+}
+
+void LeanPrinter::printTerm(std::ostream& out,
+                            LetBinding& lbind,
+                            TNode n,
+                            bool letTop)
+{
+  Trace("leanpf::print") << "Printing term " << (letTop ? "[decl] " : "") << n
+                         << "\n";
+  Node nc = lbind.convert(n, "let", letTop);
+  unsigned nArgs = nc.getNumChildren();
+  // printing constant symbol
+  if (nArgs == 0)
+  {
+    printConstant(out, nc);
+    return;
+  }
+  // printing applications / formulas
+  Kind k = nc.getKind();
+  TypeNode tn = nc.getType();
+  switch (k)
+  {
+    case kind::APPLY_UF:
+    {
+      out << "mkAppN ";
+      Node op = nc.getOperator();
+      printTerm(out, lbind, op);
+      out << " ";
+      printTermList(out, lbind, nc);
+      break;
+    }
+
+    case kind::EQUAL:
+    {
+      out << "mkEq ";
+      printTerm(out, lbind, nc[0]);
+      out << " ";
+      printTerm(out, lbind, nc[1]);
+      break;
+    }
+
+    case kind::OR:
+    {
+      out << "mkOrN ";
+      printTermList(out, lbind, nc);
+      break;
+    }
+    case kind::AND:
+    {
+      out << "mkAndN ";
+      printTermList(out, lbind, nc);
+      break;
+    }
+    case kind::IMPLIES:
+    {
+      out << "mkImplies ";
+      printTerm(out, lbind, nc[0]);
+      out << " ";
+      printTerm(out, lbind, nc[1]);
+      break;
+    }
+    case kind::NOT:
+    {
+      out << "mkNot ";
+      printTerm(out, lbind, nc[0]);
+      break;
+    }
+    case kind::ITE:
+    {
+      out << "mkIte ";
+      printTerm(out, lbind, nc[0]);
+      out << " ";
+      printTerm(out, lbind, nc[1]);
+      out << " ";
+      printTerm(out, lbind, nc[2]);
+      break;
+    }
+
+    default: Unhandled() << " " << k;
+  }
+  out << (letTop ? "" : "\n");
+}
+
+void LeanPrinter::printLetList(std::ostream& out,
+                               LetBinding& lbind)
+{
+  std::vector<Node> letList;
+  lbind.letify(letList);
+  std::map<Node, size_t>::const_iterator it;
+  for (TNode n : letList)
+  {
+    size_t id = lbind.getId(n);
+    Assert(id != 0);
+    out << "def let" << id << " := ";
+    printTerm(out, lbind, n, false);
+  }
+}
+
+
+void LeanPrinter::print(std::ostream& out,
+                        const std::vector<Node>& assertions,
+                        std::shared_ptr<ProofNode> pfn)
+{
+  // outer method to print valid Lean output from a ProofNode
+  Trace("test-lean") << "Post-processed proof " << *pfn.get() << "\n";
+  std::map<Node, std::string> passumeMap;
+  const std::vector<Node>& args = pfn->getArguments();
+  // TODO preamble should be theory dependent
+  out << "import Cdclt.Euf\n\n";
+  out << "open proof\nopen proof.sort proof.term\n";
+  out << "open rules eufRules\n\n";
+
   // Print user defined sorts and constants of those sorts
   std::unordered_set<Node, NodeHashFunction> syms;
   std::unordered_set<TNode, TNodeHashFunction> visited;
-  std::vector<Node> iasserts;
   for (const Node& a : assertions)
   {
     expr::getSymbols(a, syms, visited);
-    iasserts.push_back(a);
   }
   int sortCount = 1000;
   int symCount = 1000;
@@ -362,29 +500,22 @@ void LeanPrinter::printSortsAndConstants(std::ostream& out,
   // uninterpreted functions
   for (const Node& s : syms)
   {
-    out << "def " << s << " const " << symCount++
+    out << "def " << s << " := const " << symCount++
         << " ";
     printSort(out, s.getType());
     out << "\n";
   }
   // TOOD compute letification
-}
 
-void LeanPrinter::print(std::ostream& out,
-                        const std::vector<Node>& assertions,
-                        std::shared_ptr<ProofNode> pfn)
-{
-  // outer method to print valid Lean output from a ProofNode
-  Trace("test-lean") << "Post-processed proof " << *pfn.get() << "\n";
-  std::map<Node, std::string> passumeMap;
-  const std::vector<Node>& args = pfn->getArguments();
-  // TODO preamble should be theory dependent
-  out << "import Cdclt.Euf\n\n";
-  out << "open proof\nopen proof.sort proof.term\n";
-  out << "open rules eufRules\n\n";
+  // compute the term lets
+  LetBinding lbind;
+  for (const Node& a : assertions)
+  {
+    lbind.process(a);
+  }
+  printLetList(out, lbind);
 
-  printSortsAndConstants(out, assertions, pfn);
-  out << "noncomputable theorem th0 : ";
+  out << "theorem th0 : ";
   printLeanTypeToBottom(out, args[1]);
   out << " := \n";
   std::stringstream ss;

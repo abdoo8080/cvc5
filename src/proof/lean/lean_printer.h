@@ -24,6 +24,7 @@
 #include "expr/node_algorithm.h"
 #include "expr/proof_checker.h"
 #include "expr/proof_node.h"
+#include "printer/let_binding.h"
 #include "proof/lean/lean_rules.h"
 
 namespace cvc5 {
@@ -91,12 +92,20 @@ class LeanPrinter
 
   static void printSort(std::ostream& out, TypeNode tn);
 
-  /**
-   * Print user defined sorts and constants of those sorts
-   */
-  static void printSortsAndConstants(std::ostream& out,
-                                     const std::vector<Node>& assertions,
-                                     std::shared_ptr<ProofNode> pfn);
+  static void printConstant(std::ostream& out, TNode n);
+
+  static void printTermList(std::ostream& out, LetBinding& lbind, TNode n);
+
+  static void printTermList(std::ostream& out,
+                            LetBinding& lbind,
+                            const std::vector<Node>& children);
+
+  static void printTerm(std::ostream& out,
+                        LetBinding& lbind,
+                        TNode n,
+                        bool letTop = true);
+
+  static void printLetList(std::ostream& out, LetBinding& lbind);
 
   /**
    * For each proof node, the final Lean output's formatting depends on
