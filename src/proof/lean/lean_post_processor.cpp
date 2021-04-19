@@ -39,7 +39,7 @@ bool LeanProofPostprocessCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
                                                 const std::vector<Node>& fa,
                                                 bool& continueUpdate)
 {
-  return pn->getRule() != PfRule::LEAN_RULE;
+  return pn->getRule() != PfRule::LEAN_RULE && pn->getRule() != PfRule::ASSUME;
 };
 
 bool LeanProofPostprocessCallback::addLeanStep(
@@ -68,10 +68,6 @@ bool LeanProofPostprocessCallback::update(Node res,
                      << "\n";
   switch (id)
   {
-    case PfRule::ASSUME:
-    {
-      return addLeanStep(res, LeanRule::ASSUME, children, args, *cdp);
-    }
     case PfRule::SCOPE:
     {
       return addLeanStep(res, LeanRule::SCOPE, children, args, *cdp);

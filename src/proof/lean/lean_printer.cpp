@@ -29,7 +29,6 @@ const char* toString(LeanRule id)
 {
   switch (id)
   {
-    case LeanRule::ASSUME: return "assume";
     case LeanRule::SCOPE: return "scope";
     case LeanRule::CL_ASSUME: return "clAssume";
     case LeanRule::CL_OR: return "clOr";
@@ -101,6 +100,9 @@ std::ostream& operator<<(std::ostream& out, LeanRule id)
   out << toString(id);
   return out;
 }
+
+LeanPrinter::LeanPrinter() {}
+LeanPrinter::~LeanPrinter() {}
 
 LeanRule LeanPrinter::getLeanRule(Node n)
 {
@@ -174,126 +176,16 @@ void LeanPrinter::printLeanType(std::ostream& s, Node n)
 void LeanPrinter::printLeanTypeToBottom(std::ostream& s, Node n)
 {
   // print Lean type corresponding to proof of unsatisfiability
+  Trace("test-lean") << "printLeanTypeToBottom: " << n[0] << "\n";
   printLeanType(s, n[0]);
   s << " -> holds []";
 }
 
-void LeanPrinter::printProof(std::ostream& out,
-                             std::shared_ptr<ProofNode> pfn,
-                             std::map<Node, std::string>& passumeMap)
+void LeanPrinter::printOffset(std::ostream& out, uint64_t offset) const
 {
-
-  // print rule specific lean syntax, traversing children before parents in
-  // ProofNode tree
-  const std::vector<Node>& args = pfn->getArguments();
-  const std::vector<std::shared_ptr<ProofNode>>& children = pfn->getChildren();
-  Trace("test-lean") << "printProof: args " << args << "\n";
-  LeanRule id = getLeanRule(args[0]);
-  Trace("test-lean") << "printProof: id " << id << "\n";
-  if (id == LeanRule::SCOPE)
+  for (uint64_t i = 0; i < offset; ++i)
   {
-    // each argument to the scope proof node corresponds to one scope
-    //  to close in the Lean proof
-    for (size_t i = 2, size = args.size(); i < size; ++i)
-    {
-      size_t varIndex = passumeMap.size();
-      std::stringstream varString;
-      varString << "v" << varIndex;
-      passumeMap[args[i]] = varString.str();
-
-      out << "(assume (" << passumeMap[args[i]] << " : ";
-      printLeanType(out, args[i]);
-      out << "),\n";
-    }
-    for (const std::shared_ptr<ProofNode>& ch : children)
-    {
-      printProof(out, ch, passumeMap);
-    }
-    for (size_t j = 2, size = args.size(); j < size; ++j)
-    {
-      out << ")";
-    }
-  }
-  else
-  {
-    for (const std::shared_ptr<ProofNode>& ch : children)
-    {
-      printProof(out, ch, passumeMap);
-    }
-  }
-  switch (id)
-  {
-    case LeanRule::SCOPE: break;
-    case LeanRule::TRUST:
-    {
-      out << "trust\n";
-      break;
-    }
-    case LeanRule::ASSUME:
-    {
-      // get variable name
-      break;
-    };
-    case LeanRule::R0:
-    {
-      // print variable names of clauses to be resolved against
-      out << "R0 ";
-      out << "(clAssume ";
-      out << passumeMap[children[0]->getArguments()[1]] << ") ";
-      out << "(clAssume ";
-      out << passumeMap[children[1]->getArguments()[1]] << ") ";
-      printLeanString(out, args[2]);
-      break;
-    }
-    case LeanRule::R1:
-    {
-      // print variable names of clauses to be resolved against
-      out << "R1 ";
-      out << passumeMap[children[0]->getArguments()[1]] << " ";
-      out << passumeMap[children[1]->getArguments()[1]] << " ";
-      printLeanString(out, args[2]);
-      break;
-    }
-    // case LeanRule::SMTREFL:
-    // {
-    //   size_t varIndex = passumeMap.size();
-    //   std::stringstream varString;
-    //   varString << "v" << varIndex;
-    //   passumeMap[args[1]] = varString.str();
-    //   out << "let " << passumeMap[args[1]];
-    //   out << " := symm " << passumeMap[children[0]->getArguments()[0]];
-    //   out << " in \n";
-    //   break;
-    // }
-    case LeanRule::SYMM:
-    {
-      size_t varIndex = passumeMap.size();
-      std::stringstream varString;
-      varString << "v" << varIndex;
-      passumeMap[args[1]] = varString.str();
-      out << "let " << passumeMap[args[1]];
-      out << " := symm " << passumeMap[children[0]->getArguments()[0]];
-      out << " in \n";
-      break;
-    }
-    case LeanRule::NEG_SYMM:
-    {
-      size_t varIndex = passumeMap.size();
-      std::stringstream varString;
-      varString << "v" << varIndex;
-      passumeMap[args[1]] = varString.str();
-      out << "let " << passumeMap[args[1]];
-      out << " := negSymm " << passumeMap[children[0]->getArguments()[0]];
-      out << " in \n";
-      // maybe add type to annotate term
-      break;
-    }
-    default:
-    {
-      out << args;
-      out << " ?\n";
-      break;
-    }
+    out << "  ";
   }
 }
 
@@ -383,6 +275,7 @@ void LeanPrinter::printTerm(std::ostream& out,
     return;
   }
   // printing applications / formulas
+  out << "(";
   Kind k = nc.getKind();
   TypeNode tn = nc.getType();
   switch (k)
@@ -445,11 +338,10 @@ void LeanPrinter::printTerm(std::ostream& out,
 
     default: Unhandled() << " " << k;
   }
-  out << (letTop ? "" : "\n");
+  out << ")" << (letTop ? "" : "\n");
 }
 
-void LeanPrinter::printLetList(std::ostream& out,
-                               LetBinding& lbind)
+void LeanPrinter::printLetList(std::ostream& out, LetBinding& lbind)
 {
   std::vector<Node> letList;
   lbind.letify(letList);
@@ -463,15 +355,162 @@ void LeanPrinter::printLetList(std::ostream& out,
   }
 }
 
+void LeanPrinter::printStepId(std::ostream& out,
+                              const ProofNode* pfn,
+                              const std::map<const ProofNode*, size_t>& pfMap,
+                              const std::map<Node, size_t>& pfAssumpMap)
+{
+  if (pfn->getRule() == PfRule::ASSUME)
+  {
+    AlwaysAssert(pfAssumpMap.find(pfn->getResult()) != pfAssumpMap.end());
+    out << "a" << pfAssumpMap.find(pfn->getResult())->second;
+  }
+  else
+  {
+    AlwaysAssert(pfMap.find(pfn) != pfMap.end());
+    out << "s" << pfMap.find(pfn)->second;
+  }
+}
+
+void LeanPrinter::printProof(std::ostream& out,
+                             size_t& id,
+                             uint64_t offset,
+                             std::shared_ptr<ProofNode> pfn,
+                             LetBinding& lbind,
+                             std::map<const ProofNode*, size_t>& pfMap,
+                             std::map<Node, size_t>& pfAssumpMap)
+{
+  std::map<const ProofNode*, size_t>::const_iterator pfIt =
+      pfMap.find(pfn.get());
+  if (pfIt != pfMap.end())
+  {
+    return;
+  }
+  if (pfn->getRule() == PfRule::ASSUME)
+  {
+    return;
+  }
+  // print rule specific lean syntax, traversing children before parents in
+  // ProofNode tree
+  const std::vector<Node>& args = pfn->getArguments();
+  const std::vector<std::shared_ptr<ProofNode>>& children = pfn->getChildren();
+  Trace("test-lean") << "printProof: offset " << offset << "\n";
+  Trace("test-lean") << "printProof: args " << args << "\n";
+  LeanRule rule = getLeanRule(args[0]);
+  Trace("test-lean") << "printProof: rule " << rule << "\n";
+  // we handle scope differently because it starts a subproof
+  if (rule == LeanRule::SCOPE)
+  {
+    printOffset(out, offset);
+    out << "have s" << id << " : holds ";
+    printTerm(out, lbind, args[1]);
+    out << " from (\n";
+    // push offset
+    offset++;
+    // each argument to the scope proof node corresponds to one scope to close
+    // in the Lean proof
+    std::map<Node, size_t> backupMap;
+    for (size_t i = 2, size = args.size(); i < size; ++i)
+    {
+      auto it = pfAssumpMap.find(args[i]);
+      if (it != pfAssumpMap.end())
+      {
+        backupMap[args[i]] = it->second;
+      }
+      pfAssumpMap[args[i]] = i - 2;
+      printOffset(out, offset);
+      out << "fun a" << i - 2 << " : thHolds ";
+      printTerm(out, lbind, args[i]);
+      out << " =>\n";
+    }
+    size_t newId = 0;
+    Trace("test-lean") << pop;
+    for (const std::shared_ptr<ProofNode>& child : children)
+    {
+      printProof(out, newId, offset, child, lbind, pfMap, pfAssumpMap);
+    }
+    Trace("test-lean") << pop;
+    // print conclusion of scope, which is the conversion to a clause of a scope
+    // chain over the arguments until the last step of the subproof
+    printOffset(out, offset);
+    out << "show holds ";
+    printTerm(out, lbind, args[1]);
+    out << " from clOr";
+    std::stringstream cparens;
+    for (size_t i = 2, size = args.size(); i < size; ++i)
+    {
+      out << " (scope a" << pfAssumpMap[args[i]];
+      cparens << ")";
+    }
+    out << " s" << newId - 1 << cparens.str() << "\n";
+    // recover assumption map
+    for (const auto& p : backupMap)
+    {
+      pfAssumpMap[p.first] = p.second;
+    }
+    // print list of arguments
+    printOffset(out, offset);
+    out << ")";
+    for (size_t i = 2, size = args.size(); i < size; ++i)
+    {
+      out << " a" << pfAssumpMap[args[i]];
+    }
+    out << "\n";
+    // pop offset
+    offset--;
+    // save proof step in map
+    pfMap[pfn.get()] = id++;
+    return;
+  }
+  Trace("test-lean") << push;
+  for (const std::shared_ptr<ProofNode>& child : children)
+  {
+    printProof(out, id, offset, child, lbind, pfMap, pfAssumpMap);
+  }
+  Trace("test-lean") << pop;
+  printOffset(out, offset);
+  switch (rule)
+  {
+    case LeanRule::SYMM:
+    {
+       out << "have s" << id << " : thHolds ";
+       printTerm(out, lbind, pfn->getResult());
+       out << " from " << rule << " ";
+       Assert(children.size() == 1);
+       printStepId(out, children[0].get(), pfMap, pfAssumpMap);
+       break;
+    }
+    case LeanRule::NEG_SYMM:
+    {
+      size_t varIndex = pfAssumpMap.size();
+      std::stringstream varString;
+      varString << "v" << varIndex;
+      pfAssumpMap[args[1]] = varIndex;
+      out << "let " << pfAssumpMap[args[1]];
+      out << " := negSymm " << pfAssumpMap[children[0]->getArguments()[0]];
+      out << " in \n";
+      // maybe add type to annotate term
+      break;
+    }
+    default:
+    {
+      out << args;
+      out << " ?";
+      break;
+    }
+  }
+  out << "\n";
+  // save proof step in map
+  pfMap[pfn.get()] = id++;
+}
 
 void LeanPrinter::print(std::ostream& out,
                         const std::vector<Node>& assertions,
                         std::shared_ptr<ProofNode> pfn)
 {
+  Assert(pfn->getRule() == LeanRule::SCOPE);
   // outer method to print valid Lean output from a ProofNode
   Trace("test-lean") << "Post-processed proof " << *pfn.get() << "\n";
-  std::map<Node, std::string> passumeMap;
-  const std::vector<Node>& args = pfn->getArguments();
   // TODO preamble should be theory dependent
   out << "import Cdclt.Euf\n\n";
   out << "open proof\nopen proof.sort proof.term\n";
@@ -494,35 +533,59 @@ void LeanPrinter::print(std::ostream& out,
     if (st.isSort() && sts.find(st) == sts.end())
     {
       sts.insert(st);
-      out << "def " << st << " := sort.atom " << sortCount++ << "\n";
+      out << "def " << st << " := atom " << sortCount++ << "\n";
     }
   }
   // uninterpreted functions
   for (const Node& s : syms)
   {
-    out << "def " << s << " := const " << symCount++
-        << " ";
+    out << "def " << s << " := const " << symCount++ << " ";
     printSort(out, s.getType());
     out << "\n";
   }
-  // TOOD compute letification
+  // TOOD compute proof letification
 
   // compute the term lets
+  // TODO include terms in the proof
   LetBinding lbind;
   for (const Node& a : assertions)
   {
     lbind.process(a);
   }
+  const std::vector<Node>& args = pfn->getArguments();
+  for (size_t i = 2, size = args.size(); i < size; ++i)
+  {
+    lbind.process(args[i]);
+  }
   printLetList(out, lbind);
 
-  out << "theorem th0 : ";
-  printLeanTypeToBottom(out, args[1]);
-  out << " := \n";
+  // print theorem header, which is to get proofs of all the assumptions and
+  // conclude a proof of []. The assumptions are args[2..]
+  out << "\ntheorem th0 : ";
+  Assert(args.size() > 2);
+  for (size_t i = 2, size = args.size(); i < size; ++i)
+  {
+    out << "thHolds ";
+    printTerm(out, lbind, args[i]);
+    out << " -> ";
+  }
+  out << " holds [] :=\n";
+  // print initial assumptions
+  std::map<Node, size_t> pfAssumpMap;
+  for (size_t i = 2, size = args.size(); i < size; ++i)
+  {
+    pfAssumpMap[args[i]] = i - 2;
+    out << "fun a" << i - 2 << " : thHolds ";
+    printTerm(out, lbind, args[i]);
+    out << " =>\n";
+  }
   std::stringstream ss;
   ss << out.rdbuf();
+  size_t id = 0;
   Trace("test-lean") << "Before getting to proof node:\n"
                      << ss.str() << "==================\n\n";
-  printProof(out, pfn, passumeMap);
+  std::map<const ProofNode*, size_t> pfMap;
+  printProof(out, id, 0, pfn->getChildren()[0], lbind, pfMap, pfAssumpMap);
   ss.clear();
   ss << out.rdbuf();
   Trace("test-lean") << "After getting to proof node:\n"

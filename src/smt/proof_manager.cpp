@@ -150,7 +150,8 @@ void PfManager::printProof(std::ostream& out,
     getAssertions(as, df, assertions);
     Trace("test-lean") << "Original proof: " << *fp.get() << "\n";
     lpfpp.process(fp);
-    proof::LeanPrinter::print(out, assertions, fp);
+    proof::LeanPrinter lp;
+    lp.print(out, assertions, fp);
   }
   else if (options::proofFormatMode() == options::ProofFormatMode::VERIT)
   {

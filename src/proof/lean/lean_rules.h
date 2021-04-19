@@ -24,7 +24,6 @@ namespace proof {
 enum class LeanRule : uint32_t
 {
   // base
-  ASSUME,
   SCOPE,
   CL_ASSUME,
   CL_OR,
