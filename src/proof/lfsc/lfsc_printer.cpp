@@ -16,6 +16,9 @@
 
 #include <sstream>
 
+#include "expr/dtype.h"
+#include "expr/dtype_cons.h"
+#include "expr/dtype_selector.h"
 #include "expr/node_algorithm.h"
 #include "expr/skolem_manager.h"
 #include "proof/lfsc/lfsc_print_channel.h"
@@ -43,6 +46,10 @@ void LfscPrinter::print(std::ostream& out,
   std::stringstream cparen;
   const ProofNode* pnBody = pn->getChildren()[0].get();
 
+  // clear the rules we have warned about
+  d_trustWarned.clear();
+
+  Trace("lfsc-print-debug") << "; print declarations" << std::endl;
   // [1] compute and print the declarations
   std::unordered_set<Node, NodeHashFunction> syms;
   std::unordered_set<TNode, TNodeHashFunction> visited;
@@ -56,34 +63,100 @@ void LfscPrinter::print(std::ostream& out,
     // remember the assumption name
     passumeMap[a] = i;
   }
+  Trace("lfsc-print-debug") << "; print sorts" << std::endl;
   // [1a] user declared sorts
+  std::stringstream preamble;
   std::unordered_set<TypeNode, TypeNodeHashFunction> sts;
   for (const Node& s : syms)
   {
+    // note that we must get all "component types" of a type, so that
+    // e.g. U is printed as a sort declaration when we have type (Array U Int).
     TypeNode st = s.getType();
-    if (st.isSort() && sts.find(st) == sts.end())
+    if (st.isConstructor() || st.isSelector() || st.isTester())
     {
-      sts.insert(st);
-      out << "(declare " << st << " sort)" << std::endl;
+      // can ignore these types
+      continue;
+    }
+    std::unordered_set<TypeNode, TypeNodeHashFunction> types;
+    expr::getComponentTypes(st, types);
+    std::unordered_set<size_t> tupleArity;
+    for (const TypeNode& stc : types)
+    {
+      if (sts.find(stc) == sts.end())
+      {
+        sts.insert(stc);
+        if (stc.isSort())
+        {
+          preamble << "(declare " << stc << " sort)" << std::endl;
+        }
+        else if (stc.isDatatype())
+        {
+          const DType& dt = stc.getDType();
+          if (dt.isTuple())
+          {
+            const DTypeConstructor& cons = dt[0];
+            size_t arity = cons.getNumArgs();
+            if (tupleArity.find(arity) == tupleArity.end())
+            {
+              tupleArity.insert(arity);
+              preamble << "(declare Tuple ";
+              std::stringstream tcparen;
+              for (size_t j = 0, nargs = cons.getNumArgs(); j < nargs; j++)
+              {
+                preamble << "(! a" << j << " type ";
+                tcparen << ")";
+              }
+              preamble << "type" << tcparen.str() << ")";
+            }
+          }
+          else
+          {
+            preamble << "(declare " << dt.getName() << " sort)" << std::endl;
+          }
+          for (size_t i = 0, ncons = dt.getNumConstructors(); i < ncons; i++)
+          {
+            const DTypeConstructor& cons = dt[i];
+            std::stringstream sscons;
+            sscons << cons.getConstructor();
+            // print construct/tester
+            preamble << "(declare " << sscons.str() << " term)" << std::endl;
+            preamble << "(declare is-" << sscons.str() << " term)" << std::endl;
+            for (size_t j = 0, nargs = cons.getNumArgs(); j < nargs; j++)
+            {
+              const DTypeSelector& arg = cons[j];
+              // print selector
+              preamble << "(declare " << arg.getSelector() << " term)"
+                       << std::endl;
+            }
+          }
+        }
+      }
     }
   }
+  Trace("lfsc-print-debug") << "; print user symbols" << std::endl;
   // [1b] user declare function symbols
   for (const Node& s : syms)
   {
-    out << "(define " << s << " (var " << d_tproc.getOrAssignIndexForVar(s)
-        << " ";
-    print(out, s.getType());
-    out << "))" << std::endl;
+    TypeNode st = s.getType();
+    if (st.isConstructor() || st.isSelector() || st.isTester())
+    {
+      // constructors, selector, testers are defined by the datatype
+      continue;
+    }
+    preamble << "(define " << s << " (var " << d_tproc.getOrAssignIndexForVar(s)
+             << " ";
+    printType(preamble, st);
+    preamble << "))" << std::endl;
   }
 
+  Trace("lfsc-print-debug") << "; compute proof letification" << std::endl;
   // [2] compute the proof letification
   std::vector<const ProofNode*> pletList;
   std::map<const ProofNode*, size_t> pletMap;
   computeProofLetification(pnBody, pletList, pletMap);
 
+  Trace("lfsc-print-debug") << "; compute term lets" << std::endl;
   // [3] print the check command and term lets
-  out << "(check" << std::endl;
-  cparen << ")";
   // compute the term lets
   LetBinding lbind;
   for (const Node& ia : iasserts)
@@ -112,9 +185,19 @@ void LfscPrinter::print(std::ostream& out,
       << "node count let " << lpcln.d_nodeCount << std::endl;
   Trace("lfsc-print-debug2")
       << "trust count let " << lpcln.d_trustCount << std::endl;
+
+  // [1a] print warnings
+  for (PfRule r : d_trustWarned)
+  {
+    out << "; WARNING: adding trust step for " << r << std::endl;
+  }
+  out << preamble.str();
+  out << "(check" << std::endl;
+  cparen << ")";
   // print the term let list
   printLetList(out, cparen, lbind);
 
+  Trace("lfsc-print-debug") << "; print asserts" << std::endl;
   // [4] print the assertions, with letification
   // the assumption identifier mapping
   for (size_t i = 0, nasserts = iasserts.size(); i < nasserts; i++)
@@ -128,10 +211,12 @@ void LfscPrinter::print(std::ostream& out,
     cparen << ")";
   }
 
+  Trace("lfsc-print-debug") << "; print annotation" << std::endl;
   // [5] print the annotation
   out << "(: (holds false)" << std::endl;
   cparen << ")";
 
+  Trace("lfsc-print-debug") << "; print proof body" << std::endl;
   // [6] print the proof body
   Assert(pn->getRule() == PfRule::SCOPE);
   // the outermost scope can be ignored (it is the scope of the assertions,
@@ -326,8 +411,6 @@ void LfscPrinter::printProofInternal(
             if (d_trustWarned.find(r) == d_trustWarned.end())
             {
               d_trustWarned.insert(r);
-              Trace("lfsc-print-warn")
-                  << "; WARNING: adding trust step for " << r << std::endl;
             }
           }
         }
@@ -568,22 +651,14 @@ void LfscPrinter::printInternal(std::ostream& out,
                                 LetBinding& lbind,
                                 bool letTop)
 {
-  // TODO: smt2 printer, dag thresh 0 print?
   Node nc = lbind.convert(n, "__t", letTop);
-  out << nc;
+  LfscPrintChannelOut::printNodeInternal(out, nc);
 }
 
-void LfscPrinter::print(std::ostream& out, TypeNode tn)
+void LfscPrinter::printType(std::ostream& out, TypeNode tn)
 {
   TypeNode tni = d_tproc.convertType(tn);
-  printInternal(out, tni);
-}
-
-void LfscPrinter::printInternal(std::ostream& out, TypeNode tn)
-{
-  // (internal) types are always printed as-is
-  // TODO: smt2 printer
-  out << tn;
+  LfscPrintChannelOut::printTypeNodeInternal(out, tni);
 }
 
 }  // namespace proof

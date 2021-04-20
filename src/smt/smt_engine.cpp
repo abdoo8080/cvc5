@@ -1,18 +1,17 @@
-/*********************                                                        */
-/*! \file smt_engine.cpp
- ** \verbatim
- ** Top contributors (to current version):
- **   Andrew Reynolds, Morgan Deters, Abdalrhman Mohamed
- ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
- ** in the top-level source directory and their institutional affiliations.
- ** All rights reserved.  See the file COPYING in the top-level source
- ** directory for licensing information.\endverbatim
- **
- ** \brief The main entry point into the CVC4 library's SMT interface
- **
- ** The main entry point into the CVC4 library's SMT interface.
- **/
+/******************************************************************************
+ * Top contributors (to current version):
+ *   Andrew Reynolds, Morgan Deters, Abdalrhman Mohamed
+ *
+ * This file is part of the cvc5 project.
+ *
+ * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * in the top-level source directory and their institutional affiliations.
+ * All rights reserved.  See the file COPYING in the top-level source
+ * directory for licensing information.
+ * ****************************************************************************
+ *
+ * The main entry point into the cvc5 library's SMT interface.
+ */
 
 #include "smt/smt_engine.h"
 
@@ -24,6 +23,7 @@
 #include "expr/bound_var_manager.h"
 #include "expr/node.h"
 #include "options/base_options.h"
+#include "options/expr_options.h"
 #include "options/language.h"
 #include "options/main_options.h"
 #include "options/printer_options.h"
@@ -66,6 +66,8 @@
 #include "theory/theory_engine.h"
 #include "util/random.h"
 #include "util/resource_manager.h"
+#include "util/sexpr.h"
+#include "util/statistics_registry.h"
 
 // required for hacks related to old proofs for unsat cores
 #include "base/configuration.h"
@@ -122,7 +124,7 @@ SmtEngine::SmtEngine(NodeManager* nm, Options* optr)
   // non-null. This may throw an options exception.
   d_env->setOptions(optr);
   // set the options manager
-  d_optm.reset(new smt::OptionsManager(&getOptions(), getResourceManager()));
+  d_optm.reset(new smt::OptionsManager(&getOptions()));
   // listen to node manager events
   getNodeManager()->subscribeEvents(d_snmListener.get());
   // listen to resource out
@@ -236,7 +238,10 @@ void SmtEngine::finishInit()
   }
 
   Trace("smt-debug") << "SmtEngine::finishInit" << std::endl;
-  d_smtSolver->finishInit(logic);
+  // if proofs and unsat cores, proofs are used solely for unsat core
+  // production, so we don't generate proofs in the theory engine, which is
+  // communicated via the second argument
+  d_smtSolver->finishInit(logic, options::unsatCoresNew());
 
   // now can construct the SMT-level model object
   TheoryEngine* te = d_smtSolver->getTheoryEngine();
@@ -264,7 +269,7 @@ void SmtEngine::finishInit()
       everything.lock();
       getPrinter().toStreamCmdComment(
           getOutputManager().getDumpOut(),
-          "CVC4 always dumps the most general, all-supported logic (below), as "
+          "cvc5 always dumps the most general, all-supported logic (below), as "
           "some internals might require the use of a logic more general than "
           "the input.");
       getPrinter().toStreamCmdSetBenchmarkLogic(getOutputManager().getDumpOut(),
@@ -336,8 +341,10 @@ SmtEngine::~SmtEngine()
     d_asserts.reset(nullptr);
     d_model.reset(nullptr);
 
+    d_abductSolver.reset(nullptr);
+    d_interpolSolver.reset(nullptr);
+    d_quantElimSolver.reset(nullptr);
     d_sygusSolver.reset(nullptr);
-
     d_smtSolver.reset(nullptr);
 
     d_stats.reset(nullptr);
@@ -351,8 +358,7 @@ SmtEngine::~SmtEngine()
     // destroy the environment
     d_env.reset(nullptr);
   } catch(Exception& e) {
-    Warning() << "CVC4 threw an exception during cleanup." << endl
-              << e << endl;
+    Warning() << "cvc5 threw an exception during cleanup." << endl << e << endl;
   }
 }
 
@@ -407,7 +413,8 @@ LogicInfo SmtEngine::getUserLogicInfo() const
 void SmtEngine::notifyStartParsing(const std::string& filename)
 {
   d_state->setFilename(filename);
-  d_stats->d_driverFilename.set(filename);
+  d_env->getStatisticsRegistry().registerValue<std::string>("driver::filename",
+                                                            filename);
   // Copy the original options. This is called prior to beginning parsing.
   // Hence reset should revert to these options, which note is after reading
   // the command line.
@@ -419,11 +426,12 @@ const std::string& SmtEngine::getFilename() const
 }
 
 void SmtEngine::setResultStatistic(const std::string& result) {
-    d_stats->d_driverResult.set(result);
+  d_env->getStatisticsRegistry().registerValue<std::string>("driver::sat/unsat",
+                                                            result);
 }
-
 void SmtEngine::setTotalTimeStatistic(double seconds) {
-  d_stats->d_driverTotalTime.set(seconds);
+  d_env->getStatisticsRegistry().registerValue<double>("driver::totalTime",
+                                                       seconds);
 }
 
 void SmtEngine::setLogicInternal()
@@ -503,38 +511,30 @@ bool SmtEngine::isValidGetInfoFlag(const std::string& key) const
   return false;
 }
 
-cvc5::SExpr SmtEngine::getInfo(const std::string& key) const
+std::string SmtEngine::getInfo(const std::string& key) const
 {
   SmtScope smts(this);
 
   Trace("smt") << "SMT getInfo(" << key << ")" << endl;
   if (key == "all-statistics")
   {
-    vector<SExpr> stats;
-    for (const auto& s: d_env->getStatisticsRegistry())
-    {
-      vector<SExpr> v;
-      v.push_back(s.first);
-      v.push_back(s.second);
-      stats.push_back(v);
-    }
-    return SExpr(stats);
+    return toSExpr(d_env->getStatisticsRegistry().begin(), d_env->getStatisticsRegistry().end());
   }
   if (key == "error-behavior")
   {
-    return SExpr(SExpr::Keyword("immediate-exit"));
+    return "immediate-exit";
   }
   if (key == "name")
   {
-    return SExpr(Configuration::getName());
+    return toSExpr(Configuration::getName());
   }
   if (key == "version")
   {
-    return SExpr(Configuration::getVersionString());
+    return toSExpr(Configuration::getVersionString());
   }
   if (key == "authors")
   {
-    return SExpr(Configuration::about());
+    return toSExpr(Configuration::about());
   }
   if (key == "status")
   {
@@ -542,14 +542,14 @@ cvc5::SExpr SmtEngine::getInfo(const std::string& key) const
     Result status = d_state->getStatus();
     switch (status.asSatisfiabilityResult().isSat())
     {
-      case Result::SAT: return SExpr(SExpr::Keyword("sat"));
-      case Result::UNSAT: return SExpr(SExpr::Keyword("unsat"));
-      default: return SExpr(SExpr::Keyword("unknown"));
+      case Result::SAT: return "sat";
+      case Result::UNSAT: return "unsat";
+      default: return "unknown";
     }
   }
   if (key == "time")
   {
-    return SExpr(std::clock());
+    return toSExpr(std::clock());
   }
   if (key == "reason-unknown")
   {
@@ -558,9 +558,9 @@ cvc5::SExpr SmtEngine::getInfo(const std::string& key) const
     {
       std::stringstream ss;
       ss << status.whyUnknown();
-      string s = ss.str();
+      std::string s = ss.str();
       transform(s.begin(), s.end(), s.begin(), ::tolower);
-      return SExpr(SExpr::Keyword(s));
+      return s;
     }
     else
     {
@@ -573,13 +573,11 @@ cvc5::SExpr SmtEngine::getInfo(const std::string& key) const
   {
     size_t ulevel = d_state->getNumUserLevels();
     AlwaysAssert(ulevel <= std::numeric_limits<unsigned long int>::max());
-    return SExpr(static_cast<unsigned long int>(ulevel));
+    return toSExpr(ulevel);
   }
   Assert(key == "all-options");
   // get the options, like all-statistics
-  std::vector<std::vector<std::string>> current_options =
-      Options::current()->getOptions();
-  return SExpr::parseListOfListOfAtoms(current_options);
+  return toSExpr(Options::current()->getOptions());
 }
 
 void SmtEngine::debugCheckFormals(const std::vector<Node>& formals, Node func)
@@ -1133,6 +1131,14 @@ Result SmtEngine::checkSynth()
    --------------------------------------------------------------------------
 */
 
+void SmtEngine::declarePool(const Node& p, const std::vector<Node>& initValue)
+{
+  Assert(p.isVar() && p.getType().isSet());
+  finishInit();
+  QuantifiersEngine* qe = getAvailableQuantifiersEngine("declareTermPool");
+  qe->declarePool(p, initValue);
+}
+
 Node SmtEngine::simplify(const Node& ex)
 {
   SmtScope smts(this);
@@ -1146,7 +1152,7 @@ Node SmtEngine::simplify(const Node& ex)
 Node SmtEngine::expandDefinitions(const Node& ex, bool expandOnly)
 {
   getResourceManager()->spendResource(
-      ResourceManager::Resource::PreprocessStep);
+      Resource::PreprocessStep);
 
   SmtScope smts(this);
   finishInit();
@@ -1404,10 +1410,11 @@ StatisticsRegistry& SmtEngine::getStatisticsRegistry()
 
 UnsatCore SmtEngine::getUnsatCoreInternal()
 {
-  if (!options::unsatCores())
+  if (!options::unsatCores() && !options::unsatCoresNew())
   {
     throw ModalException(
-        "Cannot get an unsat core when produce-unsat-cores option is off.");
+        "Cannot get an unsat core when produce-unsat-cores[-new] option is "
+        "off.");
   }
   if (d_state->getMode() != SmtMode::UNSAT)
   {
@@ -1424,16 +1431,27 @@ UnsatCore SmtEngine::getUnsatCoreInternal()
   // generate with new proofs
   PropEngine* pe = getPropEngine();
   Assert(pe != nullptr);
-  Assert(pe->getProof() != nullptr);
-  std::shared_ptr<ProofNode> pfn = d_pfManager->getFinalProof(
-      pe->getProof(), *d_asserts, *d_definedFunctions);
+
+  std::shared_ptr<ProofNode> pepf;
+  if (options::unsatCoresNew()
+      && options::unsatCoresMode() == options::UnsatCoresMode::ASSUMPTIONS)
+  {
+    pepf = pe->getRefutation();
+  }
+  else
+  {
+    pepf = pe->getProof();
+  }
+  Assert(pepf != nullptr);
+  std::shared_ptr<ProofNode> pfn =
+      d_pfManager->getFinalProof(pepf, *d_asserts, *d_definedFunctions);
   std::vector<Node> core;
   d_ucManager->getUnsatCore(pfn, *d_asserts, core);
   return UnsatCore(core);
 }
 
 void SmtEngine::checkUnsatCore() {
-  Assert(options::unsatCores())
+  Assert(options::unsatCores() || options::unsatCoresNew())
       << "cannot check unsat core if unsat cores are turned off";
 
   Notice() << "SmtEngine::checkUnsatCore(): generating unsat core" << endl;
@@ -1634,7 +1652,8 @@ void SmtEngine::getInstantiationTermVectors(
 {
   SmtScope smts(this);
   finishInit();
-  if (options::produceProofs() && getSmtMode() == SmtMode::UNSAT)
+  if (options::produceProofs() && !options::unsatCoresNew()
+      && getSmtMode() == SmtMode::UNSAT)
   {
     // minimize instantiations based on proof manager
     getRelevantInstantiationTermVectors(insts);
@@ -1830,13 +1849,20 @@ void SmtEngine::interrupt()
   d_smtSolver->interrupt();
 }
 
-void SmtEngine::setResourceLimit(unsigned long units, bool cumulative)
+void SmtEngine::setResourceLimit(uint64_t units, bool cumulative)
 {
-  getResourceManager()->setResourceLimit(units, cumulative);
+  if (cumulative)
+  {
+    d_env->d_options.set(options::cumulativeResourceLimit__option_t(), units);
+  }
+  else
+  {
+    d_env->d_options.set(options::perCallResourceLimit__option_t(), units);
+  }
 }
-void SmtEngine::setTimeLimit(unsigned long milis)
+void SmtEngine::setTimeLimit(uint64_t millis)
 {
-  getResourceManager()->setTimeLimit(milis);
+  d_env->d_options.set(options::perCallMillisecondLimit__option_t(), millis);
 }
 
 unsigned long SmtEngine::getResourceUsage() const
@@ -1859,24 +1885,20 @@ NodeManager* SmtEngine::getNodeManager() const
   return d_env->getNodeManager();
 }
 
-Statistics SmtEngine::getStatistics() const
-{
-  return Statistics(d_env->getStatisticsRegistry());
-}
-
-SExpr SmtEngine::getStatistic(std::string name) const
-{
-  return d_env->getStatisticsRegistry().getStatistic(name);
-}
-
 void SmtEngine::printStatistics(std::ostream& out) const
 {
-  d_env->getStatisticsRegistry().flushInformation(out);
+  d_env->getStatisticsRegistry().print(out);
 }
 
 void SmtEngine::printStatisticsSafe(int fd) const
 {
-  d_env->getStatisticsRegistry().safeFlushInformation(fd);
+  d_env->getStatisticsRegistry().printSafe(fd);
+}
+
+void SmtEngine::printStatisticsDiff(std::ostream& out) const
+{
+  d_env->getStatisticsRegistry().printDiff(out);
+  d_env->getStatisticsRegistry().storeSnapshot();
 }
 
 void SmtEngine::setUserAttribute(const std::string& attr,
@@ -1935,27 +1957,26 @@ void SmtEngine::setIsInternalSubsolver() { d_isInternalSubsolver = true; }
 
 bool SmtEngine::isInternalSubsolver() const { return d_isInternalSubsolver; }
 
-Node SmtEngine::getOption(const std::string& key) const
+std::string SmtEngine::getOption(const std::string& key) const
 {
   NodeManagerScope nms(getNodeManager());
   NodeManager* nm = d_env->getNodeManager();
 
   Trace("smt") << "SMT getOption(" << key << ")" << endl;
 
-  if (key.length() >= 18 && key.compare(0, 18, "command-verbosity:") == 0)
+  if (key.find("command-verbosity:") == 0)
   {
-    map<string, Integer>::const_iterator i =
-        d_commandVerbosity.find(key.c_str() + 18);
-    if (i != d_commandVerbosity.end())
+    auto it = d_commandVerbosity.find(key.substr(std::strlen("command-verbosity:")));
+    if (it != d_commandVerbosity.end())
     {
-      return nm->mkConst(Rational(i->second));
+      return std::to_string(it->second);
     }
-    i = d_commandVerbosity.find("*");
-    if (i != d_commandVerbosity.end())
+    it = d_commandVerbosity.find("*");
+    if (it != d_commandVerbosity.end())
     {
-      return nm->mkConst(Rational(i->second));
+      return std::to_string(it->second);
     }
-    return nm->mkConst(Rational(2));
+    return "2";
   }
 
   if (Dump.isOn("benchmark"))
@@ -1967,15 +1988,13 @@ Node SmtEngine::getOption(const std::string& key) const
   {
     vector<Node> result;
     Node defaultVerbosity;
-    for (map<string, Integer>::const_iterator i = d_commandVerbosity.begin();
-         i != d_commandVerbosity.end();
-         ++i)
+    for (const auto& verb: d_commandVerbosity)
     {
       // treat the command name as a variable name as opposed to a string
       // constant to avoid printing double quotes around the name
-      Node name = nm->mkBoundVar(i->first, nm->integerType());
-      Node value = nm->mkConst(Rational(i->second));
-      if ((*i).first == "*")
+      Node name = nm->mkBoundVar(verb.first, nm->integerType());
+      Node value = nm->mkConst(Rational(verb.second));
+      if (verb.first == "*")
       {
         // put the default at the end of the SExpr
         defaultVerbosity = nm->mkNode(Kind::SEXPR, name, value);
@@ -1993,30 +2012,24 @@ Node SmtEngine::getOption(const std::string& key) const
                                     nm->mkConst(Rational(2)));
     }
     result.push_back(defaultVerbosity);
-    return nm->mkNode(Kind::SEXPR, result);
+    return nm->mkNode(Kind::SEXPR, result).toString();
   }
 
-  // parse atom string
   std::string atom = getOptions().getOption(key);
 
-  if (atom == "true")
+  if (atom != "true" && atom != "false")
   {
-    return nm->mkConst<bool>(true);
+    try
+    {
+      Integer z(atom);
+    }
+    catch (std::invalid_argument&)
+    {
+      atom = "\"" + atom + "\"";
+    }
   }
-  else if (atom == "false")
-  {
-    return nm->mkConst<bool>(false);
-  }
-  try
-  {
-    Integer z(atom);
-    return nm->mkConst(Rational(z));
-  }
-  catch (std::invalid_argument&)
-  {
-    // Fall through to the next case
-  }
-  return nm->mkConst(String(atom));
+
+  return atom;
 }
 
 Options& SmtEngine::getOptions() { return d_env->d_options; }

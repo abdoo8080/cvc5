@@ -1,16 +1,17 @@
-/*********************                                                        */
-/*! \file proof_post_processor.cpp
- ** \verbatim
- ** Top contributors (to current version):
- **   Andrew Reynolds, Haniel Barbosa
- ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
- ** in the top-level source directory and their institutional affiliations.
- ** All rights reserved.  See the file COPYING in the top-level source
- ** directory for licensing information.\endverbatim
- **
- ** \brief Implementation of module for processing proof nodes
- **/
+/******************************************************************************
+ * Top contributors (to current version):
+ *   Andrew Reynolds, Haniel Barbosa, Aina Niemetz
+ *
+ * This file is part of the cvc5 project.
+ *
+ * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * in the top-level source directory and their institutional affiliations.
+ * All rights reserved.  See the file COPYING in the top-level source
+ * directory for licensing information.
+ * ****************************************************************************
+ *
+ * Implementation of module for processing proof nodes.
+ */
 
 #include "smt/proof_post_processor.h"
 
@@ -33,8 +34,14 @@ namespace smt {
 
 ProofPostprocessCallback::ProofPostprocessCallback(ProofNodeManager* pnm,
                                                    SmtEngine* smte,
-                                                   ProofGenerator* pppg)
-    : d_pnm(pnm), d_smte(smte), d_pppg(pppg), d_wfpm(pnm), d_trrc(pnm)
+                                                   ProofGenerator* pppg,
+                                                   bool updateScopedAssumptions)
+    : d_pnm(pnm),
+      d_smte(smte),
+      d_pppg(pppg),
+      d_wfpm(pnm),
+      d_trrc(pnm),
+      d_updateScopedAssumptions(updateScopedAssumptions)
 {
   d_true = NodeManager::currentNM()->mkConst(true);
 }
@@ -59,10 +66,12 @@ bool ProofPostprocessCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
   {
     return true;
   }
-  // other than elimination rules, we always update assumptions as long as they
-  // are *not* in scope, i.e., not in fa
+  // other than elimination rules, we always update assumptions as long as
+  // d_updateScopedAssumptions is true or they are *not* in scope, i.e., not in
+  // fa
   if (id != PfRule::ASSUME
-      || std::find(fa.begin(), fa.end(), pn->getResult()) != fa.end())
+      || (!d_updateScopedAssumptions
+          && std::find(fa.begin(), fa.end(), pn->getResult()) != fa.end()))
   {
     Trace("smt-proof-pp-debug")
         << "... not updating in-scope assumption " << pn->getResult() << "\n";
@@ -641,7 +650,8 @@ Node ProofPostprocessCallback::expandMacros(PfRule id,
     cdp->addStep(args[0], PfRule::EQ_RESOLVE, {children[0], eq}, {});
     return args[0];
   }
-  else if (id == PfRule::MACRO_RESOLUTION)
+  else if (id == PfRule::MACRO_RESOLUTION
+           || id == PfRule::MACRO_RESOLUTION_TRUST)
   {
     // first generate the naive chain_resolution
     std::vector<Node> chainResArgs{args.begin() + 1, args.end()};
@@ -1142,25 +1152,18 @@ bool ProofPostprocessCallback::addToTransChildren(Node eq,
 
 ProofPostprocessFinalCallback::ProofPostprocessFinalCallback(
     ProofNodeManager* pnm)
-    : d_ruleCount("finalProof::ruleCount"),
-      d_totalRuleCount("finalProof::totalRuleCount", 0),
-      d_minPedanticLevel("finalProof::minPedanticLevel", 10),
-      d_numFinalProofs("finalProofs::numFinalProofs", 0),
+    : d_ruleCount(smtStatisticsRegistry().registerHistogram<PfRule>(
+        "finalProof::ruleCount")),
+      d_totalRuleCount(
+          smtStatisticsRegistry().registerInt("finalProof::totalRuleCount")),
+      d_minPedanticLevel(
+          smtStatisticsRegistry().registerInt("finalProof::minPedanticLevel")),
+      d_numFinalProofs(
+          smtStatisticsRegistry().registerInt("finalProofs::numFinalProofs")),
       d_pnm(pnm),
       d_pedanticFailure(false)
 {
-  smtStatisticsRegistry()->registerStat(&d_ruleCount);
-  smtStatisticsRegistry()->registerStat(&d_totalRuleCount);
-  smtStatisticsRegistry()->registerStat(&d_minPedanticLevel);
-  smtStatisticsRegistry()->registerStat(&d_numFinalProofs);
-}
-
-ProofPostprocessFinalCallback::~ProofPostprocessFinalCallback()
-{
-  smtStatisticsRegistry()->unregisterStat(&d_ruleCount);
-  smtStatisticsRegistry()->unregisterStat(&d_totalRuleCount);
-  smtStatisticsRegistry()->unregisterStat(&d_minPedanticLevel);
-  smtStatisticsRegistry()->unregisterStat(&d_numFinalProofs);
+  d_minPedanticLevel += 10;
 }
 
 void ProofPostprocessFinalCallback::initializeUpdate()
@@ -1224,11 +1227,12 @@ bool ProofPostprocessFinalCallback::wasPedanticFailure(std::ostream& out) const
 
 ProofPostproccess::ProofPostproccess(ProofNodeManager* pnm,
                                      SmtEngine* smte,
-                                     ProofGenerator* pppg)
+                                     ProofGenerator* pppg,
+                                     bool updateScopedAssumptions)
     : d_pnm(pnm),
-      d_cb(pnm, smte, pppg),
-      // the update merges subproofs and tracks scope arguments
-      d_updater(d_pnm, d_cb, true, true),
+      d_cb(pnm, smte, pppg, updateScopedAssumptions),
+      // the update merges subproofs
+      d_updater(d_pnm, d_cb, true),
       d_finalCb(pnm),
       d_finalizer(d_pnm, d_finalCb)
 {

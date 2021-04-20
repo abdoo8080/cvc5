@@ -1,18 +1,17 @@
-/*********************                                                        */
-/*! \file smt2_printer.cpp
- ** \verbatim
- ** Top contributors (to current version):
- **   Andrew Reynolds, Morgan Deters, Abdalrhman Mohamed
- ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
- ** in the top-level source directory and their institutional affiliations.
- ** All rights reserved.  See the file COPYING in the top-level source
- ** directory for licensing information.\endverbatim
- **
- ** \brief The pretty-printer interface for the SMT2 output language
- **
- ** The pretty-printer interface for the SMT2 output language.
- **/
+/******************************************************************************
+ * Top contributors (to current version):
+ *   Andrew Reynolds, Morgan Deters, Abdalrhman Mohamed
+ *
+ * This file is part of the cvc5 project.
+ *
+ * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * in the top-level source directory and their institutional affiliations.
+ * All rights reserved.  See the file COPYING in the top-level source
+ * directory for licensing information.
+ * ****************************************************************************
+ *
+ * The pretty-printer interface for the SMT2 output language.
+ */
 
 #include "printer/smt2/smt2_printer.h"
 
@@ -22,7 +21,7 @@
 #include <typeinfo>
 #include <vector>
 
-#include "api/cvc4cpp.h"
+#include "api/cpp/cvc5.h"
 #include "expr/dtype.h"
 #include "expr/dtype_cons.h"
 #include "expr/node_manager_attributes.h"
@@ -246,7 +245,9 @@ void Smt2Printer::toStream(std::ostream& out,
       const std::vector<Node>& snvec = sn.getVec();
       if (snvec.empty())
       {
-        out << "(as seq.empty " << n.getType() << ")";
+        out << "(as seq.empty ";
+        toStreamType(out, n.getType());
+        out << ")";
       }
       if (snvec.size() > 1)
       {
@@ -265,7 +266,9 @@ void Smt2Printer::toStream(std::ostream& out,
 
     case kind::STORE_ALL: {
       ArrayStoreAll asa = n.getConst<ArrayStoreAll>();
-      out << "((as const " << asa.getType() << ") " << asa.getValue() << ")";
+      out << "((as const ";
+      toStreamType(out, asa.getType());
+      out << ") " << asa.getValue() << ")";
       break;
     }
 
@@ -285,7 +288,8 @@ void Smt2Printer::toStream(std::ostream& out,
           out << "(Tuple";
           for (unsigned int i = 0; i < nargs; i++)
           {
-            out << " " << dt[0][i].getRangeType();
+            out << " ";
+            toStreamType(out, dt[0][i].getRangeType());
           }
           out << ")";
         }
@@ -1326,6 +1330,12 @@ std::string Smt2Printer::smtKindString(Kind k, Variant v)
   return kind::kindToString(k);
 }
 
+void Smt2Printer::toStreamType(std::ostream& out, TypeNode tn) const
+{
+  // TODO: should be able to call this
+  tn.toStream(out, language::output::LANG_SMTLIB_V2_6);
+}
+
 template <class T>
 static bool tryToStream(std::ostream& out, const Command* c);
 template <class T>
@@ -2098,14 +2108,14 @@ static void toStream(std::ostream& out, const CommandInterrupted* s, Variant v)
 
 static void toStream(std::ostream& out, const CommandUnsupported* s, Variant v)
 {
-#ifdef CVC4_COMPETITION_MODE
+#ifdef CVC5_COMPETITION_MODE
   // if in competition mode, lie and say we're ok
   // (we have nothing to lose by saying success, and everything to lose
   // if we say "unsupported")
   out << "success" << endl;
-#else /* CVC4_COMPETITION_MODE */
+#else  /* CVC5_COMPETITION_MODE */
   out << "unsupported" << endl;
-#endif /* CVC4_COMPETITION_MODE */
+#endif /* CVC5_COMPETITION_MODE */
 }
 
 static void errorToStream(std::ostream& out, std::string message, Variant v) {
