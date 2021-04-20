@@ -25,92 +25,20 @@ namespace cvc5 {
 
 namespace proof {
 
-const char* toString(LeanRule id)
-{
-  switch (id)
-  {
-    case LeanRule::SCOPE: return "scope";
-    case LeanRule::CL_ASSUME: return "clAssume";
-    case LeanRule::CL_OR: return "clOr";
-
-    case LeanRule::R0: return "R0";
-    case LeanRule::R1: return "R1";
-
-    case LeanRule::FACTORING: return "factoring";
-    case LeanRule::REORDER: return "reorder";
-    case LeanRule::EQ_RESOLVE: return "eqResolve";
-    case LeanRule::MODUS_PONENS: return "modusPonens";
-    case LeanRule::NOT_NOT_ELIM: return "notNotElim";
-    case LeanRule::CONTRADICTION: return "contradiction";
-    case LeanRule::AND_ELIM: return "andElim";
-    case LeanRule::AND_INTRO: return "andIntro";
-    case LeanRule::NOT_OR_ELIM: return "notOrElim";
-    case LeanRule::IMPLIES_ELIM: return "impliesElim";
-    case LeanRule::NOT_IMPLIES1: return "notImplies1";
-    case LeanRule::NOT_IMPLIES2: return "notImplies2";
-    case LeanRule::EQUIV_ELIM1: return "equivElim1";
-    case LeanRule::EQUIV_ELIM2: return "equivElim2";
-    case LeanRule::NOT_EQUIV_ELIM1: return "notEquivElim1";
-    case LeanRule::NOT_EQUIV_ELIM2: return "notEquivElim2";
-    case LeanRule::XOR_ELIM1: return "xorElim1";
-    case LeanRule::XOR_ELIM2: return "xorElim2";
-    case LeanRule::NOT_XOR_ELIM1: return "notXorElim1";
-    case LeanRule::NOT_XOR_ELIM2: return "notXorElim2";
-    case LeanRule::ITE_ELIM1: return "iteElim1";
-    case LeanRule::ITE_ELIM2: return "iteElim2";
-    case LeanRule::NOT_ITE_ELIM1: return "notIteElim1";
-    case LeanRule::NOT_ITE_ELIM2: return "notIteElim2";
-    case LeanRule::NOT_AND: return "notAnd";
-    case LeanRule::CNF_AND_POS: return "cnfAndPos";
-    case LeanRule::CNF_AND_NEG: return "cnfAndNeg";
-    case LeanRule::CNF_IMPLIES_POS: return "cnfImpliesPos";
-    case LeanRule::CNF_IMPLIES_NEG1: return "cnfImpliesNeg1";
-    case LeanRule::CNF_IMPLIES_NEG2: return "cnfImpliesNeg2";
-    case LeanRule::CNF_EQUIV_POS1: return "cnfEquivPos1";
-    case LeanRule::CNF_EQUIV_POS2: return "cnfEquivPos2";
-    case LeanRule::CNF_EQUIV_NEG1: return "cnfEquivNeg1";
-    case LeanRule::CNF_EQUIV_NEG2: return "cnfEquivNeg2";
-    case LeanRule::CNF_XOR_POS1: return "cnfXorPos1";
-    case LeanRule::CNF_XOR_POS2: return "cnfXorPos2";
-    case LeanRule::CNF_XOR_NEG1: return "cnfXorNeg1";
-    case LeanRule::CNF_XOR_NEG2: return "cnfXorNeg2";
-    case LeanRule::CNF_ITE_POS1: return "cnfItePos1";
-    case LeanRule::CNF_ITE_POS2: return "cnfItePos2";
-    case LeanRule::CNF_ITE_POS3: return "cnfItePos3";
-    case LeanRule::CNF_ITE_NEG1: return "cnfIteNeg1";
-    case LeanRule::CNF_ITE_NEG2: return "cnfIteNeg2";
-    case LeanRule::CNF_ITE_NEG3: return "cnfIteNeg3";
-    case LeanRule::TRUST: return "trust";
-    case LeanRule::TH_TRUST: return "thTrust";
-    case LeanRule::TH_TRUST_VALID: return "thTrustValid";
-
-    case LeanRule::CONG: return "cong";
-    case LeanRule::REFL: return "refl";
-    case LeanRule::TRANS: return "trans";
-    case LeanRule::SYMM: return "symm";
-    case LeanRule::NEG_SYMM: return "negSymm";
-
-    case LeanRule::UNKNOWN: return "UNKNOWN";
-    default: return "?";
-  }
-}
-
-std::ostream& operator<<(std::ostream& out, LeanRule id)
-{
-  out << toString(id);
-  return out;
-}
-
 LeanPrinter::LeanPrinter() {}
 LeanPrinter::~LeanPrinter() {}
 
 LeanRule LeanPrinter::getLeanRule(Node n)
 {
+  Trace("test-lean") << "getLeanRule::converting " << n;
   uint32_t id;
   if (ProofRuleChecker::getUInt32(n, id))
   {
+    Trace("test-lean") << ", getting rule " << static_cast<LeanRule>(id)
+                       << "\n";
     return static_cast<LeanRule>(id);
   }
+  Trace("test-lean") << ", failed get  int\n";
   return LeanRule::UNKNOWN;
 }
 
@@ -335,7 +263,18 @@ void LeanPrinter::printTerm(std::ostream& out,
       printTerm(out, lbind, nc[2]);
       break;
     }
-
+    case kind::SEXPR:
+    {
+      out << "[";
+      printTerm(out, lbind, nc[0]);
+      for (size_t i = 1, size = nc.getNumChildren(); i < size; ++i)
+      {
+        out << ", ";
+        printTerm(out, lbind, nc[i]);
+      }
+      out << "]";
+      break;
+    }
     default: Unhandled() << " " << k;
   }
   out << ")" << (letTop ? "" : "\n");
@@ -403,23 +342,23 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     printOffset(out, offset);
     out << "have s" << id << " : holds ";
-    printTerm(out, lbind, args[1]);
+    printTerm(out, lbind, args[2]);
     out << " from (\n";
     // push offset
     offset++;
     // each argument to the scope proof node corresponds to one scope to close
     // in the Lean proof
     std::map<Node, size_t> backupMap;
-    for (size_t i = 2, size = args.size(); i < size; ++i)
+    for (size_t i = 3, size = args.size(); i < size; ++i)
     {
       auto it = pfAssumpMap.find(args[i]);
       if (it != pfAssumpMap.end())
       {
         backupMap[args[i]] = it->second;
       }
-      pfAssumpMap[args[i]] = i - 2;
+      pfAssumpMap[args[i]] = i - 3;
       printOffset(out, offset);
-      out << "fun a" << i - 2 << " : thHolds ";
+      out << "fun a" << i - 3 << " : thHolds ";
       printTerm(out, lbind, args[i]);
       out << " =>\n";
     }
@@ -434,10 +373,10 @@ void LeanPrinter::printProof(std::ostream& out,
     // chain over the arguments until the last step of the subproof
     printOffset(out, offset);
     out << "show holds ";
-    printTerm(out, lbind, args[1]);
+    printTerm(out, lbind, args[2]);
     out << " from clOr";
     std::stringstream cparens;
-    for (size_t i = 2, size = args.size(); i < size; ++i)
+    for (size_t i = 3, size = args.size(); i < size; ++i)
     {
       out << " (scope a" << pfAssumpMap[args[i]];
       cparens << ")";
@@ -451,7 +390,7 @@ void LeanPrinter::printProof(std::ostream& out,
     // print list of arguments
     printOffset(out, offset);
     out << ")";
-    for (size_t i = 2, size = args.size(); i < size; ++i)
+    for (size_t i = 3, size = args.size(); i < size; ++i)
     {
       out << " a" << pfAssumpMap[args[i]];
     }
@@ -471,31 +410,53 @@ void LeanPrinter::printProof(std::ostream& out,
   printOffset(out, offset);
   switch (rule)
   {
-    case LeanRule::SYMM:
+    case LeanRule::CNF_AND_POS:
     {
-       out << "have s" << id << " : thHolds ";
-       printTerm(out, lbind, pfn->getResult());
-       out << " from " << rule << " ";
-       Assert(children.size() == 1);
-       printStepId(out, children[0].get(), pfMap, pfAssumpMap);
-       break;
+      Trace("test-lean") << "printing cnf_and_pos\n";
+      out << "have s" << id << " : holds ";
+      AlwaysAssert(args.size() == 5);
+      printTerm(out, lbind, args[2]);
+      out << " from @" << rule << " ";
+      printTerm(out, lbind, args[3]);
+      out << " ";
+      printTerm(out, lbind, args[4]);
+      break;
     }
+    case LeanRule::REORDER:
+    {
+
+    }
+    case LeanRule::EQ_RESOLVE:
+    {
+      out << "have s" << id << " : thHolds ";
+      printTerm(out, lbind, args[1]);
+      out << " from " << rule << " ";
+      Assert(children.size() == 2);
+      printStepId(out, children[0].get(), pfMap, pfAssumpMap);
+      out << " ";
+      printStepId(out, children[1].get(), pfMap, pfAssumpMap);
+      break;
+    }
+    case LeanRule::SYMM:
     case LeanRule::NEG_SYMM:
     {
-      size_t varIndex = pfAssumpMap.size();
-      std::stringstream varString;
-      varString << "v" << varIndex;
-      pfAssumpMap[args[1]] = varIndex;
-      out << "let " << pfAssumpMap[args[1]];
-      out << " := negSymm " << pfAssumpMap[children[0]->getArguments()[0]];
-      out << " in \n";
-      // maybe add type to annotate term
+      out << "have s" << id << " : thHolds ";
+      printTerm(out, lbind, args[1]);
+      out << " from " << rule << " ";
+      Assert(children.size() == 1);
+      printStepId(out, children[0].get(), pfMap, pfAssumpMap);
+      break;
+    }
+    case LeanRule::TH_TRUST_VALID:
+    {
+      out << "have s" << id << " : thHolds ";
+      printTerm(out, lbind, args[1]);
+      out << " from " << rule;
       break;
     }
     default:
     {
-      out << args;
-      out << " ?";
+      out << rule << " " << args;
       break;
     }
   }
@@ -572,10 +533,10 @@ void LeanPrinter::print(std::ostream& out,
   out << " holds [] :=\n";
   // print initial assumptions
   std::map<Node, size_t> pfAssumpMap;
-  for (size_t i = 2, size = args.size(); i < size; ++i)
+  for (size_t i = 3, size = args.size(); i < size; ++i)
   {
-    pfAssumpMap[args[i]] = i - 2;
-    out << "fun a" << i - 2 << " : thHolds ";
+    pfAssumpMap[args[i]] = i - 3;
+    out << "fun a" << i - 3 << " : thHolds ";
     printTerm(out, lbind, args[i]);
     out << " =>\n";
   }

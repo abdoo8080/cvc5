@@ -31,22 +31,6 @@ namespace cvc5 {
 
 namespace proof {
 
-/**
- * Converts a Lean rule to a string.
- * @param id The Lean rule
- * @return The name of the Lean rule
- */
-const char* toString(LeanRule id);
-
-/**
- * Writes a Lean rule name to a stream.
- *
- * @param out The stream to write to
- * @param id The Lean rule to write to the stream
- * @return The stream
- */
-std::ostream& operator<<(std::ostream& out, LeanRule id);
-
 class LeanPrinter
 {
  public:

@@ -49,9 +49,9 @@ bool LeanProofPostprocessCallback::addLeanStep(
     const std::vector<Node>& args,
     CDProof& cdp)
 {
-  NodeManager* nm = NodeManager::currentNM();
-  Node leanId = nm->mkConst<Rational>(static_cast<unsigned>(rule));
-  std::vector<Node> leanArgs = {leanId, res};
+  std::vector<Node> leanArgs = {
+      NodeManager::currentNM()->mkConst<Rational>(static_cast<uint32_t>(rule)),
+      res};
   leanArgs.insert(leanArgs.end(), args.begin(), args.end());
   return cdp.addStep(res, PfRule::LEAN_RULE, children, leanArgs);
 }
@@ -66,11 +66,28 @@ bool LeanProofPostprocessCallback::update(Node res,
   Trace("test-lean") << "Updating rule:\nres: " << res << "\nid: " << id
                      << "\nchildren: " << children << "\nargs: " << args
                      << "\n";
+  NodeManager* nm = NodeManager::currentNM();
   switch (id)
   {
     case PfRule::SCOPE:
     {
-      return addLeanStep(res, LeanRule::SCOPE, children, args, *cdp);
+      std::vector<Node> newRes;
+      for (const Node& n : args)
+      {
+        newRes.push_back(n.notNode());
+      }
+      if (res.getKind() == kind::NOT)
+      {
+        newRes.push_back(nm->mkConst(false));
+      }
+      else
+      {
+        Assert(res.getKind() == kind::IMPLIES);
+        newRes.push_back(res[1]);
+      }
+      std::vector<Node> newArgs{nm->mkNode(kind::SEXPR, newRes)};
+      newArgs.insert(newArgs.end(), args.begin(), args.end());
+      return addLeanStep(res, LeanRule::SCOPE, children, newArgs, *cdp);
     }
     case PfRule::EQ_RESOLVE:
     {
@@ -91,6 +108,25 @@ bool LeanProofPostprocessCallback::update(Node res,
                     {newArgs[1]},
                     *cdp);
       }
+      break;
+    }
+    case PfRule::REORDERING:
+    {
+      // for each literal in the resulting clause, get its position in the premise
+      std::vector<Node> pos;
+      size_t size = res.getNumChildren();
+      for (const Node& resLit : res)
+      {
+        for (size_t i = 0; i < size; ++i)
+        {
+          if (children[0][i] == resLit)
+          {
+            pos.push_back(nm->mkConst<Rational>(i));
+            break;
+          }
+        }
+      }
+      addLeanStep(res, LeanRule::REORDER, children, pos, *cdp);
       break;
     }
     case PfRule::AND_ELIM:
@@ -121,16 +157,28 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::SYMM:
     {
-      return addLeanStep(res,
-                  res.getKind() == kind::EQUAL ? LeanRule::SYMM
-                                               : LeanRule::NEG_SYMM,
-                  children,
-                  {},
-                  *cdp);
+      return addLeanStep(
+          res,
+          res.getKind() == kind::EQUAL ? LeanRule::SYMM : LeanRule::NEG_SYMM,
+          children,
+          {},
+          *cdp);
     }
     case PfRule::THEORY_REWRITE:
     {
       return addLeanStep(res, LeanRule::TH_TRUST_VALID, {}, {}, *cdp);
+    }
+    case PfRule::CNF_AND_POS:
+    {
+      std::vector<Node> resChildren{res[0], res[1]};
+      std::vector<Node> resArgs{args[0].begin(), args[0].end()};
+      return addLeanStep(res,
+                         LeanRule::CNF_AND_POS,
+                         {},
+                         {nm->mkNode(kind::SEXPR, resChildren),
+                          nm->mkNode(kind::SEXPR, resArgs),
+                          args[1]},
+                         *cdp);
     }
     default:
     {
