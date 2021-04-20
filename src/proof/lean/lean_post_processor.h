@@ -61,6 +61,9 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
    */
   ProofChecker* d_pc;
 
+  /** Placeholder for the empty clause */
+  Node d_empty;
+
   /**
    * Recall the Lean rule:
    *  Children: (P1 ... Pn)

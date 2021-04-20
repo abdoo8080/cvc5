@@ -30,7 +30,9 @@ enum class LeanRule : uint32_t
   CL_OR,
   // boolean
   R0,
+  R0_PARTIAL,
   R1,
+  R1_PARTIAL,
   FACTORING,
   REORDER,
   EQ_RESOLVE,
@@ -79,8 +81,11 @@ enum class LeanRule : uint32_t
   CNF_ITE_NEG3,
   // euf
   CONG,
+  CONG_PARTIAL,
   REFL,
+  REFL_PARTIAL,
   TRANS,
+  TRANS_PARTIAL,
   SYMM,
   NEG_SYMM,
 

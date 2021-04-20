@@ -2,7 +2,7 @@
 /*! \file lean_printer.h
  ** \verbatim
  ** Top contributors (to current version):
- **   Scott Viteri
+ **   Haniel Barbosa, Scott Viteri
  ** This file is part of the CVC4 project.
  ** Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
  ** in the top-level source directory) and their institutional affiliations.
@@ -49,30 +49,6 @@ class LeanPrinter
    * Convert a CVC4 Node holding an id to the corresponding LeanRule
    */
   LeanRule getLeanRule(Node n);
-  /**
-   * The Lean calculus represents x = y as (mkEq x y) and
-   *  x ∧ y as (mkAnd x y).
-   * printKind cases on the kind of node, and prints the
-   *  corresponding Lean command among mkEq, mkAnd, mkOr, mkNot, etc
-   */
-  void printKind(std::ostream& s, Kind k);
-  /**
-   * Convert a node to a Lean term -- must start with mk_ and take children as
-   * args Example: kind::AND (kind::EQUAL a b) c --> mkAnd (mkEq a b) c
-   */
-  void printLeanString(std::ostream& s, Node n);
-  /**
-   * Convert from node to Lean type syntax
-   */
-  void printLeanType(std::ostream& s, Node n);
-  /**
-   * Print Lean type corresponding to proof of unsatisfiability.
-   * This method is a wrapper around printLeanType.
-   *  The full proof node will always be a proof of unsatisfiability
-   *  via resolution. So the type printed to Lean will always end
-   *  in "-> holds []", which acts like a proof of contradiction, or false.
-   */
-  void printLeanTypeToBottom(std::ostream& s, Node n);
 
   void printSort(std::ostream& out, TypeNode tn);
 
@@ -114,6 +90,9 @@ class LeanPrinter
                    const ProofNode* pfn,
                    const std::map<const ProofNode*, size_t>& pfMap,
                    const std::map<Node, size_t>& pfAssumpMap);
+
+
+  Node d_false;
 };
 
 }  // namespace proof

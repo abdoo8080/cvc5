@@ -316,6 +316,8 @@ enum class PfRule : uint32_t
   //   - for each i > 1, let C_i' = C_{i-1} <>_{L_{i-1}, pol_{i-1}} C_i'
   //   The result of the chain resolution is C = C_n'
   CHAIN_RESOLUTION,
+  // As above but marking a chain resolution originating from the SAT solver
+  CHAIN_RESOLUTION_SAT,
   // ======== Factoring
   // Children: (P:C1)
   // Arguments: ()

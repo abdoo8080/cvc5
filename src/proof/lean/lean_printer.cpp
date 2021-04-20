@@ -2,7 +2,7 @@
 /*! \file lean_printer.cpp
  ** \verbatim
  ** Top contributors (to current version):
- **   Scott Viteri
+ **   Haniel Barbosa, Scott Viteri
  ** This file is part of the CVC4 project.
  ** Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
  ** in the top-level source directory) and their institutional affiliations.
@@ -26,7 +26,9 @@ namespace cvc5 {
 
 namespace proof {
 
-LeanPrinter::LeanPrinter() {}
+LeanPrinter::LeanPrinter() : d_false(NodeManager::currentNM()->mkConst(false))
+{
+}
 LeanPrinter::~LeanPrinter() {}
 
 LeanRule LeanPrinter::getLeanRule(Node n)
@@ -41,73 +43,6 @@ LeanRule LeanPrinter::getLeanRule(Node n)
   }
   Trace("test-lean") << ", failed get  int\n";
   return LeanRule::UNKNOWN;
-}
-
-void LeanPrinter::printKind(std::ostream& s, Kind k)
-{
-  switch (k)
-  {
-    case kind::EQUAL: s << "mkEq"; break;
-    case kind::AND: s << "mkAnd"; break;
-    case kind::OR: s << "mkOr"; break;
-    case kind::NOT: s << "mkNot"; break;
-    default: s << "mkOther";
-  }
-}
-
-void LeanPrinter::printLeanString(std::ostream& s, Node n)
-{
-  Kind k = n.getKind();
-  if (k == kind::VARIABLE)
-  {
-    s << n.toString();
-  }
-  else
-  {
-    s << "(";
-    printKind(s, k);
-    s << " ";
-    for (size_t i = 0, size = n.getNumChildren(); i < size; ++i)
-    {
-      printLeanString(s, n[i]);
-      if (i != size - 1)
-      {
-        s << " ";
-      };
-    }
-    s << ")";
-  }
-}
-
-void LeanPrinter::printLeanType(std::ostream& s, Node n)
-{
-  // convert from node to Lean Type syntax:
-  // products are curried
-  // types are wrapped in "holds [_]"
-  Kind k = n.getKind();
-  switch (k)
-  {
-    case kind::VARIABLE: s << n.toString(); break;
-    case kind::AND:
-    {
-      printLeanType(s, n[0]);
-      s << " -> ";
-      printLeanType(s, n[1]);
-      break;
-    }
-    default:
-      s << "thHolds ";
-      printLeanString(s, n);
-      break;
-  }
-}
-
-void LeanPrinter::printLeanTypeToBottom(std::ostream& s, Node n)
-{
-  // print Lean type corresponding to proof of unsatisfiability
-  Trace("test-lean") << "printLeanTypeToBottom: " << n[0] << "\n";
-  printLeanType(s, n[0]);
-  s << " -> holds []";
 }
 
 void LeanPrinter::printOffset(std::ostream& out, uint64_t offset) const
@@ -159,7 +94,8 @@ void LeanPrinter::printConstant(std::ostream& out, TNode n)
   Kind k = n.getKind();
   if (k == kind::CONST_BOOLEAN)
   {
-    out << "val (value.bool " << n.getConst<bool>() << ") boolSort)";
+    out << "val (value.bool " << (n.getConst<bool>() ? "true" : "false")
+        << ") boolSort";
     return;
   }
   // uninterpreted
@@ -413,21 +349,73 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     case LeanRule::CNF_AND_POS:
     {
-      Trace("test-lean") << "printing cnf_and_pos\n";
       out << "have s" << id << " : holds ";
       AlwaysAssert(args.size() == 5);
       printTerm(out, lbind, args[2]);
-      out << " from @" << rule << " ";
+      out << " from " << rule << " ";
       printTerm(out, lbind, args[3]);
       out << " ";
       printTerm(out, lbind, args[4]);
       break;
     }
+    case LeanRule::R0:
+    case LeanRule::R1:
     case LeanRule::REORDER:
     {
-
+      if (pfn->getResult() == d_false)
+      {
+        out << "show holds []";
+      }
+      else
+      {
+        out << "have s" << id << " : holds ";
+        printTerm(out, lbind, args[2]);
+      }
+      out << " from " << rule;
+      for (const std::shared_ptr<ProofNode>& child : children)
+      {
+        out << " ";
+        printStepId(out, child.get(), pfMap, pfAssumpMap);
+      }
+      for (size_t i = 3, size = args.size(); i < size; ++i)
+      {
+        out << " ";
+        printTerm(out, lbind, args[i]);
+      }
+      break;
     }
     case LeanRule::EQ_RESOLVE:
+    {
+      out << "have s" << id << " : thHolds ";
+      printTerm(out, lbind, args[1]);
+      out << " from " << rule << " ";
+      Assert(children.size() == 2);
+      printStepId(out, children[0].get(), pfMap, pfAssumpMap);
+      out << " ";
+      printStepId(out, children[1].get(), pfMap, pfAssumpMap);
+      break;
+    }
+    case LeanRule::R0_PARTIAL:
+    case LeanRule::R1_PARTIAL:
+    case LeanRule::REFL_PARTIAL:
+    case LeanRule::CONG_PARTIAL:
+    case LeanRule::CL_OR:
+    case LeanRule::CL_ASSUME:
+    {
+      out << "let s" << id << " := " << rule;
+      for (const std::shared_ptr<ProofNode>& child : children)
+      {
+        out << " ";
+        printStepId(out, child.get(), pfMap, pfAssumpMap);
+      }
+      for (size_t i = 2, size = args.size(); i < size; ++i)
+      {
+        out << " ";
+        printTerm(out, lbind, args[i]);
+      }
+      break;
+    }
+    case LeanRule::CONG:
     {
       out << "have s" << id << " : thHolds ";
       printTerm(out, lbind, args[1]);
@@ -470,7 +458,6 @@ void LeanPrinter::print(std::ostream& out,
                         const std::vector<Node>& assertions,
                         std::shared_ptr<ProofNode> pfn)
 {
-  Assert(pfn->getRule() == LeanRule::SCOPE);
   // outer method to print valid Lean output from a ProofNode
   Trace("test-lean") << "Post-processed proof " << *pfn.get() << "\n";
   // TODO preamble should be theory dependent
@@ -525,7 +512,7 @@ void LeanPrinter::print(std::ostream& out,
   // conclude a proof of []. The assumptions are args[2..]
   out << "\ntheorem th0 : ";
   Assert(args.size() > 2);
-  for (size_t i = 2, size = args.size(); i < size; ++i)
+  for (size_t i = 3, size = args.size(); i < size; ++i)
   {
     out << "thHolds ";
     printTerm(out, lbind, args[i]);
