@@ -84,7 +84,7 @@ Node LfscTermProcessor::runConvert(Node n)
     Node bvarOp = getSymbolInternal(k, ftype, "bvar");
     return nm->mkNode(APPLY_UF, bvarOp, x, tc);
   }
-  else if (k == SKOLEM)
+  else if (k == SKOLEM || k == BOOLEAN_TERM_VARIABLE)
   {
     // constructors/selectors are represented by skolems, which are defined
     // symbols
@@ -107,6 +107,13 @@ Node LfscTermProcessor::runConvert(Node n)
       Node skolemOp = getSymbolInternal(k, ftype, "skolem");
       return nm->mkNode(APPLY_UF, skolemOp, wi);
     }
+  }
+  else if (n.isVar())
+  {
+    std::stringstream ss;
+    ss << n;
+    Node nn = mkInternalSymbol(getNameForUserName(ss.str()), tn);
+    return nn;
   }
   else if (k == APPLY_UF)
   {
@@ -136,8 +143,17 @@ Node LfscTermProcessor::runConvert(Node n)
     Node hconstf = getSymbolInternal(k, tnh, "apply");
     return nm->mkNode(APPLY_UF, hconstf, n[0], n[1]);
   }
-  else if (k == CONST_RATIONAL)
+  else if (k == CONST_RATIONAL || k == CAST_TO_REAL)
   {
+    if (k == CAST_TO_REAL)
+    {
+      // already converted
+      do
+      {
+        Assert(n[0].getKind() == APPLY_UF);
+        n = n[0];
+      } while (n.getKind() != CONST_RATIONAL);
+    }
     TypeNode tnv = nm->mkFunctionType(tn, tn);
     Node rconstf;
     Node arg;
@@ -214,6 +230,15 @@ Node LfscTermProcessor::runConvert(Node n)
     }
     return ret;
   }
+  else if (k == STORE_ALL)
+  {
+    Node t = typeAsNode(convertType(tn));
+    TypeNode caRetType = nm->mkFunctionType(tn.getArrayConstituentType(), tn);
+    TypeNode catype = nm->mkFunctionType(d_sortType, caRetType, false);
+    Node bconstf = getSymbolInternal(k, catype, "array_const");
+    Node f = nm->mkNode(APPLY_UF, bconstf, t);
+    return nm->mkNode(APPLY_UF, f, n[0]);
+  }
   else if (k == ITE)
   {
     // (ite C A B) is ((ite T) C A B) where T is the return type.
@@ -233,6 +258,18 @@ Node LfscTermProcessor::runConvert(Node n)
     children.push_back(opc);
     children.insert(children.end(), n.begin(), n.end());
     return nm->mkNode(APPLY_UF, children);
+  }
+  else if (k == BITVECTOR_EXTRACT)
+  {
+    // indexed operators?
+  }
+  else if (k == EMPTYSET || k == UNIVERSE_SET)
+  {
+    Node t = typeAsNode(convertType(tn));
+    TypeNode etype = nm->mkFunctionType(d_sortType, tn);
+    Node ef =
+        getSymbolInternal(k, etype, k == EMPTYSET ? "emptyset" : "univset");
+    return nm->mkNode(APPLY_UF, ef, t);
   }
   else if (n.isClosure())
   {
@@ -398,27 +435,33 @@ TypeNode LfscTermProcessor::runConvertType(TypeNode tn)
   }
   else if (tn.getNumChildren() == 0)
   {
-    // special case: tuples are builtin datatypes
-    // notice this would not be a special case if tuples were parametric
-    // datatypes
+    // special case: tuples must be distinguished by their arity
     if (tn.isTuple())
     {
       const DType& dt = tn.getDType();
       unsigned int nargs = dt[0].getNumArgs();
       if (nargs > 0)
       {
-        std::vector<Node> targs;
         std::vector<TypeNode> types;
+        std::vector<TypeNode> convTypes;
+        std::vector<Node> targs;
         for (unsigned int i = 0; i < nargs; i++)
         {
           // it is not converted yet, convert here
-          TypeNode tnc = runConvertType(dt[0][i].getRangeType());
+          TypeNode tnc = convertType(dt[0][i].getRangeType());
           types.push_back(d_sortType);
+          convTypes.push_back(tnc);
           targs.push_back(typeAsNode(tnc));
         }
         TypeNode ftype = nm->mkFunctionType(types, d_sortType);
-        targs.insert(targs.begin(), getSymbolInternal(k, d_sortType, "Tuple"));
+        // must distinguish by arity
+        std::stringstream ss;
+        ss << "Tuple_" << nargs;
+        targs.insert(targs.begin(), getSymbolInternal(k, d_sortType, ss.str()));
         tnn = nm->mkNode(APPLY_UF, targs);
+        // we are changing its name, we must make a sort constructor
+        cur = nm->mkSortConstructor(ss.str(), nargs);
+        cur = nm->mkSort(cur, convTypes);
       }
     }
     if (tnn.isNull())
@@ -473,6 +516,13 @@ TypeNode LfscTermProcessor::runConvertType(TypeNode tn)
   Trace("lfsc-term-process-debug") << "...type as node: " << tnn << std::endl;
   d_typeAsNode[cur] = tnn;
   return cur;
+}
+
+std::string LfscTermProcessor::getNameForUserName(const std::string& name)
+{
+  std::stringstream ss;
+  ss << "cvc." << name;
+  return ss.str();
 }
 
 bool LfscTermProcessor::shouldTraverse(Node n)

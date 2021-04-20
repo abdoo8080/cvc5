@@ -60,6 +60,9 @@ class LfscTermProcessor : public TermProcessor
    */
   Node mkInternalSymbol(const std::string& name, TypeNode tn);
 
+  /** get name for user name */
+  static std::string getNameForUserName(const std::string& name);
+
  private:
   /** Should we traverse n? */
   bool shouldTraverse(Node n) override;
