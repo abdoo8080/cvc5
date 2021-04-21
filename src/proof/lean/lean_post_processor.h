@@ -63,6 +63,9 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
 
   /** Placeholder for the empty clause */
   Node d_empty;
+  /** True and false nodes. Cached since used frequently during processing. */
+  Node d_true;
+  Node d_false;
 
   /**
    * Recall the Lean rule:
@@ -76,11 +79,41 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
    * addLeanStep encapsulates translation boilerplate by adding id and Q to
    * arguments, and children and args are passed along verbatim.
    */
-  bool addLeanStep(Node res,
+  void addLeanStep(Node res,
                    LeanRule rule,
+                   Node clause,
                    const std::vector<Node>& children,
                    const std::vector<Node>& args,
                    CDProof& cdp);
+};
+
+/** Similar to the above call back, but tries to update all the premises all
+ * lean rules in terms of whether they are exectping terms and getting clauses
+ * or vice-versa. */
+class LeanProofPostprocessClConnectCallback
+    : public LeanProofPostprocessCallback
+{
+ public:
+  LeanProofPostprocessClConnectCallback(ProofNodeManager* pnm);
+  ~LeanProofPostprocessClConnectCallback();
+
+  /** Update the proof node iff has the LEAN_RULE id. */
+  bool shouldUpdate(std::shared_ptr<ProofNode> pn,
+                    const std::vector<Node>& fa,
+                    bool& continueUpdate) override;
+  /** Update the proof rule application. */
+  bool update(Node res,
+              PfRule id,
+              const std::vector<Node>& children,
+              const std::vector<Node>& args,
+              CDProof* cdp,
+              bool& continueUpdate) override;
+
+ private:
+  /** rules that take terms and yield clauses */
+  std::set<LeanRule> d_conversionRules;
+  /** rules that take clauses and yield clauses */
+  std::set<LeanRule> d_clausalRules;
 };
 
 /**
@@ -97,6 +130,8 @@ class LeanProofPostprocess
  private:
   /** The post process callback */
   std::unique_ptr<LeanProofPostprocessCallback> d_cb;
+  /** The post process callback */
+  std::unique_ptr<LeanProofPostprocessClConnectCallback> d_cbCl;
   /** The proof node manager */
   ProofNodeManager* d_pnm;
 };

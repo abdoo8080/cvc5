@@ -316,8 +316,6 @@ enum class PfRule : uint32_t
   //   - for each i > 1, let C_i' = C_{i-1} <>_{L_{i-1}, pol_{i-1}} C_i'
   //   The result of the chain resolution is C = C_n'
   CHAIN_RESOLUTION,
-  // As above but marking a chain resolution originating from the SAT solver
-  CHAIN_RESOLUTION_SAT,
   // ======== Factoring
   // Children: (P:C1)
   // Arguments: ()
@@ -1393,12 +1391,15 @@ enum class PfRule : uint32_t
   //================================================ Place holder for Lean rules
   // ======== Lean rule
   // Children: (P1 ... Pn)
-  // Arguments: (id, Q, A1, ..., Am)
+  // Arguments: (id, Q, C, A1, ..., Am)
   // ---------------------
   // Conclusion: (Q)
   // The id argument is a LeanRule, as defined in proof/lean/lean_rules.h
   // This allows us to specify which rule in the Lean calculus the current rule
   // corresponds to.
+  //
+  // The C argument is the clausal form of Q, if any, set depending on id. When
+  // C is set that is the term that is printed in the final Lean proof.
   LEAN_RULE,
   //================================================ Place holder for veriT
   // rules

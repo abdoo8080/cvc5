@@ -336,7 +336,7 @@ Node ProofPostprocessCallback::eliminateCrowdingLits(
     Trace("smt-proof-pp-debug2")
         << "resPlaceHorder: " << resPlaceHolder << "\n";
     cdp->addStep(
-        resPlaceHolder, PfRule::CHAIN_RESOLUTION_SAT, childrenRes, childrenResArgs);
+        resPlaceHolder, PfRule::CHAIN_RESOLUTION, childrenRes, childrenResArgs);
     // I need to add factoring if end < children.size(). Otherwise, this is
     // to be handled by the caller
     if (end < children.size() - 1)
@@ -675,7 +675,7 @@ Node ProofPostprocessCallback::expandMacros(PfRule id,
     if (chainConclusion == args[0])
     {
       cdp->addStep(
-          chainConclusion, PfRule::CHAIN_RESOLUTION_SAT, children, chainResArgs);
+          chainConclusion, PfRule::CHAIN_RESOLUTION, children, chainResArgs);
       return chainConclusion;
     }
     NodeManager* nm = NodeManager::currentNM();
@@ -730,10 +730,8 @@ Node ProofPostprocessCallback::expandMacros(PfRule id,
     }
     else
     {
-      cdp->addStep(chainConclusion,
-                   PfRule::CHAIN_RESOLUTION_SAT,
-                   children,
-                   chainResArgs);
+      cdp->addStep(
+          chainConclusion, PfRule::CHAIN_RESOLUTION, children, chainResArgs);
     }
     Trace("smt-proof-pp-debug")
         << "Conclusion after chain_res/elimCrowd: " << chainConclusion << "\n";

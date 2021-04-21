@@ -200,13 +200,16 @@ bool ProofNodeUpdater::runUpdate(std::shared_ptr<ProofNode> cur,
   {
     std::shared_ptr<ProofNode> npn = cpf.getProofFor(res);
     std::vector<Node> fullFa;
+    Trace("pfnu-debug") << "Original proof : " << *cur << std::endl;
+    Trace("pfnu-debug") << "Updated proof : " << *npn.get() << std::endl;
     if (d_debugFreeAssumps)
     {
       expr::getFreeAssumptions(cur.get(), fullFa);
-      Trace("pfnu-debug") << "Original proof : " << *cur << std::endl;
     }
     // then, update the original proof node based on this one
     Trace("pf-process-debug") << "Update node..." << std::endl;
+
+
     d_pnm->updateNode(cur.get(), npn.get());
     Trace("pf-process-debug") << "...update node finished." << std::endl;
     if (d_debugFreeAssumps)

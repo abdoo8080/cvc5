@@ -710,7 +710,6 @@ bool VeritProofPostprocessCallback::update(Node res,
     //  premises: VP1 ... VPn
     //  args: ()
     case PfRule::CHAIN_RESOLUTION:
-    case PfRule::CHAIN_RESOLUTION_SAT:
     {
       Node trueNode = d_nm->mkConst(true);
       Node falseNode = d_nm->mkConst(false);

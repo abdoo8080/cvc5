@@ -51,7 +51,6 @@ const char* toString(PfRule id)
     //================================================= Boolean rules
     case PfRule::RESOLUTION: return "RESOLUTION";
     case PfRule::CHAIN_RESOLUTION: return "CHAIN_RESOLUTION";
-    case PfRule::CHAIN_RESOLUTION_SAT: return "CHAIN_RESOLUTION_SAT";
     case PfRule::FACTORING: return "FACTORING";
     case PfRule::REORDERING: return "REORDERING";
     case PfRule::MACRO_RESOLUTION: return "MACRO_RESOLUTION";

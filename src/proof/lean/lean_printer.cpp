@@ -94,8 +94,8 @@ void LeanPrinter::printConstant(std::ostream& out, TNode n)
   Kind k = n.getKind();
   if (k == kind::CONST_BOOLEAN)
   {
-    out << "val (value.bool " << (n.getConst<bool>() ? "true" : "false")
-        << ") boolSort";
+    out << "(val (value.bool " << (n.getConst<bool>() ? "true" : "false")
+        << ") boolSort)";
     return;
   }
   // uninterpreted
@@ -112,29 +112,15 @@ void LeanPrinter::printTermList(std::ostream& out, LetBinding& lbind, TNode n)
   }
 }
 
-void LeanPrinter::printTermList(std::ostream& out,
-                                LetBinding& lbind,
-                                const std::vector<Node>& children)
-{
-  out << "[";
-  for (unsigned i = 0, size = children.size(); i < size; ++i)
-  {
-    printTerm(out, lbind, children[i]);
-    out << (i < size - 1 ? ", " : "]");
-  }
-}
-
 void LeanPrinter::printTerm(std::ostream& out,
                             LetBinding& lbind,
                             TNode n,
                             bool letTop)
 {
-  Trace("leanpf::print") << "Printing term " << (letTop ? "[decl] " : "") << n
-                         << "\n";
   Node nc = lbind.convert(n, "let", letTop);
-  unsigned nArgs = nc.getNumChildren();
+  unsigned nChildren = nc.getNumChildren();
   // printing constant symbol
-  if (nArgs == 0)
+  if (nChildren == 0)
   {
     printConstant(out, nc);
     return;
@@ -147,14 +133,24 @@ void LeanPrinter::printTerm(std::ostream& out,
   {
     case kind::APPLY_UF:
     {
-      out << "mkAppN ";
       Node op = nc.getOperator();
-      printTerm(out, lbind, op);
-      out << " ";
-      printTermList(out, lbind, nc);
+      Assert(nChildren >= 1);
+      if (nChildren > 1)
+      {
+        out << "mkAppN ";
+        printTerm(out, lbind, op);
+        out << " ";
+        printTermList(out, lbind, nc);
+      }
+      else
+      {
+        out << "mkApp ";
+        printTerm(out, lbind, op);
+        out << " ";
+        printTerm(out, lbind, nc[0]);
+      }
       break;
     }
-
     case kind::EQUAL:
     {
       out << "mkEq ";
@@ -166,14 +162,36 @@ void LeanPrinter::printTerm(std::ostream& out,
 
     case kind::OR:
     {
-      out << "mkOrN ";
-      printTermList(out, lbind, nc);
+      Assert(nChildren >= 2);
+      if (nChildren > 2)
+      {
+        out << "mkOrN ";
+        printTermList(out, lbind, nc);
+      }
+      else
+      {
+        out << "mkOr ";
+        printTerm(out, lbind, nc[0]);
+        out << " ";
+        printTerm(out, lbind, nc[1]);
+      }
       break;
     }
     case kind::AND:
     {
-      out << "mkAndN ";
-      printTermList(out, lbind, nc);
+      Assert(nChildren >= 2);
+      if (nChildren > 2)
+      {
+        out << "mkAndN ";
+        printTermList(out, lbind, nc);
+      }
+      else
+      {
+        out << "mkAnd ";
+        printTerm(out, lbind, nc[0]);
+        out << " ";
+        printTerm(out, lbind, nc[1]);
+      }
       break;
     }
     case kind::IMPLIES:
@@ -215,6 +233,18 @@ void LeanPrinter::printTerm(std::ostream& out,
     default: Unhandled() << " " << k;
   }
   out << ")" << (letTop ? "" : "\n");
+}
+
+void LeanPrinter::printTermList(std::ostream& out,
+                                LetBinding& lbind,
+                                const std::vector<Node>& children)
+{
+  out << "[";
+  for (unsigned i = 0, size = children.size(); i < size; ++i)
+  {
+    printTerm(out, lbind, children[i]);
+    out << (i < size - 1 ? ", " : "]");
+  }
 }
 
 void LeanPrinter::printLetList(std::ostream& out, LetBinding& lbind)

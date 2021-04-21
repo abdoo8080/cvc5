@@ -105,7 +105,6 @@ bool LfscProofPostprocessCallback::update(Node res,
     }
     break;
     case PfRule::CHAIN_RESOLUTION:
-    case PfRule::CHAIN_RESOLUTION_SAT:
     {
       // turn into binary resolution
       Node cur = children[0];
