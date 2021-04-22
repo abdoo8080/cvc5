@@ -26,8 +26,19 @@ namespace cvc5 {
 
 namespace proof {
 
-LeanPrinter::LeanPrinter() : d_false(NodeManager::currentNM()->mkConst(false))
+LeanPrinter::LeanPrinter()
 {
+  d_false = NodeManager::currentNM()->mkConst(false);
+  d_letRules = {
+      LeanRule::R0_PARTIAL,
+      LeanRule::R1_PARTIAL,
+      LeanRule::REFL_PARTIAL,
+      LeanRule::CONG_PARTIAL,
+      LeanRule::TRANS_PARTIAL,
+      LeanRule::CL_OR,
+      LeanRule::CL_ASSUME,
+      LeanRule::TH_ASSUME,
+  };
 }
 LeanPrinter::~LeanPrinter() {}
 
@@ -80,11 +91,9 @@ void LeanPrinter::printConstant(std::ostream& out, TNode n)
   Kind k = n.getKind();
   if (k == kind::CONST_BOOLEAN)
   {
-    out << "(val (value.bool " << (n.getConst<bool>() ? "true" : "false")
-        << ") boolSort)";
+    out << (n.getConst<bool>() ? "top" : "bot");
     return;
   }
-  // uninterpreted
   out << n;
 }
 
@@ -361,64 +370,60 @@ void LeanPrinter::printProof(std::ostream& out,
   }
   Trace("test-lean") << pop;
   printOffset(out, offset);
-  switch (rule)
+  AlwaysAssert(args.size() >= 3);
+  // print conclusion: proof node concludes `false`, print as show ... rather
+  // than have s.... If the proof has a clausal conclusion (as argument), print
+  // holds, otherwise thHolds and the result.
+  bool hasClausalResult = args[2] != Node::null();
+  TNode res = pfn->getResult();
+  if (d_letRules.find(rule) != d_letRules.end())
   {
-    case LeanRule::CNF_AND_POS:
+    out << "let s" << id << " := " << rule;
+  }
+  else
+  {
+    if (res == d_false)
     {
-      out << "have s" << id << " : holds ";
-      AlwaysAssert(args.size() == 5);
-      printTerm(out, lbind, args[2]);
-      out << " from " << rule << " ";
-      printTerm(out, lbind, args[3]);
-      out << " ";
-      printTerm(out, lbind, args[4]);
-      break;
+      out << "show " << (hasClausalResult ? "holds [] " : "thHolds bot");
     }
-    case LeanRule::R0:
-    case LeanRule::R1:
-    case LeanRule::REORDER:
+    else
     {
-      if (pfn->getResult() == d_false)
+      out << "have s" << id << " : ";
+      if (hasClausalResult)
       {
-        out << "show holds []";
+        out << "holds ";
+        printTerm(out, lbind, args[2]);
       }
       else
       {
-        out << "have s" << id << " : holds ";
-        printTerm(out, lbind, args[2]);
+        out << "thHolds ";
+        printTerm(out, lbind, res);
       }
-      out << " from " << rule;
-      for (const std::shared_ptr<ProofNode>& child : children)
-      {
-        out << " ";
-        printStepId(out, child.get(), pfMap, pfAssumpMap);
-      }
-      for (size_t i = 3, size = args.size(); i < size; ++i)
-      {
-        out << " ";
-        printTerm(out, lbind, args[i]);
-      }
-      break;
     }
+    out << " from " << rule;
+  }
+  switch (rule)
+  {
+    case LeanRule::CNF_AND_POS:
+    case LeanRule::R0:
+    case LeanRule::R1:
+    case LeanRule::REORDER:
     case LeanRule::EQ_RESOLVE:
-    {
-      out << "have s" << id << " : thHolds ";
-      printTerm(out, lbind, args[1]);
-      out << " from " << rule << " ";
-      Assert(children.size() == 2);
-      printStepId(out, children[0].get(), pfMap, pfAssumpMap);
-      out << " ";
-      printStepId(out, children[1].get(), pfMap, pfAssumpMap);
-      break;
-    }
+    case LeanRule::AND_ELIM:
+    case LeanRule::REFL:
+    case LeanRule::CONG:
+    case LeanRule::TRANS:
+    case LeanRule::SYMM:
+    case LeanRule::NEG_SYMM:
+    case LeanRule::TH_TRUST_VALID:
     case LeanRule::R0_PARTIAL:
     case LeanRule::R1_PARTIAL:
     case LeanRule::REFL_PARTIAL:
     case LeanRule::CONG_PARTIAL:
     case LeanRule::CL_OR:
     case LeanRule::CL_ASSUME:
+    case LeanRule::TH_ASSUME:
     {
-      out << "let s" << id << " := " << rule;
       for (const std::shared_ptr<ProofNode>& child : children)
       {
         out << " ";
@@ -431,37 +436,9 @@ void LeanPrinter::printProof(std::ostream& out,
       }
       break;
     }
-    case LeanRule::CONG:
-    {
-      out << "have s" << id << " : thHolds ";
-      printTerm(out, lbind, args[1]);
-      out << " from " << rule << " ";
-      Assert(children.size() == 2);
-      printStepId(out, children[0].get(), pfMap, pfAssumpMap);
-      out << " ";
-      printStepId(out, children[1].get(), pfMap, pfAssumpMap);
-      break;
-    }
-    case LeanRule::SYMM:
-    case LeanRule::NEG_SYMM:
-    {
-      out << "have s" << id << " : thHolds ";
-      printTerm(out, lbind, args[1]);
-      out << " from " << rule << " ";
-      Assert(children.size() == 1);
-      printStepId(out, children[0].get(), pfMap, pfAssumpMap);
-      break;
-    }
-    case LeanRule::TH_TRUST_VALID:
-    {
-      out << "have s" << id << " : thHolds ";
-      printTerm(out, lbind, args[1]);
-      out << " from " << rule;
-      break;
-    }
     default:
     {
-      out << rule << " " << args;
+      out << "\nUnhandled: " << rule << " " << args;
       break;
     }
   }
@@ -534,7 +511,21 @@ void LeanPrinter::print(std::ostream& out,
     printTerm(out, lbind, args[i]);
     out << " -> ";
   }
-  out << " holds [] :=\n";
+  // whether conclusion is "thHolds bot" or "holds []" depends on what the inner
+  // proof term is concluding. So we check here:
+  AlwaysAssert(pfn->getChildren().size() == 1);
+  std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0];
+  AlwaysAssert(innerPf->getArguments().size() >= 3);
+  if (!innerPf->getArguments()[2].isNull())
+  {
+    out << "holds [] :=\n";
+  }
+  else
+  {
+    AlwaysAssert(innerPf->getResult() == d_false)
+        << "conclusion is actually " << innerPf->getResult();
+    out << "thHolds bot :=\n";
+  }
   // print initial assumptions
   std::map<Node, size_t> pfAssumpMap;
   for (size_t i = 3, size = args.size(); i < size; ++i)
@@ -550,7 +541,7 @@ void LeanPrinter::print(std::ostream& out,
   Trace("test-lean") << "Before getting to proof node:\n"
                      << ss.str() << "==================\n\n";
   std::map<const ProofNode*, size_t> pfMap;
-  printProof(out, id, 0, pfn->getChildren()[0], lbind, pfMap, pfAssumpMap);
+  printProof(out, id, 0, innerPf, lbind, pfMap, pfAssumpMap);
   ss.clear();
   ss << out.rdbuf();
   Trace("test-lean") << "After getting to proof node:\n"

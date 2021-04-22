@@ -88,6 +88,8 @@ class LeanPrinter
 
 
   Node d_false;
+
+  std::set<LeanRule> d_letRules;
 };
 
 }  // namespace proof

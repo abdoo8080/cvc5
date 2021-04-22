@@ -85,6 +85,8 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
                    const std::vector<Node>& children,
                    const std::vector<Node>& args,
                    CDProof& cdp);
+
+  Node mkPrintableOp(Node n);
 };
 
 /** Similar to the above call back, but tries to update all the premises all
@@ -111,7 +113,7 @@ class LeanProofPostprocessClConnectCallback
 
  private:
   /** rules that take terms and yield clauses */
-  std::set<LeanRule> d_conversionRules;
+  std::set<Node> d_conversionRules;
   /** rules that take clauses and yield clauses */
   std::set<LeanRule> d_clausalRules;
   std::set<LeanRule> d_resRules;

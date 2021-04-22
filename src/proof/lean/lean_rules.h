@@ -30,6 +30,7 @@ enum class LeanRule : uint32_t
   SCOPE,
   CL_ASSUME,
   CL_OR,
+  TH_ASSUME,
   // boolean
   R0,
   R0_PARTIAL,
