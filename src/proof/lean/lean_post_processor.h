@@ -53,7 +53,7 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
               CDProof* cdp,
               bool& continueUpdate) override;
 
- private:
+ protected:
   /** The proof node manager */
   ProofNodeManager* d_pnm;
   /** The proof checker is used to generate conclusions from local
@@ -114,6 +114,8 @@ class LeanProofPostprocessClConnectCallback
   std::set<LeanRule> d_conversionRules;
   /** rules that take clauses and yield clauses */
   std::set<LeanRule> d_clausalRules;
+  std::set<LeanRule> d_resRules;
+  std::unordered_set<const ProofNode*> processed;
 };
 
 /**
@@ -134,6 +136,7 @@ class LeanProofPostprocess
   std::unique_ptr<LeanProofPostprocessClConnectCallback> d_cbCl;
   /** The proof node manager */
   ProofNodeManager* d_pnm;
+
 };
 
 }  // namespace proof

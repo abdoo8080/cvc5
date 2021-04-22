@@ -282,7 +282,7 @@ bool LeanProofPostprocessCallback::update(Node res,
         if (childPf->getRule() == PfRule::ASSUME
             || childPf->getRule() == PfRule::EQ_RESOLVE)
         {
-          LeanRule childRule;
+          // LeanRule childRule;
           // The first child is used as a OR non-singleton clause if it is not
           // equal to its pivot L_1. Since it's the first clause in the
           // resolution it can only be equal to the pivot in the case the
@@ -321,7 +321,8 @@ bool LeanProofPostprocessCallback::update(Node res,
           addLeanStep(newCur,
                       pol.getConst<bool>() ? LeanRule::R0_PARTIAL
                                            : LeanRule::R1_PARTIAL,
-                      Node::null(),
+                      // since a null result here marks this as a non-clausal step, which it actually is, we use a non-null node as a marker
+                      d_false,
                       {cur, children[i]},
                       curArgs,
                       *cdp);
@@ -441,7 +442,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       {
         conclusion = nm->mkNode(kind::SEXPR, res);
       }
-      Trace("test-lean") << "final step of res with children " << cur << ", "
+      Trace("test-lean") << "final step of res " << res << " with children " << cur << ", "
                          << children.back() << " and args " << conclusion
                          << ", " << curArgs << "\n";
       addLeanStep(
@@ -548,6 +549,10 @@ LeanProofPostprocessClConnectCallback::LeanProofPostprocessClConnectCallback(
                     LeanRule::CNF_ITE_NEG1,
                     LeanRule::CNF_ITE_NEG2,
                     LeanRule::CNF_ITE_NEG3};
+d_resRules = {LeanRule::R0,
+                    LeanRule::R0_PARTIAL,
+                    LeanRule::R1,
+                    LeanRule::R1_PARTIAL};
 }
 
 LeanProofPostprocessClConnectCallback::~LeanProofPostprocessClConnectCallback()
@@ -558,25 +563,93 @@ bool LeanProofPostprocessClConnectCallback::shouldUpdate(std::shared_ptr<ProofNo
                                                 const std::vector<Node>& fa,
                                                 bool& continueUpdate)
 {
-  return pn->getRule() == PfRule::LEAN_RULE;
-};
-
-bool LeanProofPostprocessClConnectCallback::update(Node res,
-                                          PfRule id,
-                                          const std::vector<Node>& children,
-                                          const std::vector<Node>& args,
-                                          CDProof* cdp,
-                                          bool& continueUpdate)
+  if (pn->getRule() != PfRule::LEAN_RULE)
   {
     return false;
   }
+  if (processed.find(pn.get()) == processed.end())
+  {
+    processed.insert(pn.get());
+    return true;
+  }
+  return false;
+}
+
+bool LeanProofPostprocessClConnectCallback::update(
+    Node res,
+    PfRule id,
+    const std::vector<Node>& children,
+    const std::vector<Node>& args,
+    CDProof* cdp,
+    bool& continueUpdate)
+{
+  Trace("test-lean") << "Updating rule:\nres: " << res << "\nid: " << id
+                     << "\nchildren: " << children << "\nargs: " << args
+                     << "\n";
+  NodeManager* nm = NodeManager::currentNM();
+  LeanRule rule = getLeanRule(args[0]);
+  bool updated = false;
+  if (d_clausalRules.find(rule) != d_clausalRules.end())
+  {
+    // rule id, original conclusion, clause conclusion
+    AlwaysAssert(args.size() >= 3);
+    // resolution rule need further to determine whether each premise is a
+    // singleton. This is information was computed in the previous pass and just
+    // needs to be checked now
+    if (d_resRules.find(rule) != d_resRules.end())
+    {
+      // pivot, prem1singleton, prem2singleton
+      AlwaysAssert(args.size() == 6);
+      AlwaysAssert(children.size() == 2);
+      std::vector<Node> newChildren{children.begin(), children.end()};
+      for (size_t i = 0; i < 2; ++i)
+      {
+        // check if conclusion is a term
+        std::shared_ptr<ProofNode> childPf = cdp->getProofFor(children[i]);
+        AlwaysAssert(childPf->getRule() == PfRule::ASSUME
+                     || childPf->getArguments().size() >= 3)
+            << "childPf is " << *childPf.get();
+        if (childPf->getRule() != PfRule::ASSUME
+            && !childPf->getArguments()[2].isNull())
+        {
+          continue;
+        }
+        // turn into clause. Check if it's used as a singleton or not
+        bool isSingleton = args[4 + i] == d_true;
+        Node newChild;
+        LeanRule childRule;
+        if (isSingleton)
+        {
+          // add clAssume step
+          newChild = nm->mkNode(kind::SEXPR, children[i]);
+          childRule = LeanRule::CL_ASSUME;
+        }
+        else
+        {
+          // Add clOr step
+          std::vector<Node> lits{children[i].begin(), children[i].end()};
+          newChild = nm->mkNode(kind::SEXPR, lits);
+          childRule = LeanRule::CL_OR;
+        }
+        addLeanStep(newChild, childRule, newChild, {children[i]}, {}, *cdp);
+        newChildren[i] = newChild;
+      }
+      // regardless of possible changes above, delete the excess arguments
+      cdp->addStep(res, id, newChildren, {args.begin(), args.begin() + 4});
+      return true;
+    }
+    // other rules either do not have premises or are applied on non-singleton
+    // clauses, so always use CL_OR if premise is a term
+  }
+  return updated;
+}
 
 void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
 {
   ProofNodeUpdater updater(d_pnm, *(d_cb.get()), false, false, false);
   updater.process(pf);
   ProofNodeUpdater updaterCl(d_pnm, *(d_cbCl.get()), false, false, false);
-  // updaterCl.process(pf);
+  updaterCl.process(pf);
 };
 
 

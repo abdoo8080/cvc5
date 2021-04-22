@@ -45,11 +45,6 @@ class LeanPrinter
              std::shared_ptr<ProofNode> pfn);
 
  private:
-  /**
-   * Convert a CVC4 Node holding an id to the corresponding LeanRule
-   */
-  LeanRule getLeanRule(Node n);
-
   void printSort(std::ostream& out, TypeNode tn);
 
   void printConstant(std::ostream& out, TNode n);

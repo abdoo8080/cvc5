@@ -31,20 +31,6 @@ LeanPrinter::LeanPrinter() : d_false(NodeManager::currentNM()->mkConst(false))
 }
 LeanPrinter::~LeanPrinter() {}
 
-LeanRule LeanPrinter::getLeanRule(Node n)
-{
-  Trace("test-lean") << "getLeanRule::converting " << n;
-  uint32_t id;
-  if (ProofRuleChecker::getUInt32(n, id))
-  {
-    Trace("test-lean") << ", getting rule " << static_cast<LeanRule>(id)
-                       << "\n";
-    return static_cast<LeanRule>(id);
-  }
-  Trace("test-lean") << ", failed get  int\n";
-  return LeanRule::UNKNOWN;
-}
-
 void LeanPrinter::printOffset(std::ostream& out, uint64_t offset) const
 {
   for (uint64_t i = 0; i < offset; ++i)
@@ -438,7 +424,7 @@ void LeanPrinter::printProof(std::ostream& out,
         out << " ";
         printStepId(out, child.get(), pfMap, pfAssumpMap);
       }
-      for (size_t i = 2, size = args.size(); i < size; ++i)
+      for (size_t i = 3, size = args.size(); i < size; ++i)
       {
         out << " ";
         printTerm(out, lbind, args[i]);

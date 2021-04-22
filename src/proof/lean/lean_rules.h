@@ -19,6 +19,8 @@
 
 #include <iostream>
 
+#include "expr/node.h"
+
 namespace cvc5 {
 namespace proof {
 
@@ -112,6 +114,9 @@ const char* toString(LeanRule id);
  * @return The stream
  */
 std::ostream& operator<<(std::ostream& out, LeanRule id);
+
+/** Convert a CVC4 Node holding an id to the corresponding LeanRule */
+LeanRule getLeanRule(Node n);
 
 }
 }  // namespace cvc5
