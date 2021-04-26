@@ -66,7 +66,8 @@ LeanPrinter::LeanPrinter()
         LeanRule::CL_ASSUME,
         LeanRule::TH_ASSUME,
     }),
-      d_lbind(options::defaultDagThresh()),
+      d_lbind(options::defaultDagThresh() ? options::defaultDagThresh() + 1
+                                          : 0),
       d_cb(new LetUpdaterPfCallback(d_lbind, d_letRules))
 {
   d_false = NodeManager::currentNM()->mkConst(false);
