@@ -31,6 +31,8 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::REFL, LeanRule::REFL},
     {PfRule::THEORY_REWRITE, LeanRule::TH_TRUST_VALID},
     {PfRule::AND_ELIM, LeanRule::AND_ELIM},
+    {PfRule::NOT_IMPLIES_ELIM1, LeanRule::NOT_IMPLIES1},
+    {PfRule::NOT_IMPLIES_ELIM2, LeanRule::NOT_IMPLIES2},
 };
 
 LeanProofPostprocess::LeanProofPostprocess(ProofNodeManager* pnm)
@@ -186,6 +188,8 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::EQ_RESOLVE:
     case PfRule::AND_ELIM:
     case PfRule::REFL:
+    case PfRule::NOT_IMPLIES_ELIM1:
+    case PfRule::NOT_IMPLIES_ELIM2:
     {
       addLeanStep(
           res, s_pfRuleToLeanRule.at(id), Node::null(), children, args, *cdp);

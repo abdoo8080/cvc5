@@ -326,6 +326,13 @@ void LeanPrinter::printProof(std::ostream& out,
   Trace("test-lean") << "printProof: args " << args << "\n";
   LeanRule rule = getLeanRule(args[0]);
   Trace("test-lean") << "printProof: rule " << rule << "\n";
+  if (rule == LeanRule::UNKNOWN)
+  {
+    // save proof step in map
+    pfMap[pfn.get()] = id++;
+    out << "Unhandled: " << rule << " " << args << "\n";
+    return;
+  }
   // we handle scope differently because it starts a subproof
   if (rule == LeanRule::SCOPE)
   {
@@ -429,45 +436,15 @@ void LeanPrinter::printProof(std::ostream& out,
     }
     out << " from " << rule;
   }
-  switch (rule)
+  for (const std::shared_ptr<ProofNode>& child : children)
   {
-    case LeanRule::CNF_AND_POS:
-    case LeanRule::R0:
-    case LeanRule::R1:
-    case LeanRule::REORDER:
-    case LeanRule::EQ_RESOLVE:
-    case LeanRule::AND_ELIM:
-    case LeanRule::REFL:
-    case LeanRule::CONG:
-    case LeanRule::TRANS:
-    case LeanRule::SYMM:
-    case LeanRule::NEG_SYMM:
-    case LeanRule::TH_TRUST_VALID:
-    case LeanRule::R0_PARTIAL:
-    case LeanRule::R1_PARTIAL:
-    case LeanRule::REFL_PARTIAL:
-    case LeanRule::CONG_PARTIAL:
-    case LeanRule::CL_OR:
-    case LeanRule::CL_ASSUME:
-    case LeanRule::TH_ASSUME:
-    {
-      for (const std::shared_ptr<ProofNode>& child : children)
-      {
-        out << " ";
-        printStepId(out, child.get(), pfMap, pfAssumpMap);
-      }
-      for (size_t i = 3, size = args.size(); i < size; ++i)
-      {
-        out << " ";
-        printTerm(out, args[i]);
-      }
-      break;
-    }
-    default:
-    {
-      out << "\nUnhandled: " << rule << " " << args;
-      break;
-    }
+    out << " ";
+    printStepId(out, child.get(), pfMap, pfAssumpMap);
+  }
+  for (size_t i = 3, size = args.size(); i < size; ++i)
+  {
+    out << " ";
+    printTerm(out, args[i]);
   }
   out << "\n";
   // save proof step in map
