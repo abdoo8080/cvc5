@@ -34,8 +34,8 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
 };
 
 LeanProofPostprocess::LeanProofPostprocess(ProofNodeManager* pnm)
-    : d_cb(new proof::LeanProofPostprocessCallback(pnm)),
-      d_cbCl(new proof::LeanProofPostprocessClConnectCallback(pnm)),
+    : d_cb(new LeanProofPostprocessCallback(pnm)),
+      d_cbCl(new LeanProofPostprocessClConnectCallback(pnm)),
       d_pnm(pnm)
 {
 }

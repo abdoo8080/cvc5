@@ -20,25 +20,56 @@
 #include "expr/node_algorithm.h"
 #include "expr/proof_checker.h"
 #include "expr/proof_node.h"
+#include "options/expr_options.h"
 #include "proof/lean/lean_rules.h"
 
 namespace cvc5 {
 
 namespace proof {
 
+LetUpdaterPfCallback::LetUpdaterPfCallback(LetBinding& lbind,
+                                           std::set<LeanRule>& letRules)
+    : d_lbind(lbind), d_letRules(letRules)
+{
+}
+
+LetUpdaterPfCallback::~LetUpdaterPfCallback() {}
+
+bool LetUpdaterPfCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
+                                        const std::vector<Node>& fa,
+                                        bool& continueUpdate)
+{
+  // only process non-let rules
+  return d_letRules.find(getLeanRule(pn->getArguments()[0]))
+         == d_letRules.end();
+}
+
+bool LetUpdaterPfCallback::update(Node res,
+                                  PfRule id,
+                                  const std::vector<Node>& children,
+                                  const std::vector<Node>& args,
+                                  CDProof* cdp,
+                                  bool& continueUpdate)
+{
+  d_lbind.process(res);
+  return false;
+}
+
 LeanPrinter::LeanPrinter()
+    : d_letRules({
+        LeanRule::R0_PARTIAL,
+        LeanRule::R1_PARTIAL,
+        LeanRule::REFL_PARTIAL,
+        LeanRule::CONG_PARTIAL,
+        LeanRule::TRANS_PARTIAL,
+        LeanRule::CL_OR,
+        LeanRule::CL_ASSUME,
+        LeanRule::TH_ASSUME,
+    }),
+      d_lbind(options::defaultDagThresh()),
+      d_cb(new LetUpdaterPfCallback(d_lbind, d_letRules))
 {
   d_false = NodeManager::currentNM()->mkConst(false);
-  d_letRules = {
-      LeanRule::R0_PARTIAL,
-      LeanRule::R1_PARTIAL,
-      LeanRule::REFL_PARTIAL,
-      LeanRule::CONG_PARTIAL,
-      LeanRule::TRANS_PARTIAL,
-      LeanRule::CL_OR,
-      LeanRule::CL_ASSUME,
-      LeanRule::TH_ASSUME,
-  };
 }
 LeanPrinter::~LeanPrinter() {}
 
@@ -97,22 +128,19 @@ void LeanPrinter::printConstant(std::ostream& out, TNode n)
   out << n;
 }
 
-void LeanPrinter::printTermList(std::ostream& out, LetBinding& lbind, TNode n)
+void LeanPrinter::printTermList(std::ostream& out, TNode n)
 {
   out << "[";
   for (unsigned i = 0, size = n.getNumChildren(); i < size; ++i)
   {
-    printTerm(out, lbind, n[i]);
+    printTerm(out, n[i]);
     out << (i < size - 1 ? ", " : "]");
   }
 }
 
-void LeanPrinter::printTerm(std::ostream& out,
-                            LetBinding& lbind,
-                            TNode n,
-                            bool letTop)
+void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
 {
-  Node nc = lbind.convert(n, "let", letTop);
+  Node nc = d_lbind.convert(n, "let", letTop);
   unsigned nChildren = nc.getNumChildren();
   // printing constant symbol
   if (nChildren == 0)
@@ -133,25 +161,25 @@ void LeanPrinter::printTerm(std::ostream& out,
       if (nChildren > 1)
       {
         out << "mkAppN ";
-        printTerm(out, lbind, op);
+        printTerm(out, op);
         out << " ";
-        printTermList(out, lbind, nc);
+        printTermList(out, nc);
       }
       else
       {
         out << "mkApp ";
-        printTerm(out, lbind, op);
+        printTerm(out, op);
         out << " ";
-        printTerm(out, lbind, nc[0]);
+        printTerm(out, nc[0]);
       }
       break;
     }
     case kind::EQUAL:
     {
       out << "mkEq ";
-      printTerm(out, lbind, nc[0]);
+      printTerm(out, nc[0]);
       out << " ";
-      printTerm(out, lbind, nc[1]);
+      printTerm(out, nc[1]);
       break;
     }
 
@@ -161,14 +189,14 @@ void LeanPrinter::printTerm(std::ostream& out,
       if (nChildren > 2)
       {
         out << "mkOrN ";
-        printTermList(out, lbind, nc);
+        printTermList(out, nc);
       }
       else
       {
         out << "mkOr ";
-        printTerm(out, lbind, nc[0]);
+        printTerm(out, nc[0]);
         out << " ";
-        printTerm(out, lbind, nc[1]);
+        printTerm(out, nc[1]);
       }
       break;
     }
@@ -178,49 +206,49 @@ void LeanPrinter::printTerm(std::ostream& out,
       if (nChildren > 2)
       {
         out << "mkAndN ";
-        printTermList(out, lbind, nc);
+        printTermList(out, nc);
       }
       else
       {
         out << "mkAnd ";
-        printTerm(out, lbind, nc[0]);
+        printTerm(out, nc[0]);
         out << " ";
-        printTerm(out, lbind, nc[1]);
+        printTerm(out, nc[1]);
       }
       break;
     }
     case kind::IMPLIES:
     {
       out << "mkImplies ";
-      printTerm(out, lbind, nc[0]);
+      printTerm(out, nc[0]);
       out << " ";
-      printTerm(out, lbind, nc[1]);
+      printTerm(out, nc[1]);
       break;
     }
     case kind::NOT:
     {
       out << "mkNot ";
-      printTerm(out, lbind, nc[0]);
+      printTerm(out, nc[0]);
       break;
     }
     case kind::ITE:
     {
       out << "mkIte ";
-      printTerm(out, lbind, nc[0]);
+      printTerm(out, nc[0]);
       out << " ";
-      printTerm(out, lbind, nc[1]);
+      printTerm(out, nc[1]);
       out << " ";
-      printTerm(out, lbind, nc[2]);
+      printTerm(out, nc[2]);
       break;
     }
     case kind::SEXPR:
     {
       out << "[";
-      printTerm(out, lbind, nc[0]);
+      printTerm(out, nc[0]);
       for (size_t i = 1, size = nc.getNumChildren(); i < size; ++i)
       {
         out << ", ";
-        printTerm(out, lbind, nc[i]);
+        printTerm(out, nc[i]);
       }
       out << "]";
       break;
@@ -231,28 +259,27 @@ void LeanPrinter::printTerm(std::ostream& out,
 }
 
 void LeanPrinter::printTermList(std::ostream& out,
-                                LetBinding& lbind,
                                 const std::vector<Node>& children)
 {
   out << "[";
   for (unsigned i = 0, size = children.size(); i < size; ++i)
   {
-    printTerm(out, lbind, children[i]);
+    printTerm(out, children[i]);
     out << (i < size - 1 ? ", " : "]");
   }
 }
 
-void LeanPrinter::printLetList(std::ostream& out, LetBinding& lbind)
+void LeanPrinter::printLetList(std::ostream& out)
 {
   std::vector<Node> letList;
-  lbind.letify(letList);
+  d_lbind.letify(letList);
   std::map<Node, size_t>::const_iterator it;
   for (TNode n : letList)
   {
-    size_t id = lbind.getId(n);
+    size_t id = d_lbind.getId(n);
     Assert(id != 0);
     out << "def let" << id << " := ";
-    printTerm(out, lbind, n, false);
+    printTerm(out, n, false);
   }
 }
 
@@ -277,7 +304,6 @@ void LeanPrinter::printProof(std::ostream& out,
                              size_t& id,
                              uint64_t offset,
                              std::shared_ptr<ProofNode> pfn,
-                             LetBinding& lbind,
                              std::map<const ProofNode*, size_t>& pfMap,
                              std::map<Node, size_t>& pfAssumpMap)
 {
@@ -304,7 +330,7 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     printOffset(out, offset);
     out << "have s" << id << " : holds ";
-    printTerm(out, lbind, args[2]);
+    printTerm(out, args[2]);
     out << " from (\n";
     // push offset
     offset++;
@@ -321,21 +347,21 @@ void LeanPrinter::printProof(std::ostream& out,
       pfAssumpMap[args[i]] = i - 3;
       printOffset(out, offset);
       out << "fun a" << i - 3 << " : thHolds ";
-      printTerm(out, lbind, args[i]);
+      printTerm(out, args[i]);
       out << " =>\n";
     }
     size_t newId = 0;
     Trace("test-lean") << pop;
     for (const std::shared_ptr<ProofNode>& child : children)
     {
-      printProof(out, newId, offset, child, lbind, pfMap, pfAssumpMap);
+      printProof(out, newId, offset, child, pfMap, pfAssumpMap);
     }
     Trace("test-lean") << pop;
     // print conclusion of scope, which is the conversion to a clause of a scope
     // chain over the arguments until the last step of the subproof
     printOffset(out, offset);
     out << "show holds ";
-    printTerm(out, lbind, args[2]);
+    printTerm(out, args[2]);
     out << " from clOr";
     std::stringstream cparens;
     for (size_t i = 3, size = args.size(); i < size; ++i)
@@ -366,7 +392,7 @@ void LeanPrinter::printProof(std::ostream& out,
   Trace("test-lean") << push;
   for (const std::shared_ptr<ProofNode>& child : children)
   {
-    printProof(out, id, offset, child, lbind, pfMap, pfAssumpMap);
+    printProof(out, id, offset, child, pfMap, pfAssumpMap);
   }
   Trace("test-lean") << pop;
   printOffset(out, offset);
@@ -392,12 +418,12 @@ void LeanPrinter::printProof(std::ostream& out,
       if (hasClausalResult)
       {
         out << "holds ";
-        printTerm(out, lbind, args[2]);
+        printTerm(out, args[2]);
       }
       else
       {
         out << "thHolds ";
-        printTerm(out, lbind, res);
+        printTerm(out, res);
       }
     }
     out << " from " << rule;
@@ -432,7 +458,7 @@ void LeanPrinter::printProof(std::ostream& out,
       for (size_t i = 3, size = args.size(); i < size; ++i)
       {
         out << " ";
-        printTerm(out, lbind, args[i]);
+        printTerm(out, args[i]);
       }
       break;
     }
@@ -485,21 +511,23 @@ void LeanPrinter::print(std::ostream& out,
     printSort(out, s.getType());
     out << "\n";
   }
-  // TOOD compute proof letification
-
-  // compute the term lets
-  // TODO include terms in the proof
-  LetBinding lbind;
+  AlwaysAssert(pfn->getChildren().size() == 1);
+  std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0];
+  // compute the term lets. For this consider the assertions and the conclusions
+  // of explicit proof steps
   for (const Node& a : assertions)
   {
-    lbind.process(a);
+    d_lbind.process(a);
   }
+  ProofNodeUpdater updater(nullptr, *(d_cb.get()), false, false, false);
+  updater.process(innerPf);
+
   const std::vector<Node>& args = pfn->getArguments();
-  for (size_t i = 2, size = args.size(); i < size; ++i)
+  for (size_t i = 3, size = args.size(); i < size; ++i)
   {
-    lbind.process(args[i]);
+    d_lbind.process(args[i]);
   }
-  printLetList(out, lbind);
+  printLetList(out);
 
   // print theorem header, which is to get proofs of all the assumptions and
   // conclude a proof of []. The assumptions are args[2..]
@@ -508,13 +536,11 @@ void LeanPrinter::print(std::ostream& out,
   for (size_t i = 3, size = args.size(); i < size; ++i)
   {
     out << "thHolds ";
-    printTerm(out, lbind, args[i]);
+    printTerm(out, args[i]);
     out << " -> ";
   }
   // whether conclusion is "thHolds bot" or "holds []" depends on what the inner
   // proof term is concluding. So we check here:
-  AlwaysAssert(pfn->getChildren().size() == 1);
-  std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0];
   AlwaysAssert(innerPf->getArguments().size() >= 3);
   if (!innerPf->getArguments()[2].isNull())
   {
@@ -532,7 +558,7 @@ void LeanPrinter::print(std::ostream& out,
   {
     pfAssumpMap[args[i]] = i - 3;
     out << "fun a" << i - 3 << " : thHolds ";
-    printTerm(out, lbind, args[i]);
+    printTerm(out, args[i]);
     out << " =>\n";
   }
   std::stringstream ss;
@@ -541,7 +567,7 @@ void LeanPrinter::print(std::ostream& out,
   Trace("test-lean") << "Before getting to proof node:\n"
                      << ss.str() << "==================\n\n";
   std::map<const ProofNode*, size_t> pfMap;
-  printProof(out, id, 0, innerPf, lbind, pfMap, pfAssumpMap);
+  printProof(out, id, 0, innerPf, pfMap, pfAssumpMap);
   ss.clear();
   ss << out.rdbuf();
   Trace("test-lean") << "After getting to proof node:\n"

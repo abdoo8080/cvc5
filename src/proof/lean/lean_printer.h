@@ -24,12 +24,42 @@
 #include "expr/node_algorithm.h"
 #include "expr/proof_checker.h"
 #include "expr/proof_node.h"
+#include "expr/proof_node_updater.h"
 #include "printer/let_binding.h"
 #include "proof/lean/lean_rules.h"
 
 namespace cvc5 {
 
+class CDProof;
+
 namespace proof {
+
+class LetUpdaterPfCallback : public ProofNodeUpdaterCallback
+{
+ public:
+  LetUpdaterPfCallback(LetBinding& lbind, std::set<LeanRule>& letRules);
+  ~LetUpdaterPfCallback();
+  /**
+   * Initialize, called once for each new ProofNode to process. This
+   * initializes static information to be used by successive calls to update.
+   */
+  void initializeUpdate();
+  /** Update the proof node iff has the LEAN_RULE id. */
+  bool shouldUpdate(std::shared_ptr<ProofNode> pn,
+                    const std::vector<Node>& fa,
+                    bool& continueUpdate) override;
+  /** Update the proof rule application. */
+  bool update(Node res,
+              PfRule id,
+              const std::vector<Node>& children,
+              const std::vector<Node>& args,
+              CDProof* cdp,
+              bool& continueUpdate) override;
+
+ protected:
+  LetBinding& d_lbind;
+  std::set<LeanRule> d_letRules;
+};
 
 class LeanPrinter
 {
@@ -49,18 +79,13 @@ class LeanPrinter
 
   void printConstant(std::ostream& out, TNode n);
 
-  void printTermList(std::ostream& out, LetBinding& lbind, TNode n);
+  void printTermList(std::ostream& out, TNode n);
 
-  void printTermList(std::ostream& out,
-                     LetBinding& lbind,
-                     const std::vector<Node>& children);
+  void printTermList(std::ostream& out, const std::vector<Node>& children);
 
-  void printTerm(std::ostream& out,
-                 LetBinding& lbind,
-                 TNode n,
-                 bool letTop = true);
+  void printTerm(std::ostream& out, TNode n, bool letTop = true);
 
-  void printLetList(std::ostream& out, LetBinding& lbind);
+  void printLetList(std::ostream& out);
 
   /**
    * For each proof node, the final Lean output's formatting depends on
@@ -75,7 +100,6 @@ class LeanPrinter
                   size_t& id,
                   uint64_t offset,
                   std::shared_ptr<ProofNode> pfn,
-                  LetBinding& lbind,
                   std::map<const ProofNode*, size_t>& pfMap,
                   std::map<Node, size_t>& pfAssumpMap);
 
@@ -90,6 +114,10 @@ class LeanPrinter
   Node d_false;
 
   std::set<LeanRule> d_letRules;
+
+  LetBinding d_lbind;
+
+  std::unique_ptr<LetUpdaterPfCallback> d_cb;
 };
 
 }  // namespace proof
