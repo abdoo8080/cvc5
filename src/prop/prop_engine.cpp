@@ -73,6 +73,7 @@ PropEngine::PropEngine(TheoryEngine* te,
     : d_inCheckSat(false),
       d_theoryEngine(te),
       d_context(satContext),
+      d_skdm(new SkolemDefManager(satContext, userContext)),
       d_theoryProxy(nullptr),
       d_satSolver(nullptr),
       d_pnm(pnm),
@@ -96,6 +97,7 @@ PropEngine::PropEngine(TheoryEngine* te,
   d_theoryProxy = new TheoryProxy(this,
                                   d_theoryEngine,
                                   d_decisionEngine.get(),
+                                  d_skdm.get(),
                                   satContext,
                                   userContext,
                                   pnm);
@@ -123,7 +125,7 @@ PropEngine::PropEngine(TheoryEngine* te,
     d_ppm.reset(
         new PropPfManager(userContext, pnm, d_satSolver, d_pfCnfStream.get()));
   }
-  else if (options::unsatCores())
+  else if (options::unsatCoresMode() == options::UnsatCoresMode::OLD_PROOF)
   {
     ProofManager::currentPM()->initCnfProof(d_cnfStream, userContext);
   }
@@ -247,8 +249,11 @@ void PropEngine::assertTrustedLemmaInternal(theory::TrustNode trn,
   Node node = trn.getNode();
   Debug("prop::lemmas") << "assertLemma(" << node << ")" << std::endl;
   bool negated = trn.getKind() == theory::TrustNodeKind::CONFLICT;
-  Assert(!isProofEnabled() || trn.getGenerator() != nullptr
-         || options::unsatCores() || options::unsatCoresNew());
+  Assert(
+      !isProofEnabled() || trn.getGenerator() != nullptr
+      || options::unsatCores()
+      || (options::unsatCores()
+          && options::unsatCoresMode() != options::UnsatCoresMode::FULL_PROOF));
   assertInternal(trn.getNode(), negated, removable, false, trn.getGenerator());
 }
 
@@ -258,8 +263,7 @@ void PropEngine::assertInternal(
   // Assert as (possibly) removable
   if (isProofEnabled())
   {
-    if (options::unsatCoresNew()
-        && options::unsatCoresMode() == options::UnsatCoresMode::ASSUMPTIONS
+    if (options::unsatCoresMode() == options::UnsatCoresMode::ASSUMPTIONS
         && input)
     {
       Assert(!negated);
@@ -652,7 +656,6 @@ bool PropEngine::isProofEnabled() const { return d_pfCnfStream != nullptr; }
 
 void PropEngine::getUnsatCore(std::vector<Node>& core)
 {
-  Assert(options::unsatCoresNew());
   Assert(options::unsatCoresMode() == options::UnsatCoresMode::ASSUMPTIONS);
   std::vector<SatLiteral> unsat_assumptions;
   d_satSolver->getUnsatAssumptions(unsat_assumptions);
@@ -664,7 +667,6 @@ void PropEngine::getUnsatCore(std::vector<Node>& core)
 
 std::shared_ptr<ProofNode> PropEngine::getRefutation()
 {
-  Assert(options::unsatCoresNew());
   Assert(options::unsatCoresMode() == options::UnsatCoresMode::ASSUMPTIONS);
   std::vector<Node> core;
   getUnsatCore(core);
