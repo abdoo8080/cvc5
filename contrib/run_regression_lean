@@ -1,0 +1,29 @@
+#!/bin/bash
+
+CVC5_DIR=~/cvc/wt-proofnew/prod
+LEAN_CVC5_BINARY=~/cvc/wt-proofnew/lean-proof.sh
+TIMEOUT=30
+
+# usage : run_regression_lfsc [cvc4 command line options + benchmark]
+echo -n "Call run_regression_lean $@ "
+
+# call with timeout to generate tmpResult.lean
+ulimit -t $TIMEOUT; $LEAN_CVC5_BINARY $@ &> pf.lean
+
+if (! grep -q "Unhandled" pf.lean) && (! grep -q "Fatal" pf.lean); then
+  # ensure it checks with Lean
+  cp pf.lean ~/cvc/signatures/lean4/Cdclt/examples/
+  cd ~/cvc/signatures/lean4/
+  ulimit -t $TIMEOUT; leanpkg build &> $CVC5_DIR/lean-check-res.txt
+  cd -
+  if ! grep -q "error" lean-check-res.txt; then
+    echo "SUCCESS"
+  else
+    echo "ERROR-LEAN"
+  fi
+else
+  echo "ERROR-CVC5"
+fi
+
+#rm proof.plf
+#rm lfsc-check-res.plf

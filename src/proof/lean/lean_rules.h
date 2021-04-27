@@ -45,6 +45,7 @@ enum class LeanRule : uint32_t
   // cnf
   AND_ELIM,
   AND_INTRO,
+  AND_INTRO_PARTIAL,
   NOT_OR_ELIM,
   IMPLIES_ELIM,
   NOT_IMPLIES1,
@@ -91,6 +92,10 @@ enum class LeanRule : uint32_t
   TRANS_PARTIAL,
   SYMM,
   NEG_SYMM,
+  TRUE_INTRO,
+  TRUE_ELIM,
+  FALSE_INTRO,
+  FALSE_ELIM,
 
   // holes
   TRUST,

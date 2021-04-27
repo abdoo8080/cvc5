@@ -62,6 +62,7 @@ LeanPrinter::LeanPrinter()
         LeanRule::REFL_PARTIAL,
         LeanRule::CONG_PARTIAL,
         LeanRule::TRANS_PARTIAL,
+        LeanRule::AND_INTRO_PARTIAL,
         LeanRule::CL_OR,
         LeanRule::CL_ASSUME,
         LeanRule::TH_ASSUME,
@@ -89,8 +90,8 @@ void LeanPrinter::printSort(std::ostream& out, TypeNode sort)
   {
     out << "(mkArrowN [";
     // print each arg sort
-    unsigned size = sort.getNumChildren();
-    for (unsigned i = 0, n_arg_types = size - 1; i < n_arg_types; ++i)
+    size_t size = sort.getNumChildren();
+    for (size_t i = 0; i < size - 1; ++i)
     {
       printSort(out, sort[i]);
       out << ", ";
@@ -132,7 +133,7 @@ void LeanPrinter::printConstant(std::ostream& out, TNode n)
 void LeanPrinter::printTermList(std::ostream& out, TNode n)
 {
   out << "[";
-  for (unsigned i = 0, size = n.getNumChildren(); i < size; ++i)
+  for (size_t i = 0, size = n.getNumChildren(); i < size; ++i)
   {
     printTerm(out, n[i]);
     out << (i < size - 1 ? ", " : "]");
@@ -142,7 +143,7 @@ void LeanPrinter::printTermList(std::ostream& out, TNode n)
 void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
 {
   Node nc = d_lbind.convert(n, "let", letTop);
-  unsigned nChildren = nc.getNumChildren();
+  size_t nChildren = nc.getNumChildren();
   // printing constant symbol
   if (nChildren == 0)
   {
@@ -263,7 +264,7 @@ void LeanPrinter::printTermList(std::ostream& out,
                                 const std::vector<Node>& children)
 {
   out << "[";
-  for (unsigned i = 0, size = children.size(); i < size; ++i)
+  for (size_t i = 0, size = children.size(); i < size; ++i)
   {
     printTerm(out, children[i]);
     out << (i < size - 1 ? ", " : "]");
@@ -476,11 +477,22 @@ void LeanPrinter::print(std::ostream& out,
   for (const Node& s : syms)
   {
     TypeNode st = s.getType();
-    if (st.isSort() && sts.find(st) == sts.end())
+    if (st.isSort())
     {
-      sts.insert(st);
-      out << "def " << st << " := atom " << sortCount++ << "\n";
+    sts.insert(st);
     }
+    else if (st.isFunction())
+    {
+      for (const auto& stc : st)
+      {
+        // TODO get recursively for functional sorts under functional sorts
+        sts.insert(stc);
+      }
+    }
+  }
+  for (const auto& s : sts)
+  {
+      out << "def " << s << " := atom " << sortCount++ << "\n";
   }
   // uninterpreted functions
   for (const Node& s : syms)

@@ -43,6 +43,7 @@ const char* toString(LeanRule id)
     case LeanRule::CONTRADICTION: return "contradiction";
     case LeanRule::AND_ELIM: return "andElim";
     case LeanRule::AND_INTRO: return "andIntro";
+    case LeanRule::AND_INTRO_PARTIAL: return "andIntro";
     case LeanRule::NOT_OR_ELIM: return "notOrElim";
     case LeanRule::IMPLIES_ELIM: return "impliesElim";
     case LeanRule::NOT_IMPLIES1: return "notImplies1";
@@ -91,6 +92,11 @@ const char* toString(LeanRule id)
     case LeanRule::TRANS_PARTIAL: return "trans";
     case LeanRule::SYMM: return "symm";
     case LeanRule::NEG_SYMM: return "negSymm";
+
+    case LeanRule::TRUE_INTRO: return "trueIntro";
+    case LeanRule::TRUE_ELIM: return "trueElim";
+    case LeanRule::FALSE_INTRO: return "falseIntro";
+    case LeanRule::FALSE_ELIM: return "falseElim";
 
     case LeanRule::UNKNOWN: return "UNKNOWN";
     default: return "?";

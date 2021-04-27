@@ -107,7 +107,7 @@ def run_benchmark(dump, wrapper, scrubber, error_scrubber, cvc5_binary,
                   command_line, benchmark_dir, benchmark_filename, timeout):
 
     str1 = "CALL: "
-    for ele in command_line: 
+    for ele in command_line:
       str1 += ele
       str1 += " "
     str1 += benchmark_dir
@@ -117,7 +117,7 @@ def run_benchmark(dump, wrapper, scrubber, error_scrubber, cvc5_binary,
     output = str1
     error = ''
     exit_status = EXIT_OK
-    
+
     return (output.strip(), error.strip(), exit_status)
 
 
@@ -290,7 +290,7 @@ def run_regression(check_unsat_cores, check_proofs, dump, use_skip_return_code,
                ':produce-unsat-cores true' not in benchmark_content and \
                '--sygus-inference' not in all_args and \
                ':sygus-inference true' not in benchmark_content:
-                extra_command_line_args += ['--dump-proofs --proof-format=lfsc']
+                extra_command_line_args += ['--dump-proofs --proof-format=lean']
 
         # Create a test case for each extra argument
         for extra_arg in extra_command_line_args:

@@ -1,0 +1,39 @@
+#!/bin/bash
+
+CVC5_DIR=~/cvc/wt-proofnew/
+
+# HACK: update the regression script
+cp $CVC5_DIR/test/regress/run_regression.py $CVC5_DIR/test/regress/temp.py
+cp $CVC5_DIR/test/regress/extract_regression_calls.py $CVC5_DIR/test/regress/run_regression.py
+
+echo "================== Make the Lean regression script"
+# make regress | grep CALL: >& temp-rrf.txt
+make -j8; CVC4_REGRESSION_ARGS="" ctest -j8 -R regress0/uf/.*cvc --output-on-failure --timeout 300 | grep CALL: >& temp-rrf.txt
+
+# HACK: revert changes to regression script
+cp $CVC5_DIR/test/regress/temp.py $CVC5_DIR/test/regress/run_regression.py
+
+sed -i 's/\CALL:/.\/run_regression_lean/g' temp-rrf.txt
+
+echo "#!/bin/bash" > run_regressions_lean
+cat temp-rrf.txt  >> run_regressions_lean
+chmod 755 run_regressions_lean
+rm temp-rrf.txt
+
+echo "================== Run the LEAN regression script"
+./run_regressions_lean | tee lean-regression-results.txt
+
+echo "================== CVC5+LEAN results:"
+# echo -n "PERFECT: "
+# cat lean-regression-results.txt | grep "PERFECT" | wc -l
+echo -n "SUCCESS: "
+cat lean-regression-results.txt | grep "SUCCESS" | wc -l
+# echo -n "WARNING: "
+# cat lean-regression-results.txt | grep "WARNING" | wc -l
+echo -n "ERROR-LEAN: "
+cat lean-regression-results.txt | grep "ERROR-LEAN" | wc -l
+echo -n "ERROR-CVC5: "
+cat lean-regression-results.txt | grep "ERROR-CVC5" | wc -l
+# echo -n "TOTAL: "
+# cat lean-regression-results.txt | wc -l | awk '{x=$1/2; print x}'
+echo "=================="
