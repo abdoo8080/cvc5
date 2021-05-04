@@ -20,6 +20,7 @@
 
 #include "expr/proof_node.h"
 #include "options/proof_options.h"
+#include "proof/lean/lean_rules.h"
 
 using namespace cvc5::kind;
 
@@ -94,15 +95,35 @@ Node ProofNodeToSExpr::convertToSExpr(const ProofNode* pn)
         // this can be the case for CONG where d_args may contain a builtin
         // operator
         std::vector<Node> argsSafe;
-        for (const Node& a : args)
+        if (cur->getRule() == PfRule::LEAN_RULE)
         {
-          Node av = a;
-          if (a.getNumChildren() == 0
-              && NodeManager::operatorToKind(a) != UNDEFINED_KIND)
+          proof::LeanRule r = proof::getLeanRule(args[0]);
+          std::stringstream ss;
+          ss << r;
+          argsSafe.push_back(nm->mkBoundVar(ss.str(), nm->sExprType()));
+          for (size_t i = 1, size = args.size(); i < size; ++i)
           {
-            av = getOrMkNodeVariable(a);
+            Node av = args[i];
+            if (args[i].getNumChildren() == 0
+                && NodeManager::operatorToKind(args[i]) != UNDEFINED_KIND)
+            {
+              av = getOrMkNodeVariable(args[i]);
+            }
+            argsSafe.push_back(av);
           }
-          argsSafe.push_back(av);
+        }
+        else
+        {
+          for (const Node& a : args)
+          {
+            Node av = a;
+            if (a.getNumChildren() == 0
+                && NodeManager::operatorToKind(a) != UNDEFINED_KIND)
+            {
+              av = getOrMkNodeVariable(a);
+            }
+            argsSafe.push_back(av);
+          }
         }
         Node argsC = nm->mkNode(SEXPR, argsSafe);
         children.push_back(argsC);

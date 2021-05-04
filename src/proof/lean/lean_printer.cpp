@@ -57,16 +57,16 @@ bool LetUpdaterPfCallback::update(Node res,
 
 LeanPrinter::LeanPrinter()
     : d_letRules({
-        LeanRule::R0_PARTIAL,
-        LeanRule::R1_PARTIAL,
-        LeanRule::REFL_PARTIAL,
-        LeanRule::CONG_PARTIAL,
-        LeanRule::TRANS_PARTIAL,
-        LeanRule::AND_INTRO_PARTIAL,
-        LeanRule::CL_OR,
-        LeanRule::CL_ASSUME,
-        LeanRule::TH_ASSUME,
-    }),
+          LeanRule::R0_PARTIAL,
+          LeanRule::R1_PARTIAL,
+          LeanRule::REFL_PARTIAL,
+          LeanRule::CONG_PARTIAL,
+          LeanRule::TRANS_PARTIAL,
+          LeanRule::AND_INTRO_PARTIAL,
+          LeanRule::CL_OR,
+          LeanRule::CL_ASSUME,
+          LeanRule::TH_ASSUME,
+      }),
       d_lbind(options::defaultDagThresh() ? options::defaultDagThresh() + 1
                                           : 0),
       d_cb(new LetUpdaterPfCallback(d_lbind, d_letRules))
@@ -479,7 +479,7 @@ void LeanPrinter::print(std::ostream& out,
     TypeNode st = s.getType();
     if (st.isSort())
     {
-    sts.insert(st);
+      sts.insert(st);
     }
     else if (st.isFunction())
     {
@@ -492,7 +492,7 @@ void LeanPrinter::print(std::ostream& out,
   }
   for (const auto& s : sts)
   {
-      out << "def " << s << " := atom " << sortCount++ << "\n";
+    out << "def " << s << " := atom " << sortCount++ << "\n";
   }
   // uninterpreted functions
   for (const Node& s : syms)

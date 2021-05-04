@@ -124,7 +124,7 @@ std::ostream& operator<<(std::ostream& out, LeanRule id);
 /** Convert a CVC4 Node holding an id to the corresponding LeanRule */
 LeanRule getLeanRule(Node n);
 
-}
+}  // namespace proof
 }  // namespace cvc5
 
 #endif /* CVC4__PROOF_LEAN_RULES_H */

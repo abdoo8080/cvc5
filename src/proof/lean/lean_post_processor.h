@@ -138,7 +138,6 @@ class LeanProofPostprocess
   std::unique_ptr<LeanProofPostprocessClConnectCallback> d_cbCl;
   /** The proof node manager */
   ProofNodeManager* d_pnm;
-
 };
 
 }  // namespace proof

@@ -111,18 +111,17 @@ std::ostream& operator<<(std::ostream& out, LeanRule id)
 
 LeanRule getLeanRule(Node n)
 {
-  Trace("test-lean") << "getLeanRule::converting " << n;
+  // Trace("test-lean") << "getLeanRule::converting " << n;
   uint32_t id;
   if (ProofRuleChecker::getUInt32(n, id))
   {
-    Trace("test-lean") << ", getting rule " << static_cast<LeanRule>(id)
-                       << "\n";
+    // Trace("test-lean") << ", getting rule " << static_cast<LeanRule>(id)
+    //                    << "\n";
     return static_cast<LeanRule>(id);
   }
-  Trace("test-lean") << ", failed get  int\n";
+  // Trace("test-lean") << ", failed get  int\n";
   return LeanRule::UNKNOWN;
 }
-
 
 }  // namespace proof
 }  // namespace cvc5

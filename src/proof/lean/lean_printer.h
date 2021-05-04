@@ -110,7 +110,6 @@ class LeanPrinter
                    const std::map<const ProofNode*, size_t>& pfMap,
                    const std::map<Node, size_t>& pfAssumpMap);
 
-
   Node d_false;
 
   std::set<LeanRule> d_letRules;
