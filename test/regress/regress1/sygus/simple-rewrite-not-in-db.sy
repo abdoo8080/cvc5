@@ -12,5 +12,6 @@
 
 (constraint (= (f x y) (= x y)))
 ; (or (and x y) (not (or x y)))
+; (and )
 
 (check-synth)
