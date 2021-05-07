@@ -18,6 +18,7 @@
 #include "expr/node_algorithm.h"
 #include "smt/command.h"
 #include "theory/datatypes/sygus_datatype_utils.h"
+#include "theory/quantifiers/sygus/rcons_eq_gen.h"
 #include "theory/rewriter.h"
 
 using namespace cvc5::kind;
@@ -268,7 +269,8 @@ TypeObligationSetMap SygusReconstruct::matchNewObs(Node t, Node sz)
           // then immediately solve the obligation
           markSolved(newOb, d_tds->getProxyVariable(stn, match.second));
         }
-        else
+        // for each candidate obligation
+        for (const std::pair<const Node, Node>& candOb : candObs)
         {
           // otherwise, add this candidate obligation to the list of obligations
           obsPrime[stn].emplace(match.second);

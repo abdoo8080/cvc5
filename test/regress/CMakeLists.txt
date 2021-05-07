@@ -1435,6 +1435,14 @@ set(regress_1_tests
   regress1/bug590.smt2
   regress1/bug593.smt2
   regress1/bug681.smt2
+  # For the six regressions below, solution terms require rewrites not in
+  # database and are too big to enumerate
+  regress0/sygus/aig-si.sy
+  regress0/sygus/parity-AIG-d0.sy
+  regress1/sygus/array_search_2.sy
+  regress1/sygus/array_sum_2_5.sy
+  regress1/sygus/crcy-si-rcons.sy
+  regress1/sygus/parity-si-rcons.sy
   regress1/bug694-Unapply1.scala-0.smt2
   regress1/bug800.smt2
   regress1/bags/difference_remove1.smt2
@@ -2594,14 +2602,6 @@ set(regression_disabled_tests
   regress1/sygus/inv_gen_fig8.sy
   # new reconstruct algorithm is slow at reconstructing random constants (see wishue #82)
   regress0/sygus/c100.sy
-  # For the six regressions below, solution terms require rewrites not in
-  # database and are too big to enumerate
-  regress0/sygus/aig-si.sy
-  regress0/sygus/parity-AIG-d0.sy
-  regress1/sygus/array_search_2.sy
-  regress1/sygus/array_sum_2_5.sy
-  regress1/sygus/crcy-si-rcons.sy
-  regress1/sygus/parity-si-rcons.sy
   # should print a better error message to indicate that a term is not in the
   # provided grammar
   regress1/sygus/simple-not-in-grammar.sy
