@@ -464,8 +464,8 @@ void LeanPrinter::print(std::ostream& out,
   out << "open rules eufRules\n\n";
 
   // Print user defined sorts and constants of those sorts
-  std::unordered_set<Node, NodeHashFunction> syms;
-  std::unordered_set<TNode, TNodeHashFunction> visited;
+  std::unordered_set<Node> syms;
+  std::unordered_set<TNode> visited;
   for (const Node& a : assertions)
   {
     expr::getSymbols(a, syms, visited);
@@ -473,7 +473,7 @@ void LeanPrinter::print(std::ostream& out,
   int sortCount = 1000;
   int symCount = 1000;
   // uninterpreted sorts
-  std::unordered_set<TypeNode, TypeNodeHashFunction> sts;
+  std::unordered_set<TypeNode> sts;
   for (const Node& s : syms)
   {
     TypeNode st = s.getType();
