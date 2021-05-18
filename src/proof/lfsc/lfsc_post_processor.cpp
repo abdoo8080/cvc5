@@ -28,7 +28,7 @@ namespace cvc5 {
 namespace proof {
 
 LfscProofPostprocessCallback::LfscProofPostprocessCallback(
-    LfscTermProcessor& ltp, ProofNodeManager* pnm)
+    LfscNodeConverter& ltp, ProofNodeManager* pnm)
     : d_pnm(pnm), d_pc(pnm->getChecker()), d_tproc(ltp), d_firstTime(false)
 {
 }
@@ -137,7 +137,7 @@ bool LfscProofPostprocessCallback::update(Node res,
       }
       // turn into binary
       Node cur = children[0];
-      std::unordered_set<Node, NodeHashFunction> processed;
+      std::unordered_set<Node> processed;
       processed.insert(children.begin(), children.end());
       for (size_t i = 1, size = children.size(); i < size; i++)
       {
@@ -161,20 +161,21 @@ bool LfscProofPostprocessCallback::update(Node res,
       // different for closures
       if (res[0].isClosure())
       {
-        // FIXME
-        return false;
         if (res[0][0] != res[1][0])
         {
-          // TODO: cannot convert congruence with different variables currently
+          // cannot convert congruence with different variables currently
           return false;
         }
         Node cop = d_tproc.getOperatorOfClosure(res[0]);
+        Trace("lfsc-pp-qcong") << "Operator for closure " << cop << std::endl;
         // start with base case body = body'
         Node curL = children[1][0];
         Node curR = children[1][1];
         Node currEq = children[1];
+        Trace("lfsc-pp-qcong") << "Base congruence " << currEq << std::endl;
         for (size_t i = 0, nvars = res[0][0].getNumChildren(); i < nvars; i++)
         {
+          Trace("lfsc-pp-qcong") << "Process child " << i << std::endl;
           // CONG rules for each variable
           Node v = res[0][0][nvars - 1 - i];
           Node vop = d_tproc.getOperatorOfBoundVar(cop, v);
@@ -188,16 +189,22 @@ bool LfscProofPostprocessCallback::update(Node res,
           }
           else
           {
-            curL = nm->mkNode(HO_APPLY, vop, children[i][0]);
-            curR = nm->mkNode(HO_APPLY, vop, children[i][1]);
+            curL = nm->mkNode(HO_APPLY, vop, curL);
+            curR = nm->mkNode(HO_APPLY, vop, curR);
             nextEq = curL.eqNode(curR);
           }
-          addLfscRule(cdp, nextEq, {currEq, vopEq}, LfscRule::CONG, {});
+          addLfscRule(cdp, nextEq, {vopEq, currEq}, LfscRule::CONG, {});
           currEq = nextEq;
         }
         return true;
       }
       Kind k = res[0].getKind();
+      if (k==HO_APPLY)
+      {
+        // HO_APPLY congruence is a single application of LFSC congruence
+        addLfscRule(cdp, res, children, LfscRule::CONG, {});
+        return true;
+      }
       // We are proving f(t1, ..., tn) = f(s1, ..., sn), nested.
       // First, get the operator, which will be used for printing the base
       // REFL step. Notice this may be for interpreted or uninterpreted
@@ -208,12 +215,16 @@ bool LfscProofPostprocessCallback::update(Node res,
       Node opEq = op.eqNode(op);
       cdp->addStep(opEq, PfRule::REFL, {}, {op});
       size_t nchildren = children.size();
-      Node nullTerm = LfscTermProcessor::getNullTerminator(k);
+      Node nullTerm = d_tproc.getNullTerminator(k, res[0].getType());
       // Are we doing congruence of an n-ary operator? If so, notice that op
       // is a binary operator and we must apply congruence in a special way.
       // Note we use the first block of code if we have more than 2 children,
       // or if we have a null terminator.
-      if (NodeManager::isNAryKind(k) && (nchildren > 2 || !nullTerm.isNull()))
+      // special case: constructors and apply uf are not treated as n-ary; these
+      // symbols have function types that expect n arguments.
+      bool isNary = NodeManager::isNAryKind(k) && k != kind::APPLY_CONSTRUCTOR
+                    && k != kind::APPLY_UF;
+      if (isNary && (nchildren > 2 || !nullTerm.isNull()))
       {
         // get the null terminator for the kind, which may mean we are doing
         // a special kind of congruence for n-ary kinds whose base is a REFL
@@ -313,7 +324,7 @@ bool LfscProofPostprocessCallback::update(Node res,
     break;
     case PfRule::AND_INTRO:
     {
-      Node cur = LfscTermProcessor::getNullTerminator(AND);
+      Node cur = d_tproc.getNullTerminator(AND);
       size_t nchildren = children.size();
       for (size_t j = 0; j < nchildren; j++)
       {
@@ -335,7 +346,7 @@ bool LfscProofPostprocessCallback::update(Node res,
     case PfRule::ARITH_SUM_UB:
     {
       // proof of null terminator base 0 = 0
-      Node zero = LfscTermProcessor::getNullTerminator(PLUS);
+      Node zero = d_tproc.getNullTerminator(PLUS);
       Node cur = zero.eqNode(zero);
       cdp->addStep(cur, PfRule::REFL, {}, {zero});
       for (size_t i = 0, size = children.size(); i < size; i++)
@@ -392,7 +403,7 @@ Node LfscProofPostprocessCallback::mkChain(Kind k,
   size_t nchildren = children.size();
   size_t i = 0;
   // do we have a null terminator? If so, we start with it.
-  Node ret = LfscTermProcessor::getNullTerminator(k);
+  Node ret = d_tproc.getNullTerminator(k, children[0].getType());
   if (ret.isNull())
   {
     ret = children[nchildren - 1];
@@ -412,7 +423,7 @@ Node LfscProofPostprocessCallback::mkDummyPredicate()
   return nm->mkBoundVar(nm->booleanType());
 }
 
-LfscProofPostprocess::LfscProofPostprocess(LfscTermProcessor& ltp,
+LfscProofPostprocess::LfscProofPostprocess(LfscNodeConverter& ltp,
                                            ProofNodeManager* pnm)
     : d_cb(new proof::LfscProofPostprocessCallback(ltp, pnm)), d_pnm(pnm)
 {

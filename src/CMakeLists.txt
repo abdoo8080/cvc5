@@ -19,9 +19,13 @@ libcvc5_add_sources(
   api/cpp/cvc5.h
   api/cpp/cvc5_checks.h
   api/cpp/cvc5_kind.h
+  decision/assertion_list.cpp
+  decision/assertion_list.h
   decision/decision_attributes.h
   decision/decision_engine.cpp
   decision/decision_engine.h
+  decision/decision_engine_old.cpp
+  decision/decision_engine_old.h
   decision/decision_strategy.h
   decision/justification_heuristic.cpp
   decision/justification_heuristic.h
@@ -143,14 +147,14 @@ libcvc5_add_sources(
   proof/lean/lean_printer.h
   proof/lean/lean_rules.cpp
   proof/lean/lean_rules.h
+  proof/lfsc/lfsc_node_converter.cpp
+  proof/lfsc/lfsc_node_converter.h
   proof/lfsc/lfsc_post_processor.cpp
   proof/lfsc/lfsc_post_processor.h
   proof/lfsc/lfsc_print_channel.cpp
   proof/lfsc/lfsc_print_channel.h
   proof/lfsc/lfsc_printer.cpp
   proof/lfsc/lfsc_printer.h
-  proof/lfsc/lfsc_term_process.cpp
-  proof/lfsc/lfsc_term_process.h
   proof/lfsc/lfsc_util.cpp
   proof/lfsc/lfsc_util.h
   proof/print_expr.cpp
@@ -161,8 +165,6 @@ libcvc5_add_sources(
   proof/proof_manager.h
   proof/sat_proof.h
   proof/sat_proof_implementation.h
-  proof/term_processor.cpp
-  proof/term_processor.h
   proof/unsat_core.cpp
   proof/unsat_core.h
   proof/verit/verit_post_processor.cpp
@@ -246,7 +248,6 @@ libcvc5_add_sources(
   smt/check_models.h
   smt/command.cpp
   smt/command.h
-  smt/defined_function.h
   smt/dump.cpp
   smt/dump.h
   smt/dump_manager.cpp
@@ -528,6 +529,7 @@ libcvc5_add_sources(
   theory/booleans/theory_bool.h
   theory/booleans/theory_bool_rewriter.cpp
   theory/booleans/theory_bool_rewriter.h
+  theory/booleans/theory_bool_type_rules.cpp
   theory/booleans/theory_bool_type_rules.h
   theory/booleans/type_enumerator.h
   theory/builtin/proof_checker.cpp

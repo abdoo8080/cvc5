@@ -1,18 +1,19 @@
-/*********************                                                        */
-/*! \file lfsc_term_process.cpp
- ** \verbatim
- ** Top contributors (to current version):
- **   Andrew Reynolds
- ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2019 by the authors listed in the file AUTHORS
- ** in the top-level source directory) and their institutional affiliations.
- ** All rights reserved.  See the file COPYING in the top-level source
- ** directory for licensing information.\endverbatim
- **
- ** \brief Implementation of rewrite db term processor.
- **/
+/******************************************************************************
+ * Top contributors (to current version):
+ *   Andrew Reynolds
+ *
+ * This file is part of the cvc5 project.
+ *
+ * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * in the top-level source directory and their institutional affiliations.
+ * All rights reserved.  See the file COPYING in the top-level source
+ * directory for licensing information.
+ * ****************************************************************************
+ *
+ * Implementation of LFSC node conversion
+ */
 
-#include "proof/lfsc/lfsc_term_process.h"
+#include "proof/lfsc/lfsc_node_converter.h"
 
 #include <sstream>
 
@@ -22,13 +23,15 @@
 #include "expr/skolem_manager.h"
 #include "printer/smt2/smt2_printer.h"
 #include "theory/uf/theory_uf_rewriter.h"
+#include "theory/bv/theory_bv_utils.h"
+#include "theory/strings/word.h"
 
 using namespace cvc5::kind;
 
 namespace cvc5 {
 namespace proof {
 
-LfscTermProcessor::LfscTermProcessor()
+LfscNodeConverter::LfscNodeConverter()
 {
   NodeManager* nm = NodeManager::currentNM();
   d_arrow = nm->mkSortConstructor("arrow", 2);
@@ -57,7 +60,7 @@ LfscTermProcessor::LfscTermProcessor()
       getSymbolInternal(FUNCTION_TYPE, setType, "Seq");
 }
 
-Node LfscTermProcessor::runConvert(Node n)
+Node LfscNodeConverter::postConvert(Node n)
 {
   NodeManager* nm = NodeManager::currentNM();
   Kind k = n.getKind();
@@ -68,7 +71,7 @@ Node LfscTermProcessor::runConvert(Node n)
   }
   TypeNode tn = n.getType();
   Trace("lfsc-term-process-debug")
-      << "runConvert " << n << " " << k << std::endl;
+      << "postConvert " << n << " " << k << std::endl;
   if (k == BOUND_VARIABLE)
   {
     // ignore internally generated symbols
@@ -80,7 +83,7 @@ Node LfscTermProcessor::runConvert(Node n)
     TypeNode intType = nm->integerType();
     Node x = nm->mkConst(Rational(getOrAssignIndexForVar(n)));
     Node tc = typeAsNode(convertType(tn));
-    TypeNode ftype = nm->mkFunctionType({intType, d_sortType}, tn, false);
+    TypeNode ftype = nm->mkFunctionType({intType, d_sortType}, tn);
     Node bvarOp = getSymbolInternal(k, ftype, "bvar");
     return nm->mkNode(APPLY_UF, bvarOp, x, tc);
   }
@@ -88,8 +91,10 @@ Node LfscTermProcessor::runConvert(Node n)
   {
     // constructors/selectors are represented by skolems, which are defined
     // symbols
-    if (tn.isConstructor() || tn.isSelector() || tn.isTester())
+    if (tn.isConstructor() || tn.isSelector() || tn.isTester()
+        || tn.isUpdater())
     {
+      // note these are not converted to their user named (cvc.) symbols here
       return n;
     }
     // skolems v print as their witness forms
@@ -103,9 +108,19 @@ Node LfscTermProcessor::runConvert(Node n)
       wi = convert(wi);
       Trace("lfsc-term-process-debug")
           << "...converted witness for " << wi << std::endl;
-      TypeNode ftype = nm->mkFunctionType(tn, tn, false);
+      TypeNode ftype = nm->mkFunctionType(tn, tn);
       Node skolemOp = getSymbolInternal(k, ftype, "skolem");
       return nm->mkNode(APPLY_UF, skolemOp, wi);
+    }
+    else
+    {
+      // use a fresh variable
+      TypeNode intType = nm->integerType();
+      TypeNode varType = nm->mkFunctionType({intType, d_sortType}, tn);
+      Node var = mkInternalSymbol("var", varType);
+      Node index = nm->mkConst(Rational(getOrAssignIndexForVar(n)));
+      Node tc = typeAsNode(convertType(tn));
+      return nm->mkNode(APPLY_UF, var, index, tc);
     }
   }
   else if (n.isVar())
@@ -120,7 +135,8 @@ Node LfscTermProcessor::runConvert(Node n)
     // Assert(d_symbols.find(n.getOperator()) != d_symbols.end());
     return convert(theory::uf::TheoryUfRewriter::getHoApplyForApplyUf(n));
   }
-  else if (k == APPLY_CONSTRUCTOR || k == APPLY_SELECTOR || k == APPLY_TESTER)
+  else if (k == APPLY_CONSTRUCTOR || k == APPLY_SELECTOR || k == APPLY_TESTER
+           || k == APPLY_UPDATER)
   {
     // must convert other kinds of apply to functions, since we convert to
     // HO_APPLY
@@ -132,14 +148,14 @@ Node LfscTermProcessor::runConvert(Node n)
     std::vector<Node> children;
     children.push_back(opc);
     children.insert(children.end(), n.begin(), n.end());
-    return runConvert(nm->mkNode(APPLY_UF, children));
+    return postConvert(nm->mkNode(APPLY_UF, children));
   }
   else if (k == HO_APPLY)
   {
     std::vector<TypeNode> argTypes;
     argTypes.push_back(n[0].getType());
     argTypes.push_back(n[1].getType());
-    TypeNode tnh = nm->mkFunctionType(argTypes, tn, false);
+    TypeNode tnh = nm->mkFunctionType(argTypes, tn);
     Node hconstf = getSymbolInternal(k, tnh, "apply");
     return nm->mkNode(APPLY_UF, hconstf, n[0], n[1]);
   }
@@ -150,8 +166,8 @@ Node LfscTermProcessor::runConvert(Node n)
       // already converted
       do
       {
-        Assert(n[0].getKind() == APPLY_UF);
         n = n[0];
+        Assert(n.getKind() == APPLY_UF || n.getKind()==CONST_RATIONAL);
       } while (n.getKind() != CONST_RATIONAL);
     }
     TypeNode tnv = nm->mkFunctionType(tn, tn);
@@ -223,10 +239,29 @@ Node LfscTermProcessor::runConvert(Node n)
       return charVec[0];
     }
     std::reverse(charVec.begin(), charVec.end());
-    Node ret = runConvert(getNullTerminator(STRING_CONCAT));
+    Node ret = postConvert(getNullTerminator(STRING_CONCAT, tn));
     for (size_t i = 0, size = charVec.size(); i < size; i++)
     {
       ret = nm->mkNode(STRING_CONCAT, charVec[i], ret);
+    }
+    return ret;
+  }
+  else if (k == CONST_SEQUENCE)
+  {
+    const std::vector<Node>& charVec = n.getConst<Sequence>().getVec();
+    TypeNode etype = nm->mkFunctionType(d_sortType, tn);
+    Node ret = getSymbolInternal(k, etype, "seq.empty");
+    ret = nm->mkNode(APPLY_UF, ret, typeAsNode(convertType(tn)));
+    std::vector<Node> vecu;
+    for (size_t i = 0, size = charVec.size(); i < size; i++)
+    {
+      Node u = nm->mkNode(SEQ_UNIT, postConvert(charVec[size-(i+1)]));
+      if (size==1)
+      {
+        // singleton case
+        return u;
+      }
+      ret = nm->mkNode(STRING_CONCAT, u, ret);
     }
     return ret;
   }
@@ -234,10 +269,11 @@ Node LfscTermProcessor::runConvert(Node n)
   {
     Node t = typeAsNode(convertType(tn));
     TypeNode caRetType = nm->mkFunctionType(tn.getArrayConstituentType(), tn);
-    TypeNode catype = nm->mkFunctionType(d_sortType, caRetType, false);
+    TypeNode catype = nm->mkFunctionType(d_sortType, caRetType);
     Node bconstf = getSymbolInternal(k, catype, "array_const");
     Node f = nm->mkNode(APPLY_UF, bconstf, t);
-    return nm->mkNode(APPLY_UF, f, n[0]);
+    ArrayStoreAll storeAll = n.getConst<ArrayStoreAll>();
+    return nm->mkNode(APPLY_UF, f, convert(storeAll.getValue()));
   }
   else if (k == ITE)
   {
@@ -248,7 +284,8 @@ Node LfscTermProcessor::runConvert(Node n)
   else if (k == GEQ || k == GT || k == LEQ || k == LT || k == MINUS
            || k == DIVISION || k == DIVISION_TOTAL || k == INTS_DIVISION
            || k == INTS_DIVISION_TOTAL || k == INTS_MODULUS
-           || k == INTS_MODULUS_TOTAL || k == UMINUS)
+           || k == INTS_MODULUS_TOTAL || k == UMINUS || k == POW
+           || isIndexedOperatorKind(k))
   {
     // must give special names to SMT-LIB operators with arithmetic subtyping
     // note that MINUS is not n-ary
@@ -259,16 +296,12 @@ Node LfscTermProcessor::runConvert(Node n)
     children.insert(children.end(), n.begin(), n.end());
     return nm->mkNode(APPLY_UF, children);
   }
-  else if (k == BITVECTOR_EXTRACT)
-  {
-    // indexed operators?
-  }
-  else if (k == EMPTYSET || k == UNIVERSE_SET)
+  else if (k == EMPTYSET || k == UNIVERSE_SET || k==EMPTYBAG)
   {
     Node t = typeAsNode(convertType(tn));
     TypeNode etype = nm->mkFunctionType(d_sortType, tn);
     Node ef =
-        getSymbolInternal(k, etype, k == EMPTYSET ? "emptyset" : "univset");
+        getSymbolInternal(k, etype, k == EMPTYSET ? "emptyset" : ( k == UNIVERSE_SET ? "univset" : "emptybag") );
     return nm->mkNode(APPLY_UF, ef, t);
   }
   else if (n.isClosure())
@@ -277,7 +310,7 @@ Node LfscTermProcessor::runConvert(Node n)
     // ((forall x1 T1) ((forall x2 T2) ... ((forall xk Tk) P))). We use
     // SEXPR to do this, which avoids the need for indexed operators.
     Node ret = n[1];
-    Node cop = getOperatorOfClosure(n);
+    Node cop = getOperatorOfClosure(n, true);
     for (size_t i = 0, nchild = n[0].getNumChildren(); i < nchild; i++)
     {
       size_t ii = (nchild - 1) - i;
@@ -292,8 +325,8 @@ Node LfscTermProcessor::runConvert(Node n)
   {
     // ((_ re.loop n1 n2) t) is ((re.loop n1 n2) t)
     TypeNode intType = nm->integerType();
-    TypeNode relType = nm->mkFunctionType(
-        {intType, intType}, nm->mkFunctionType(tn, tn), false);
+    TypeNode relType =
+        nm->mkFunctionType({intType, intType}, nm->mkFunctionType(tn, tn));
     Node rop = getSymbolInternal(
         k, relType, printer::smt2::Smt2Printer::smtKindString(k));
     RegExpLoop op = n.getOperator().getConst<RegExpLoop>();
@@ -309,7 +342,7 @@ Node LfscTermProcessor::runConvert(Node n)
   else if (NodeManager::isNAryKind(k) && n.getNumChildren() >= 2)
   {
     size_t nchild = n.getNumChildren();
-    Assert(n.getMetaKind() != kind::metakind::PARAMETERIZED);
+    Assert(n.getMetaKind() != metakind::PARAMETERIZED);
     // convert all n-ary applications to binary
     std::vector<Node> children(n.begin(), n.end());
     // distinct is special case
@@ -323,8 +356,7 @@ Node LfscTermProcessor::runConvert(Node n)
         {
           if (i != 0 && j != 1)
           {
-            ret = nm->mkNode(
-                kind::AND, ret, nm->mkNode(k, children[i], children[j]));
+            ret = nm->mkNode(AND, ret, nm->mkNode(k, children[i], children[j]));
           }
         }
       Trace("lfsc-term-process-debug") << "n: " << n << std::endl
@@ -339,7 +371,7 @@ Node LfscTermProcessor::runConvert(Node n)
     // This makes the AST above distinguishable from (or A B C D E),
     // which otherwise would both have representation:
     //   (or A (or B (or C (or D E))))
-    Node nullTerm = getNullTerminator(k);
+    Node nullTerm = getNullTerminator(k, tn);
     // Most operators simply get binarized
     Node ret;
     size_t istart = 0;
@@ -361,6 +393,9 @@ Node LfscTermProcessor::runConvert(Node n)
     if (k == PLUS || k == MULT || k == NONLINEAR_MULT)
     {
       std::stringstream opName;
+      // currently allow subtyping
+      opName << "a.";
+      /*
       if (n.getType().isInteger())
       {
         opName << "int.";
@@ -369,6 +404,7 @@ Node LfscTermProcessor::runConvert(Node n)
       {
         opName << "real.";
       }
+      */
       opName << printer::smt2::Smt2Printer::smtKindString(k);
       TypeNode ftype = nm->mkFunctionType({tn, tn}, tn);
       opc = getSymbolInternal(k, ftype, opName.str());
@@ -391,14 +427,14 @@ Node LfscTermProcessor::runConvert(Node n)
   return n;
 }
 
-TypeNode LfscTermProcessor::runConvertType(TypeNode tn)
+TypeNode LfscNodeConverter::postConvertType(TypeNode tn)
 {
   NodeManager* nm = NodeManager::currentNM();
   TypeNode cur = tn;
   Node tnn;
   Kind k = tn.getKind();
   Trace("lfsc-term-process-debug")
-      << "runConvertType " << tn << " " << tn.getNumChildren() << " " << k
+      << "postConvertType " << tn << " " << tn.getNumChildren() << " " << k
       << std::endl;
   if (k == FUNCTION_TYPE)
   {
@@ -457,7 +493,7 @@ TypeNode LfscTermProcessor::runConvertType(TypeNode tn)
         // must distinguish by arity
         std::stringstream ss;
         ss << "Tuple_" << nargs;
-        targs.insert(targs.begin(), getSymbolInternal(k, d_sortType, ss.str()));
+        targs.insert(targs.begin(), getSymbolInternal(k, ftype, ss.str()));
         tnn = nm->mkNode(APPLY_UF, targs);
         // we are changing its name, we must make a sort constructor
         cur = nm->mkSortConstructor(ss.str(), nargs);
@@ -467,8 +503,18 @@ TypeNode LfscTermProcessor::runConvertType(TypeNode tn)
     if (tnn.isNull())
     {
       std::stringstream ss;
-      ss << tn;
-      tnn = getSymbolInternal(k, d_sortType, ss.str());
+      tn.toStream(ss, language::output::LANG_SMTLIB_V2_6);
+      if (tn.isSort() || ( tn.isDatatype() && !tn.isTuple()))
+      {
+        std::stringstream sss;
+        sss << LfscNodeConverter::getNameForUserName(ss.str());
+        tnn = getSymbolInternal(k, d_sortType, sss.str());
+        cur = nm->mkSort(sss.str());
+      }
+      else
+      {
+        tnn = getSymbolInternal(k, d_sortType, ss.str());
+      }
     }
   }
   else
@@ -484,8 +530,15 @@ TypeNode LfscTermProcessor::runConvertType(TypeNode tn)
     Node op;
     if (k == PARAMETRIC_DATATYPE)
     {
+      // erase first child, which repeats the datatype
+      targs.erase(targs.begin(), targs.begin()+1);
+      types.erase(types.begin(), types.begin()+1);
       TypeNode ftype = nm->mkFunctionType(types, d_sortType);
-      op = getSymbolInternal(k, ftype, tn.getDType().getName());
+      // the operator has been converted; it is no longer a datatype, thus
+      // we must print to get its name.
+      std::stringstream ss;
+      ss << tn[0];
+      op = getSymbolInternal(k, ftype, ss.str());
     }
     else if (k == SORT_TYPE)
     {
@@ -518,14 +571,14 @@ TypeNode LfscTermProcessor::runConvertType(TypeNode tn)
   return cur;
 }
 
-std::string LfscTermProcessor::getNameForUserName(const std::string& name)
+std::string LfscNodeConverter::getNameForUserName(const std::string& name)
 {
   std::stringstream ss;
   ss << "cvc." << name;
   return ss.str();
 }
 
-bool LfscTermProcessor::shouldTraverse(Node n)
+bool LfscNodeConverter::shouldTraverse(Node n)
 {
   Kind k = n.getKind();
   // don't convert bound variable list directly
@@ -544,28 +597,28 @@ bool LfscTermProcessor::shouldTraverse(Node n)
   return true;
 }
 
-Node LfscTermProcessor::typeAsNode(TypeNode tni) const
+Node LfscNodeConverter::typeAsNode(TypeNode tni) const
 {
   // should always exist in the cache, as we always run types through
-  // runConvertType before calling this method.
+  // postConvertType before calling this method.
   std::map<TypeNode, Node>::const_iterator it = d_typeAsNode.find(tni);
   AlwaysAssert(it != d_typeAsNode.end()) << "Missing typeAsNode " << tni;
   return it->second;
 }
 
-Node LfscTermProcessor::mkInternalSymbol(const std::string& name, TypeNode tn)
+Node LfscNodeConverter::mkInternalSymbol(const std::string& name, TypeNode tn)
 {
   Node sym = NodeManager::currentNM()->mkBoundVar(name, tn);
   d_symbols.insert(sym);
   return sym;
 }
 
-Node LfscTermProcessor::getSymbolInternalFor(Node n, const std::string& name)
+Node LfscNodeConverter::getSymbolInternalFor(Node n, const std::string& name)
 {
   return getSymbolInternal(n.getKind(), n.getType(), name);
 }
 
-Node LfscTermProcessor::getSymbolInternal(Kind k,
+Node LfscNodeConverter::getSymbolInternal(Kind k,
                                           TypeNode tn,
                                           const std::string& name)
 {
@@ -581,7 +634,7 @@ Node LfscTermProcessor::getSymbolInternal(Kind k,
   return sym;
 }
 
-void LfscTermProcessor::getCharVectorInternal(Node c, std::vector<Node>& chars)
+void LfscNodeConverter::getCharVectorInternal(Node c, std::vector<Node>& chars)
 {
   Assert(c.getKind() == CONST_STRING);
   NodeManager* nm = NodeManager::currentNM();
@@ -601,21 +654,102 @@ void LfscTermProcessor::getCharVectorInternal(Node c, std::vector<Node>& chars)
   }
 }
 
-Node LfscTermProcessor::getNullTerminator(Kind k)
+bool LfscNodeConverter::isIndexedOperatorKind(Kind k)
+{
+  // TODO: this can be moved to a more central place
+  return k == BITVECTOR_EXTRACT || k == BITVECTOR_REPEAT
+         || k == BITVECTOR_ZERO_EXTEND || k == BITVECTOR_SIGN_EXTEND
+         || k == BITVECTOR_ROTATE_LEFT || k == BITVECTOR_ROTATE_RIGHT
+         || k == INT_TO_BITVECTOR || k == IAND;
+}
+
+std::vector<Node> LfscNodeConverter::getOperatorIndices(Node n)
+{
+  // TODO: this can be moved to a more central place
+  NodeManager* nm = NodeManager::currentNM();
+  std::vector<Node> indices;
+  Kind k = n.getKind();
+  switch (k)
+  {
+    case BITVECTOR_EXTRACT_OP:
+    {
+      BitVectorExtract p = n.getConst<BitVectorExtract>();
+      indices.push_back(nm->mkConst(Rational(p.d_high)));
+      indices.push_back(nm->mkConst(Rational(p.d_low)));
+      break;
+    }
+    case BITVECTOR_REPEAT_OP:
+      indices.push_back(
+          nm->mkConst(Rational(n.getConst<BitVectorRepeat>().d_repeatAmount)));
+      break;
+    case BITVECTOR_ZERO_EXTEND_OP:
+      indices.push_back(nm->mkConst(
+          Rational(n.getConst<BitVectorZeroExtend>().d_zeroExtendAmount)));
+      break;
+    case BITVECTOR_SIGN_EXTEND_OP:
+      indices.push_back(nm->mkConst(
+          Rational(n.getConst<BitVectorSignExtend>().d_signExtendAmount)));
+      break;
+    case BITVECTOR_ROTATE_LEFT_OP:
+      indices.push_back(nm->mkConst(
+          Rational(n.getConst<BitVectorRotateLeft>().d_rotateLeftAmount)));
+      break;
+    case BITVECTOR_ROTATE_RIGHT_OP:
+      indices.push_back(nm->mkConst(
+          Rational(n.getConst<BitVectorRotateRight>().d_rotateRightAmount)));
+      break;
+    case INT_TO_BITVECTOR_OP:
+      indices.push_back(
+          nm->mkConst(Rational(n.getConst<IntToBitVector>().d_size)));
+      break;
+    case IAND_OP:
+      indices.push_back(nm->mkConst(Rational(n.getConst<IntAnd>().d_size)));
+      break;
+    default: Assert(false); break;
+  }
+  return indices;
+}
+
+Node LfscNodeConverter::getNullTerminator(Kind k, TypeNode tn)
 {
   NodeManager* nm = NodeManager::currentNM();
   Node nullTerm;
   switch (k)
   {
     case OR: nullTerm = nm->mkConst(false); break;
-    case AND: nullTerm = nm->mkConst(true); break;
+    case AND: 
+    case SEP_STAR:
+      nullTerm = nm->mkConst(true); break;
     case PLUS: nullTerm = nm->mkConst(Rational(0)); break;
     case MULT:
     case NONLINEAR_MULT: nullTerm = nm->mkConst(Rational(1)); break;
-    case STRING_CONCAT: nullTerm = nm->mkConst(String("")); break;
+    case STRING_CONCAT:
+      // handles strings and sequences
+      nullTerm = theory::strings::Word::mkEmptyWord(tn);
+    break;
     case REGEXP_CONCAT:
       // the language containing only the empty string
       nullTerm = nm->mkNode(STRING_TO_REGEXP, nm->mkConst(String("")));
+      break;
+    case BITVECTOR_AND:
+      nullTerm = theory::bv::utils::mkOnes(tn.getBitVectorSize());
+      break;
+    case BITVECTOR_OR:
+    case BITVECTOR_PLUS:
+    case BITVECTOR_XOR:
+      nullTerm = theory::bv::utils::mkZero(tn.getBitVectorSize());
+      break;
+    case BITVECTOR_MULT:
+      nullTerm = theory::bv::utils::mkOne(tn.getBitVectorSize());
+      break;
+    case BITVECTOR_CONCAT:
+    {
+      // the null terminator of bitvector concat is a dummy variable of
+      // bit-vector type with zero width, regardless of the type of the overall
+      // concat.
+      TypeNode bvz = nm->mkBitVectorType(0);
+      nullTerm = getSymbolInternal(k, bvz, "emptybv");
+    }
       break;
     default:
       // not handled as null-terminated
@@ -624,7 +758,7 @@ Node LfscTermProcessor::getNullTerminator(Kind k)
   return nullTerm;
 }
 
-Node LfscTermProcessor::getOperatorOfTerm(Node n, bool macroApply)
+Node LfscNodeConverter::getOperatorOfTerm(Node n, bool macroApply)
 {
   Assert(n.hasOperator());
   Assert(!n.isClosure());
@@ -634,7 +768,12 @@ Node LfscTermProcessor::getOperatorOfTerm(Node n, bool macroApply)
   if (n.getMetaKind() == metakind::PARAMETERIZED)
   {
     Node op = n.getOperator();
-    if (op.getType().isFunction())
+    std::vector<Node> indices;
+    if (isIndexedOperatorKind(k))
+    {
+      indices = getOperatorIndices(n.getOperator());
+    }
+    else if (op.getType().isFunction())
     {
       return op;
     }
@@ -647,14 +786,52 @@ Node LfscTermProcessor::getOperatorOfTerm(Node n, bool macroApply)
     TypeNode ftype = n.getType();
     if (!argTypes.empty())
     {
-      ftype = nm->mkFunctionType(argTypes, ftype, false);
+      ftype = nm->mkFunctionType(argTypes, ftype);
     }
-    if (k == APPLY_TESTER)
+    if (isIndexedOperatorKind(k))
+    {
+      std::vector<TypeNode> itypes;
+      for (const Node& i : indices)
+      {
+        itypes.push_back(i.getType());
+      }
+      if (!itypes.empty())
+      {
+        ftype = nm->mkFunctionType(itypes, ftype);
+      }
+      if (!macroApply)
+      {
+        opName << "f_";
+      }
+      opName << printer::smt2::Smt2Printer::smtKindString(k);
+    }
+    else if (k == APPLY_CONSTRUCTOR || k == APPLY_SELECTOR || k == APPLY_TESTER
+           || k == APPLY_UPDATER)
     {
       // use is-C instead of (_ is C) syntax for testers
-      unsigned cindex = DType::indexOf(op);
+      unsigned index = DType::indexOf(op);
       const DType& dt = DType::datatypeOf(op);
-      opName << "is-" << dt[cindex].getConstructor();
+      if (k == APPLY_TESTER)
+      {
+        opName << "is-";
+      }
+      else if (k == APPLY_UPDATER)
+      {
+        opName << "update-";
+      }
+      if (k==APPLY_TESTER || k==APPLY_CONSTRUCTOR)
+      {
+        std::stringstream ssc;
+        ssc << dt[index].getConstructor();
+        opName << getNameForUserName(ssc.str());
+      }
+      else if (k==APPLY_SELECTOR || k==APPLY_UPDATER)
+      {
+        unsigned cindex = DType::cindexOf(op);
+        std::stringstream sss;
+        sss << dt[cindex][index].getSelector();
+        opName << getNameForUserName(sss.str());
+      }
     }
     else
     {
@@ -663,6 +840,14 @@ Node LfscTermProcessor::getOperatorOfTerm(Node n, bool macroApply)
     Node ret = getSymbolInternal(k, ftype, opName.str());
     // TODO: if parametric, instantiate the parameters?
 
+    // if indexed, apply to index
+    if (!indices.empty())
+    {
+      std::vector<Node> ichildren;
+      ichildren.push_back(ret);
+      ichildren.insert(ichildren.end(), indices.begin(), indices.end());
+      ret = nm->mkNode(APPLY_UF, ichildren);
+    }
     return ret;
   }
   std::vector<TypeNode> argTypes;
@@ -676,7 +861,7 @@ Node LfscTermProcessor::getOperatorOfTerm(Node n, bool macroApply)
     argTypes.resize(2);
   }
   TypeNode tn = n.getType();
-  TypeNode ftype = nm->mkFunctionType(argTypes, tn, false);
+  TypeNode ftype = nm->mkFunctionType(argTypes, tn);
   // most functions are called f_X where X is the SMT-LIB name, if we are
   // getting the macroApply variant, then we don't prefix with `f_`.
   if (!macroApply)
@@ -687,8 +872,11 @@ Node LfscTermProcessor::getOperatorOfTerm(Node n, bool macroApply)
   if (k == PLUS || k == MULT || k == NONLINEAR_MULT || k == GEQ || k == GT
       || k == LEQ || k == LT || k == MINUS || k == DIVISION
       || k == DIVISION_TOTAL || k == INTS_DIVISION || k == INTS_DIVISION_TOTAL
-      || k == INTS_MODULUS || k == INTS_MODULUS_TOTAL || k == UMINUS)
+      || k == INTS_MODULUS || k == INTS_MODULUS_TOTAL || k == UMINUS || k == POW)
   {
+    // currently allow subtyping
+    opName << "a.";
+    /*
     if (n[0].getType().isInteger())
     {
       opName << "int.";
@@ -697,6 +885,7 @@ Node LfscTermProcessor::getOperatorOfTerm(Node n, bool macroApply)
     {
       opName << "real.";
     }
+    */
   }
   if (k == UMINUS)
   {
@@ -712,7 +901,7 @@ Node LfscTermProcessor::getOperatorOfTerm(Node n, bool macroApply)
   {
     // ITE is indexed by its type
     TypeNode boolType = nm->booleanType();
-    TypeNode itype = nm->mkFunctionType(d_sortType, ftype, false);
+    TypeNode itype = nm->mkFunctionType(d_sortType, ftype);
     Node iteSym = getSymbolInternal(k, itype, opName.str());
     Node typeNode = typeAsNode(convertType(tn));
     Assert(!typeNode.isNull());
@@ -721,20 +910,25 @@ Node LfscTermProcessor::getOperatorOfTerm(Node n, bool macroApply)
   return getSymbolInternal(k, ftype, opName.str());
 }
 
-Node LfscTermProcessor::getOperatorOfClosure(Node q)
+Node LfscNodeConverter::getOperatorOfClosure(Node q, bool macroApply)
 {
   NodeManager* nm = NodeManager::currentNM();
-  TypeNode bodyType = nm->mkFunctionType(q[1].getType(), q.getType(), false);
+  TypeNode bodyType = nm->mkFunctionType(q[1].getType(), q.getType());
   // We permit non-flat function types here
   // intType is used here for variable indices
   TypeNode intType = nm->integerType();
-  TypeNode ftype = nm->mkFunctionType({intType, d_sortType}, bodyType, false);
+  TypeNode ftype = nm->mkFunctionType({intType, d_sortType}, bodyType);
   Kind k = q.getKind();
-  return getSymbolInternal(
-      k, ftype, printer::smt2::Smt2Printer::smtKindString(k));
+  std::stringstream opName;
+  if (!macroApply)
+  {
+    opName << "f_";
+  }
+  opName << printer::smt2::Smt2Printer::smtKindString(k);
+  return getSymbolInternal(k, ftype, opName.str());
 }
 
-Node LfscTermProcessor::getOperatorOfBoundVar(Node cop, Node v)
+Node LfscNodeConverter::getOperatorOfBoundVar(Node cop, Node v)
 {
   NodeManager* nm = NodeManager::currentNM();
   Node x = nm->mkConst(Rational(getOrAssignIndexForVar(v)));
@@ -742,7 +936,7 @@ Node LfscTermProcessor::getOperatorOfBoundVar(Node cop, Node v)
   return nm->mkNode(APPLY_UF, cop, x, tc);
 }
 
-size_t LfscTermProcessor::getOrAssignIndexForVar(Node v)
+size_t LfscNodeConverter::getOrAssignIndexForVar(Node v)
 {
   Assert(v.isVar());
   std::map<Node, size_t>::iterator it = d_varIndex.find(v);

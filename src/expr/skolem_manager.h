@@ -39,6 +39,8 @@ enum class SkolemFunId
   SQRT,
   /** a wrongly applied selector */
   SELECTOR_WRONG,
+  /** a shared selector */
+  SHARED_SELECTOR,
   /** an application of seq.nth that is out of bounds */
   SEQ_NTH_OOB,
 };
@@ -254,12 +256,6 @@ class SkolemManager
                      const TypeNode& type,
                      const std::string& comment = "",
                      int flags = NodeManager::SKOLEM_DEFAULT);
-  /**
-   * Make Boolean term variable for term t. This is a special case of
-   * mkPurifySkolem above, where the returned term has kind
-   * BOOLEAN_TERM_VARIABLE.
-   */
-  Node mkBooleanTermVariable(Node t);
   /**
    * Get proof generator for existentially quantified formula q. This returns
    * the proof generator that was provided in a call to mkSkolem above.

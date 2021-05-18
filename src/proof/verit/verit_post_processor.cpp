@@ -15,12 +15,41 @@
 
 #include "proof/verit/verit_post_processor.h"
 
+#include "expr/node_algorithm.h"
 #include "expr/proof.h"
 #include "expr/proof_checker.h"
 
 namespace cvc5 {
 
 namespace proof {
+
+// This function removes all attributes contained in the list of attributes from
+// a Node res while only recursively updating the node further if
+// continueRemoval is true.
+static Node removeAttributes(Node res,
+                             const std::vector<Kind>& attributes,
+                             bool (*continueRemoval)(Node))
+{
+  if (res.getNumChildren() != 0)
+  {
+    std::vector<Node> new_children;
+    if (res.hasOperator())
+    {
+      new_children.push_back(res.getOperator());
+    }
+    for (int i = 0; i < res.end() - res.begin(); i++)
+    {
+      if (std::find(attributes.begin(), attributes.end(), res[i].getKind())
+          == attributes.end())
+      {
+        new_children.push_back(
+            proof::removeAttributes(res[i], attributes, continueRemoval));
+      }
+    }
+    return NodeManager::currentNM()->mkNode(res.getKind(), new_children);
+  }
+  return res;
+}
 
 VeritProofPostprocessCallback::VeritProofPostprocessCallback(
     ProofNodeManager* pnm)
@@ -180,15 +209,20 @@ bool VeritProofPostprocessCallback::update(Node res,
 
       // Build vp1
       std::vector<Node> negNode;
+      std::vector<Node> sanitized_args;
       for (Node arg : args)
       {
         negNode.push_back(arg.notNode());  // (not F1) ... (not Fn)
+        sanitized_args.push_back(removeAttributes(
+            arg, {kind::INST_PATTERN, kind::INST_PATTERN_LIST}, [](Node n) {
+              return expr::hasClosure(n);
+            }));
       }
       negNode.push_back(children[0]);         // (not F1) ... (not Fn) F
       negNode.insert(negNode.begin(), d_cl);  // (cl (not F1) ... (not F) F)
       Node vp1 = d_nm->mkNode(kind::SEXPR, negNode);
-      success &=
-          addVeritStep(vp1, VeritRule::ANCHOR_SUBPROOF, children, args, *cdp);
+      success &= addVeritStep(
+          vp1, VeritRule::ANCHOR_SUBPROOF, children, sanitized_args, *cdp);
 
       // Build vp2i
       Node andNode;
@@ -1935,20 +1969,16 @@ bool VeritProofPostprocessCallback::update(Node res,
     // ProofRuleChecker::mkKindNode.
     //
     // In the case that <kind> is forall the cong rule needs to be translated
-    // into a bind rule. The first child will be a refl rule, e.g. (= (v0 Int)
-    // (v0 Int)). The type has to be deleted.
+    // into a bind rule. The first child will be a refl rule that can be
+    // omitted.
     //
-    //  proof rule: refl
-    //  proof node: (or (= v1 v2))
-    //  proof term: (cl (= v1 v2))
-    //  premises: ()
-    //  args: ()
+    //  let t1 = (BOUND_VARIABLE LIST (v1 A1) ... (vn An)) and s1 =
+    //  (BOUND_VARIABLE LIST (w1 B1) ... (wn Bn))
     //
     //  proof rule: bind
-    //  proof node: (cl (= (forall (v1 A) t1) (forall (v2 A) t2)))
-    //  proof term: (cl (= (forall (v1 A) t1) (forall (v2 A) t2)))
-    //  premises: ()
-    //  args: ()
+    //  proof node: (= (forall ((v1 A1)...(vn An)) t2) (forall ((w1 B1)...(wn
+    //  Bn)) s2)) proof term: (cl (= (forall ((v1 A1)...(vn An)) t2) (forall
+    //  ((w1 B1)...(wn Bn)) s2))) premises: P2 args: ((:= v1 w1) ... (:= vn wn))
     //
     // Otherwise
     //
@@ -1961,18 +1991,26 @@ bool VeritProofPostprocessCallback::update(Node res,
     {
       if (args[0] == ProofRuleChecker::mkKindNode(kind::FORALL))
       {
-        Node arg =
-            d_nm->mkNode(kind::EQUAL, children[0][0][0], children[0][1][0]);
-        Node vp1 = d_nm->mkNode(kind::SEXPR, d_cl, arg);
-        auto new_children = children;
-        new_children[0] = vp1;
-        return addVeritStep(vp1, VeritRule::REFL, {}, {}, *cdp)
-               && addVeritStep(res,
-                               VeritRule::ANCHOR_BIND,
-                               d_nm->mkNode(kind::SEXPR, d_cl, res),
-                               new_children,
-                               {arg},
-                               *cdp);
+        std::vector<Node> new_children;
+        std::vector<Node> sanitized_args;
+        for (long int i = 0;
+             i < (children[0][0].end() - children[0][0].begin());
+             i++)
+        {
+          sanitized_args.push_back(removeAttributes(
+              d_nm->mkNode(kind::EQUAL, children[0][0][i], children[0][1][i]),
+              {kind::INST_PATTERN, kind::INST_PATTERN_LIST},
+              [](Node n) { return expr::hasClosure(n); }));
+          // Node vpi = d_nm->mkNode(kind::SEXPR, d_cl, vars.back());
+          // addVeritStep(vpi,VeritRule::REFL,{},{},*cdp);
+          // new_children.push_back(vpi);
+        }
+        return addVeritStep(res,
+                            VeritRule::ANCHOR_BIND,
+                            d_nm->mkNode(kind::SEXPR, d_cl, res),
+                            {children[1]},
+                            sanitized_args,
+                            *cdp);
       }
       return addVeritStep(res,
                           VeritRule::CONG,
@@ -2312,99 +2350,207 @@ bool VeritProofPostprocessCallback::update(Node res,
     //
     // TODO(lachnitt@stanford.edu):
     // isabelle-mirabelle/Green_cvc42/x2020_07_31_11_27_36_291_7704406.smt_in
-    /*case PfRule::ARITH_TRICHOTOMY:{
+    case PfRule::ARITH_TRICHOTOMY:
+    {
       bool success = true;
       Node equal;
       Node lesser;
       Node greater;
 
-      if(res.getKind() == kind::EQUAL){equal = res;}
-      else if(children[0].getKind() == kind::NOT){equal = children[0];}
-      else if(children[1].getKind() == kind::NOT){equal = children[1];}
+      if (res.getKind() == kind::EQUAL)
+      {
+        equal = res;
+      }
+      else if (children[0].getKind() == kind::NOT)
+      {
+        equal = children[0];
+      }
+      else if (children[1].getKind() == kind::NOT)
+      {
+        equal = children[1];
+      }
 
-      if(res.getKind() == kind::GT){greater = res;}
-      else if(children[0].getKind() == kind::LEQ){greater = children[0];}
-      else if(children[1].getKind() == kind::LEQ){greater = children[1];}
+      if (res.getKind() == kind::GT)
+      {
+        greater = res;
+      }
+      else if (children[0].getKind() == kind::LEQ)
+      {
+        greater = children[0];
+      }
+      else if (children[1].getKind() == kind::LEQ)
+      {
+        greater = children[1];
+      }
 
-      if(res.getKind() == kind::LT){lesser = res;}
-      else if(children[0].getKind() == kind::GEQ){lesser = children[0];}
-      else if(children[1].getKind() == kind::GEQ){lesser = children[1];}
+      if (res.getKind() == kind::LT)
+      {
+        lesser = res;
+      }
+      else if (children[0].getKind() == kind::GEQ)
+      {
+        lesser = children[0];
+      }
+      else if (children[1].getKind() == kind::GEQ)
+      {
+        lesser = children[1];
+      }
 
       Node x = equal[0][0];
       Node c = equal[0][1];
       Node vp_child1 = children[0];
       Node vp_child2 = children[1];
 
-      //Preprocessing
-      if(res == equal || res == greater){ // C = (= x c) or C = (> x c)
+      // Preprocessing
+      if (res == equal || res == greater)
+      {  // C = (= x c) or C = (> x c)
         // lesser = (>= x c)
-        Node vpc2 =
-    d_nm->mkNode(kind::SEXPR,d_cl,nm->mkNode(kind::EQUAL,nm->mkNode(kind::GEQ,x,c),nm->mkNode(kind::LEQ,c,x)));
-    // (cl (= (>= x c) (<= c x))) Node vpc1 =
-    d_nm->mkNode(kind::SEXPR,d_cl,vpc2[1].notNode(),nm->mkNode(kind::GEQ,x,c).notNode(),nm->mkNode(kind::LEQ,c,x));
-    // (cl (not(= (>= x c) (<= c x))) (not (>= x c)) (<= c x)) vp_child1 =
-    d_nm->mkNode(kind::SEXPR,d_cl,nm->mkNode(kind::LEQ,c,x)); // (cl (<= c x))
+        Node vpc2 = d_nm->mkNode(kind::SEXPR,
+                                 d_cl,
+                                 d_nm->mkNode(kind::EQUAL,
+                                              d_nm->mkNode(kind::GEQ, x, c),
+                                              d_nm->mkNode(kind::LEQ, c, x)));
+        // (cl (= (>= x c) (<= c x)))
+        Node vpc1 = d_nm->mkNode(kind::SEXPR,
+                                 d_cl,
+                                 vpc2[1].notNode(),
+                                 d_nm->mkNode(kind::GEQ, x, c).notNode(),
+                                 d_nm->mkNode(kind::LEQ, c, x));
+        // (cl (not(= (>= x c) (<= c x))) (not (>= x c)) (<= c x))
+        vp_child1 = d_nm->mkNode(
+            kind::SEXPR, d_cl, d_nm->mkNode(kind::LEQ, c, x));  // (cl (<= c x))
 
-        success &= addVeritStep(vpc1,VeritRule::EQUIV_POS2,{},{},*cdp)
-                && addVeritStep(vpc2,VeritRule::COMP_SIMPLIFY,{},{},*cdp)
-                &&
-    addVeritStep(vp_child1,VeritRule::RESOLUTION,{vpc1,vpc2,lesser},{},*cdp);
+        success &= addVeritStep(vpc1, VeritRule::EQUIV_POS2, {}, {}, *cdp)
+                   && addVeritStep(vpc2, VeritRule::COMP_SIMPLIFY, {}, {}, *cdp)
+                   && addVeritStep(vp_child1,
+                                   VeritRule::RESOLUTION,
+                                   {vpc1, vpc2, lesser},
+                                   {},
+                                   *cdp);
         // greater = (<= x c) or greater = (not (= x c)) -> no preprocessing
-    necessary if(res == equal){vp_child2 = greater;} else{vp_child2 = equal;}
+        // necessary
+        if (res == equal)
+        {
+          vp_child2 = greater;
+        }
+        else
+        {
+          vp_child2 = equal;
+        }
       }
 
-      //Process
+      // Process
       Node vp1 =
-    d_nm->mkNode(kind::SEXPR,d_cl,nm->mkNode(kind::OR,nm->mkNode(kind::EQUAL,x,c),nm->mkNode(kind::LEQ,x,c).notNode(),nm->mkNode(kind::LEQ,c,x).notNode()));
-    // (cl (or (= x c) (not (<= x c)) (not (<= c x)))) Node vp2 =
-    d_nm->mkNode(kind::SEXPR,d_cl,nm->mkNode(kind::EQUAL,x,c),nm->mkNode(kind::LEQ,x,c).notNode(),nm->mkNode(kind::LEQ,c,x).notNode());
-    // (cl (= x c) (not (<= x c)) (not (<= c x))) success &=
-    addVeritStep(vp1,VeritRule::LA_DISEQUALITY,{},{},*cdp)
-              && addVeritStep(vp2,VeritRule::OR,{vp1},{},*cdp);
+          d_nm->mkNode(kind::SEXPR,
+                       d_cl,
+                       d_nm->mkNode(kind::OR,
+                                    d_nm->mkNode(kind::EQUAL, x, c),
+                                    d_nm->mkNode(kind::LEQ, x, c).notNode(),
+                                    d_nm->mkNode(kind::LEQ, c, x).notNode()));
+      // (cl (or (= x c) (not (<= x c)) (not (<= c x))))
+      Node vp2 = d_nm->mkNode(kind::SEXPR,
+                              d_cl,
+                              d_nm->mkNode(kind::EQUAL, x, c),
+                              d_nm->mkNode(kind::LEQ, x, c).notNode(),
+                              d_nm->mkNode(kind::LEQ, c, x).notNode());
+      // (cl (= x c) (not (<= x c)) (not (<= c x)))
+      success &= addVeritStep(vp1, VeritRule::LA_DISEQUALITY, {}, {}, *cdp)
+                 && addVeritStep(vp2, VeritRule::OR, {vp1}, {}, *cdp);
 
-      //Postprocessing
-      if (res == equal){ //no postprocessing necessary
-        return success &&
-    addVeritStep(res,VeritRule::RESOLUTION,nm->mkNode(kind::SEXPR,d_cl,res),{vp2,vp_child1,vp_child2},{},*cdp);
+      // Postprocessing
+      if (res == equal)
+      {  // no postprocessing necessary
+        return success
+               && addVeritStep(res,
+                               VeritRule::RESOLUTION,
+                               d_nm->mkNode(kind::SEXPR, d_cl, res),
+                               {vp2, vp_child1, vp_child2},
+                               {},
+                               *cdp);
       }
-      else if(res == greater){ //have (not (<= x c)) but result should be (> x
-    c) Node vp3 =
-    d_nm->mkNode(kind::SEXPR,d_cl,nm->mkNode(kind::LEQ,x,c).notNode()); // (cl
-    (not (<= x c))) Node vp4 =
-    d_nm->mkNode(kind::SEXPR,d_cl,nm->mkNode(kind::EQUAL,nm->mkNode(kind::GT,x,c),nm->mkNode(kind::LEQ,x,c).notNode()).notNode(),nm->mkNode(kind::GT,x,c),nm->mkNode(kind::LEQ,x,c).notNode().notNode());
-    // (cl (not(= (> x c) (not (<= x c)))) (> x c) (not (not (<= x c)))) Node
-    vp5 =
-    d_nm->mkNode(kind::SEXPR,d_cl,nm->mkNode(kind::EQUAL,nm->mkNode(kind::GT,x,c),nm->mkNode(kind::LEQ,x,c).notNode()));
-    // (cl (= (> x c) (not (<= x c))))
+      else if (res == greater)
+      {  // have (not (<= x c)) but result should be (> x c)
+        Node vp3 = d_nm->mkNode(
+            kind::SEXPR,
+            d_cl,
+            d_nm->mkNode(kind::LEQ, x, c).notNode());  // (cl (not (<= x c)))
+        Node vp4 = d_nm->mkNode(
+            kind::SEXPR,
+            d_cl,
+            d_nm->mkNode(kind::EQUAL,
+                         d_nm->mkNode(kind::GT, x, c),
+                         d_nm->mkNode(kind::LEQ, x, c).notNode())
+                .notNode(),
+            d_nm->mkNode(kind::GT, x, c),
+            d_nm->mkNode(kind::LEQ, x, c)
+                .notNode()
+                .notNode());  // (cl (not(= (> x c) (not (<= x c)))) (> x c)
+                              // (not (not (<= x c))))
+        Node vp5 =
+            d_nm->mkNode(kind::SEXPR,
+                         d_cl,
+                         d_nm->mkNode(kind::EQUAL,
+                                      d_nm->mkNode(kind::GT, x, c),
+                                      d_nm->mkNode(kind::LEQ, x, c).notNode()));
+        // (cl (= (> x c) (not (<= x c))))
 
         return success
-                &&
-    addVeritStep(vp3,VeritRule::RESOLUTION,{vp2,vp_child1,vp_child2},{},*cdp)
-                && addVeritStep(vp4,VeritRule::EQUIV_POS1,{},{},*cdp)
-                && addVeritStep(vp5,VeritRule::COMP_SIMPLIFY,{},{},*cdp)
-                &&
-    addVeritStep(res,VeritRule::RESOLUTION,nm->mkNode(kind::SEXPR,d_cl,res),{vp3,vp4,vp5},{},*cdp);
+               && addVeritStep(vp3,
+                               VeritRule::RESOLUTION,
+                               {vp2, vp_child1, vp_child2},
+                               {},
+                               *cdp)
+               && addVeritStep(vp4, VeritRule::EQUIV_POS1, {}, {}, *cdp)
+               && addVeritStep(vp5, VeritRule::COMP_SIMPLIFY, {}, {}, *cdp)
+               && addVeritStep(res,
+                               VeritRule::RESOLUTION,
+                               d_nm->mkNode(kind::SEXPR, d_cl, res),
+                               {vp3, vp4, vp5},
+                               {},
+                               *cdp);
       }
-      else{ //have (not (<= c x)) but result should be (< x c)
-        Node vp3 =
-    d_nm->mkNode(kind::SEXPR,d_cl,nm->mkNode(kind::LEQ,c,x).notNode()); // (cl
-    (not (<= c x))) Node vp4 =
-    d_nm->mkNode(kind::SEXPR,d_cl,nm->mkNode(kind::EQUAL,nm->mkNode(kind::LT,x,c),nm->mkNode(kind::LEQ,c,x).notNode()).notNode(),nm->mkNode(kind::LT,x,c),nm->mkNode(kind::LEQ,c,x).notNode().notNode());
-    // (cl (not(= (< x c) (not (<= c x)))) (< x c) (not (not (<= c x)))) Node
-    vp5 =
-    d_nm->mkNode(kind::SEXPR,d_cl,nm->mkNode(kind::EQUAL,nm->mkNode(kind::LT,x,c),nm->mkNode(kind::LEQ,c,x).notNode()));
-    // (cl (= (< x c) (not (<= c x))))
+      else
+      {  // have (not (<= c x)) but result should be (< x c)
+        Node vp3 = d_nm->mkNode(
+            kind::SEXPR,
+            d_cl,
+            d_nm->mkNode(kind::LEQ, c, x).notNode());  // (cl (not (<= c x)))
+        Node vp4 = d_nm->mkNode(
+            kind::SEXPR,
+            d_cl,
+            d_nm->mkNode(kind::EQUAL,
+                         d_nm->mkNode(kind::LT, x, c),
+                         d_nm->mkNode(kind::LEQ, c, x).notNode())
+                .notNode(),
+            d_nm->mkNode(kind::LT, x, c),
+            d_nm->mkNode(kind::LEQ, c, x)
+                .notNode()
+                .notNode());  // (cl (not(= (< x c) (not (<= c x)))) (< x c)
+                              // (not (not (<= c x))))
+        Node vp5 = d_nm->mkNode(
+            kind::SEXPR,
+            d_cl,
+            d_nm->mkNode(kind::EQUAL,
+                         d_nm->mkNode(kind::LT, x, c),
+                         d_nm->mkNode(kind::LEQ, c, x)
+                             .notNode()));  // (cl (= (< x c) (not (<= c x))))
 
         return success
-                &&
-    addVeritStep(vp3,VeritRule::RESOLUTION,{vp2,vp_child1,vp_child2},{},*cdp)
-                && addVeritStep(vp4,VeritRule::EQUIV_POS1,{},{},*cdp)
-                && addVeritStep(vp5,VeritRule::COMP_SIMPLIFY,{},{},*cdp)
-                &&
-    addVeritStep(res,VeritRule::RESOLUTION,nm->mkNode(kind::SEXPR,d_cl,res),{vp3,vp4,vp5},{},*cdp);
+               && addVeritStep(vp3,
+                               VeritRule::RESOLUTION,
+                               {vp2, vp_child1, vp_child2},
+                               {},
+                               *cdp)
+               && addVeritStep(vp4, VeritRule::EQUIV_POS1, {}, {}, *cdp)
+               && addVeritStep(vp5, VeritRule::COMP_SIMPLIFY, {}, {}, *cdp)
+               && addVeritStep(res,
+                               VeritRule::RESOLUTION,
+                               d_nm->mkNode(kind::SEXPR, d_cl, res),
+                               {vp3, vp4, vp5},
+                               {},
+                               *cdp);
       }
-
-    }*/
+    }
     // ======== Arithmetic operator elimination
     // Children: none
     // Arguments: (t)
@@ -2553,10 +2699,20 @@ bool VeritProofPostprocessCallback::addVeritStep(
     const std::vector<Node>& args,
     CDProof& cdp)
 {
+  // delete attributes
+  Node sanitized_conclusion = conclusion;
+  if (expr::hasClosure(conclusion))
+  {
+    sanitized_conclusion = removeAttributes(
+        conclusion, {kind::INST_PATTERN, kind::INST_PATTERN_LIST}, [](Node n) {
+          return expr::hasClosure(n);
+        });
+  }
+
   std::vector<Node> new_args = std::vector<Node>();
   new_args.push_back(d_nm->mkConst<Rational>(static_cast<unsigned>(rule)));
   new_args.push_back(res);
-  new_args.push_back(conclusion);
+  new_args.push_back(sanitized_conclusion);
   new_args.insert(new_args.end(), args.begin(), args.end());
   Trace("verit-proof") << "... add veriT step " << res << " / " << conclusion
                        << " " << rule << " " << children << " / " << new_args
@@ -2590,6 +2746,12 @@ bool VeritProofPostprocessFinalCallback::shouldUpdate(
     const std::vector<Node>& fa,
     bool& continueUpdate)
 {
+  // Sanitize arguments of first scope
+  if (pn->getRule() != PfRule::VERIT_RULE)
+  {
+    continueUpdate = false;
+    return true;
+  }
   // The proof node should not be traversed further
   continueUpdate = false;
   if (pn->getArguments()[2].toString() == "(cl)")
@@ -2639,6 +2801,29 @@ bool VeritProofPostprocessFinalCallback::update(
     CDProof* cdp,
     bool& continueUpdate)
 {
+  // remove attribute for outermost scope
+  if (id != PfRule::VERIT_RULE)
+  {
+    std::vector<Node> sanitized_args;
+    sanitized_args.push_back(res);
+    sanitized_args.push_back(res);
+    sanitized_args.push_back(
+        d_nm->mkConst<Rational>(static_cast<unsigned>(VeritRule::ASSUME)));
+    for (auto arg : args)
+    {
+      sanitized_args.push_back(removeAttributes(
+          arg, {kind::INST_PATTERN, kind::INST_PATTERN_LIST}, [](Node n) {
+            return expr::hasClosure(n);
+          }));
+    }
+    return cdp->addStep(res,
+                        PfRule::VERIT_RULE,
+                        children,
+                        sanitized_args,
+                        true,
+                        CDPOverwrite::ALWAYS);
+  }
+
   bool success = true;
   d_nm = NodeManager::currentNM();
   std::vector<Node> new_args = std::vector<Node>();
@@ -2713,7 +2898,9 @@ void VeritProofPostprocess::process(std::shared_ptr<ProofNode> pf)
   // In the veriT proof format the final step has to be (cl). However, after the
   // translation it might be (cl false). In that case additional steps are
   // required.
-  d_finalize.process(pf->getChildren()[0]);
+  // The function has the additional purpose of sanitizing the attributes of the
+  // first SCOPE
+  d_finalize.process(pf);
 }
 
 }  // namespace proof

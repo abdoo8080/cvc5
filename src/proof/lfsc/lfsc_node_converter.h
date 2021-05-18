@@ -1,45 +1,46 @@
-/*********************                                                        */
-/*! \file lfsc_term_process.h
- ** \verbatim
- ** Top contributors (to current version):
- **   Andrew Reynolds
- ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2020 by the authors listed in the file AUTHORS
- ** in the top-level source directory) and their institutional affiliations.
- ** All rights reserved.  See the file COPYING in the top-level source
- ** directory for licensing information.\endverbatim
- **
- ** \brief The module for printing Lfsc proof nodes
- **/
-
+/******************************************************************************
+ * Top contributors (to current version):
+ *   Andrew Reynolds
+ *
+ * This file is part of the cvc5 project.
+ *
+ * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * in the top-level source directory and their institutional affiliations.
+ * All rights reserved.  See the file COPYING in the top-level source
+ * directory for licensing information.
+ * ****************************************************************************
+ *
+ * Implementation of LFSC node conversion
+ */
 #include "cvc5_private.h"
 
-#ifndef CVC4__PROOF__LFSC__LFSC_TERM_PROCESS_H
-#define CVC4__PROOF__LFSC__LFSC_TERM_PROCESS_H
+#ifndef CVC4__PROOF__LFSC__LFSC_NODE_CONVERTER_H
+#define CVC4__PROOF__LFSC__LFSC_NODE_CONVERTER_H
 
 #include <iostream>
 #include <map>
 
 #include "expr/node.h"
+#include "expr/node_converter.h"
 #include "expr/type_node.h"
-#include "proof/term_processor.h"
 
 namespace cvc5 {
 namespace proof {
 
-class LfscTermProcessor : public TermProcessor
+class LfscNodeConverter : public NodeConverter
 {
  public:
-  LfscTermProcessor();
-  ~LfscTermProcessor() {}
+  LfscNodeConverter();
+  ~LfscNodeConverter() {}
   /** convert to internal */
-  Node runConvert(Node n) override;
+  Node postConvert(Node n) override;
   /** convert to internal */
-  TypeNode runConvertType(TypeNode tn) override;
+  TypeNode postConvertType(TypeNode tn) override;
   /**
-   * Get the null terminator for kind k
+   * Get the null terminator for kind k and type tn. The type tn can be
+   * omitted if applications of kind k do not have parametric type.
    */
-  static Node getNullTerminator(Kind k);
+  Node getNullTerminator(Kind k, TypeNode tn = TypeNode::null());
   /**
    * Return the properly named operator for n of the form (f t1 ... tn), where
    * f could be interpreted or uninterpreted.  This method is used for cases
@@ -48,7 +49,7 @@ class LfscTermProcessor : public TermProcessor
    */
   Node getOperatorOfTerm(Node n, bool macroApply = false);
   /** get closure operator */
-  Node getOperatorOfClosure(Node q);
+  Node getOperatorOfClosure(Node q, bool macroApply = false);
   /** get closure operator, cop is return  */
   Node getOperatorOfBoundVar(Node cop, Node v);
   /** get or assign variable index for variable v */
@@ -62,7 +63,6 @@ class LfscTermProcessor : public TermProcessor
 
   /** get name for user name */
   static std::string getNameForUserName(const std::string& name);
-
  private:
   /** Should we traverse n? */
   bool shouldTraverse(Node n) override;
@@ -76,10 +76,14 @@ class LfscTermProcessor : public TermProcessor
    * Get character vector, add internal vector of characters for c.
    */
   void getCharVectorInternal(Node c, std::vector<Node>& chars);
+  /** is indexed operator kind */
+  static bool isIndexedOperatorKind(Kind k);
+  /** get indices */
+  static std::vector<Node> getOperatorIndices(Node n);
   /** terms with different syntax than smt2 */
   std::map<std::tuple<Kind, TypeNode, std::string>, Node> d_symbolsMap;
   /** the set of all internally generated symbols */
-  std::unordered_set<Node, NodeHashFunction> d_symbols;
+  std::unordered_set<Node> d_symbols;
   /** arrow type constructor */
   TypeNode d_arrow;
   /** the type of LFSC sorts, which can appear in terms */

@@ -1,6 +1,6 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Mathias Preiner, Aina Niemetz, Morgan Deters
+ *   Abdalrhman Mohamed
  *
  * This file is part of the cvc5 project.
  *
@@ -10,29 +10,20 @@
  * directory for licensing information.
  * ****************************************************************************
  *
- * Global (command-line, set-option, ...) parameters for SMT.
+ * Utility methods.
  */
 
-#include "cvc5_private.h"
+#ifndef CVC5__UTILS_H
+#define CVC5__UTILS_H
 
-#ifndef CVC5__OPTIONS__OPTIONS_HOLDER_H
-#define CVC5__OPTIONS__OPTIONS_HOLDER_H
+#include <cvc5/cvc5.h>
 
-// clang-format off
-${headers_module}$
+/**
+ * Print solutions for synthesis conjecture to the standard output stream.
+ * @param terms the terms for which the synthesis solutions were retrieved
+ * @param sols the synthesis solutions of the given terms
+ */
+void printSynthSolutions(const std::vector<cvc5::api::Term>& terms,
+                         const std::vector<cvc5::api::Term>& sols);
 
-namespace cvc5 {
-namespace options {
-
-struct OptionsHolder
-{
-  OptionsHolder();
-  ${macros_module}$
-
-}; /* struct OptionsHolder */
-
-}  // namespace options
-}  // namespace cvc5
-
-#endif /* CVC5__OPTIONS__OPTIONS_HOLDER_H */
-// clang-format on
+#endif  // CVC5__UTILS_H

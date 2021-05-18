@@ -45,6 +45,8 @@ libcvc5_add_sources(
   node_algorithm.h
   node_builder.cpp
   node_builder.h
+  node_converter.cpp
+  node_converter.h
   node_manager.cpp
   node_manager.h
   node_manager_attributes.h
@@ -112,8 +114,6 @@ libcvc5_add_sources(
   dtype_cons.cpp
   dtype_selector.h
   dtype_selector.cpp
-  record.cpp
-  record.h
   sequence.cpp
   sequence.h
   subs.cpp

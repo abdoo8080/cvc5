@@ -51,6 +51,7 @@ const char* toString(SkolemFunId id)
     case SkolemFunId::MOD_BY_ZERO: return "MOD_BY_ZERO";
     case SkolemFunId::SQRT: return "SQRT";
     case SkolemFunId::SELECTOR_WRONG: return "SELECTOR_WRONG";
+    case SkolemFunId::SHARED_SELECTOR: return "SHARED_SELECTOR";
     case SkolemFunId::SEQ_NTH_OOB: return "SEQ_NTH_OOB";
     default: return "?";
   }
@@ -215,11 +216,6 @@ Node SkolemManager::mkDummySkolem(const std::string& prefix,
   return NodeManager::currentNM()->mkSkolem(prefix, type, comment, flags);
 }
 
-Node SkolemManager::mkBooleanTermVariable(Node t)
-{
-  return mkPurifySkolem(t, "", "", NodeManager::SKOLEM_BOOL_TERM_VAR);
-}
-
 ProofGenerator* SkolemManager::getProofGenerator(Node t) const
 {
   std::map<Node, ProofGenerator*>::const_iterator it = d_gens.find(t);
@@ -248,8 +244,8 @@ Node SkolemManager::getOriginalForm(Node n)
       << "SkolemManager::getOriginalForm " << n << std::endl;
   OriginalFormAttribute ofa;
   NodeManager* nm = NodeManager::currentNM();
-  std::unordered_map<TNode, Node, TNodeHashFunction> visited;
-  std::unordered_map<TNode, Node, TNodeHashFunction>::iterator it;
+  std::unordered_map<TNode, Node> visited;
+  std::unordered_map<TNode, Node>::iterator it;
   std::vector<TNode> visit;
   TNode cur;
   visit.push_back(n);

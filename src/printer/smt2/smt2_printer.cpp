@@ -310,11 +310,15 @@ void Smt2Printer::toStream(std::ostream& out,
     }
 
     case kind::EMPTYSET:
-      out << "(as emptyset " << n.getConst<EmptySet>().getType() << ")";
+      out << "(as emptyset ";
+      toStreamType(out, n.getConst<EmptySet>().getType());
+      out << ")";
       break;
 
     case kind::EMPTYBAG:
-      out << "(as emptybag " << n.getConst<EmptyBag>().getType() << ")";
+      out << "(as emptybag ";
+      toStreamType(out, n.getConst<EmptyBag>().getType());
+      out << ")";
       break;
     case kind::BITVECTOR_EXTRACT_OP:
     {
@@ -533,8 +537,7 @@ void Smt2Printer::toStream(std::ostream& out,
   bool stillNeedToPrintParams = true;
   bool forceBinary = false; // force N-ary to binary when outputing children
   // operator
-  if (n.getNumChildren() != 0 && k != kind::INST_PATTERN_LIST
-      && k != kind::CONSTRUCTOR_TYPE)
+  if (n.getNumChildren() != 0 && k != kind::CONSTRUCTOR_TYPE)
   {
     out << '(';
   }
@@ -780,7 +783,8 @@ void Smt2Printer::toStream(std::ostream& out,
   case kind::BITVECTOR_ROTATE_LEFT:
   case kind::BITVECTOR_ROTATE_RIGHT:
   case kind::INT_TO_BITVECTOR:
-    out << n.getOperator() << ' ';
+    toStream(out, n.getOperator(), toDepth, nullptr);
+    out << ' ';
     stillNeedToPrintParams = false;
     break;
 
@@ -924,6 +928,7 @@ void Smt2Printer::toStream(std::ostream& out,
   case kind::APPLY_TESTER:
   case kind::APPLY_SELECTOR:
   case kind::APPLY_SELECTOR_TOTAL:
+  case kind::APPLY_UPDATER:
   case kind::PARAMETRIC_DATATYPE: break;
 
   // separation logic
@@ -1181,6 +1186,7 @@ std::string Smt2Printer::smtKindString(Kind k, Variant v)
   case kind::BITVECTOR_SIGN_EXTEND: return "sign_extend";
   case kind::BITVECTOR_ROTATE_LEFT: return "rotate_left";
   case kind::BITVECTOR_ROTATE_RIGHT: return "rotate_right";
+  case kind::INT_TO_BITVECTOR: return "int2bv";
 
   case kind::UNION: return "union";
   case kind::INTERSECTION: return "intersection";
@@ -1332,7 +1338,7 @@ std::string Smt2Printer::smtKindString(Kind k, Variant v)
 
 void Smt2Printer::toStreamType(std::ostream& out, TypeNode tn) const
 {
-  // TODO: should be able to call this
+  // we currently must call TypeNode::toStream here.
   tn.toStream(out, language::output::LANG_SMTLIB_V2_6);
 }
 
