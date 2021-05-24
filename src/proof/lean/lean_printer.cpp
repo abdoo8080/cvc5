@@ -127,7 +127,21 @@ void LeanPrinter::printConstant(std::ostream& out, TNode n)
     out << (n.getConst<bool>() ? "top" : "bot");
     return;
   }
-  out << n;
+  else if (k == kind::CONST_STRING)
+  {
+    std::string str = n.getConst<String>().toString();
+    out << "(mkVarChars [";
+    for (size_t i = 0; i < str.length(); ++i)
+    {
+      out << "\'" << str.at(i) << "\'";
+      if (i != str.length() - 1) out << ", ";
+    }
+    out << "])";
+  }
+  else  // k == kind::BOUND_VARIABLE
+  {
+    out << n;
+  }
 }
 
 void LeanPrinter::printTermList(std::ostream& out, TNode n)
@@ -255,6 +269,12 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       out << "]";
       break;
     }
+  case kind::STRING_LENGTH:
+  {
+    out << "mkLength ";
+    printTerm(out, nc[0]);
+    break;
+  }
     default: Unhandled() << " " << k;
   }
   out << ")" << (letTop ? "" : "\n");
