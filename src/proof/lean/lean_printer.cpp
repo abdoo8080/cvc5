@@ -313,12 +313,12 @@ void LeanPrinter::printStepId(std::ostream& out,
   if (pfn->getRule() == PfRule::ASSUME)
   {
     AlwaysAssert(pfAssumpMap.find(pfn->getResult()) != pfAssumpMap.end());
-    out << "a" << pfAssumpMap.find(pfn->getResult())->second;
+    out << "lean_a" << pfAssumpMap.find(pfn->getResult())->second;
   }
   else
   {
     AlwaysAssert(pfMap.find(pfn) != pfMap.end());
-    out << "s" << pfMap.find(pfn)->second;
+    out << "lean_s" << pfMap.find(pfn)->second;
   }
 }
 
@@ -339,6 +339,7 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     return;
   }
+  TNode res = pfn->getResult();
   // print rule specific lean syntax, traversing children before parents in
   // ProofNode tree
   const std::vector<Node>& args = pfn->getArguments();
@@ -358,11 +359,10 @@ void LeanPrinter::printProof(std::ostream& out,
   if (rule == LeanRule::SCOPE)
   {
     printOffset(out, offset);
-    out << "have s" << id << " : holds ";
-    printTerm(out, args[2]);
-    out << " from (\n";
-    // push offset
-    offset++;
+    out << "have lean_s" << id << " : thHolds ";
+    // print conversion to a clause of the original scope's conclusion
+    printTerm(out, res);
+    out << " from\n";
     // each argument to the scope proof node corresponds to one scope to close
     // in the Lean proof
     std::map<Node, size_t> backupMap;
@@ -374,46 +374,39 @@ void LeanPrinter::printProof(std::ostream& out,
         backupMap[args[i]] = it->second;
       }
       pfAssumpMap[args[i]] = i - 3;
-      printOffset(out, offset);
-      out << "fun a" << i - 3 << " : thHolds ";
+      // push and print offset
+      printOffset(out, ++offset);
+      out << "(scope (fun lean_a" << i - 3 << " : thHolds ";
       printTerm(out, args[i]);
       out << " =>\n";
     }
     size_t newId = 0;
     Trace("test-lean") << pop;
-    for (const std::shared_ptr<ProofNode>& child : children)
-    {
-      printProof(out, newId, offset, child, pfMap, pfAssumpMap);
-    }
+    AlwaysAssert(children.size() == 1);
+    printProof(out, newId, ++offset, children[0], pfMap, pfAssumpMap);
     Trace("test-lean") << pop;
-    // print conclusion of scope, which is the conversion to a clause of a scope
-    // chain over the arguments until the last step of the subproof
+    // print conclusion of scope's child. For now this is a redundant step
+    // because the proof can't end with "have" but rather with "show"
     printOffset(out, offset);
-    out << "show holds ";
-    printTerm(out, args[2]);
-    out << " from clOr";
+    out << "show thHolds ";
+    printTerm(out, children[0]->getResult());
+    out << " from ";
+    printStepId(out, children[0].get(), pfMap, pfAssumpMap);
+    out << "\n";
+    // now close. We have assumptions*2 parens
     std::stringstream cparens;
     for (size_t i = 3, size = args.size(); i < size; ++i)
     {
-      out << " (scope a" << pfAssumpMap[args[i]];
-      cparens << ")";
+      offset--;
+      cparens << "))";
     }
-    out << " s" << newId - 1 << cparens.str() << "\n";
+    printOffset(out, offset);
+    out << cparens.str() << "\n";
     // recover assumption map
     for (const auto& p : backupMap)
     {
       pfAssumpMap[p.first] = p.second;
     }
-    // print list of arguments
-    printOffset(out, offset);
-    out << ")";
-    for (size_t i = 3, size = args.size(); i < size; ++i)
-    {
-      out << " a" << pfAssumpMap[args[i]];
-    }
-    out << "\n";
-    // pop offset
-    offset--;
     // save proof step in map
     pfMap[pfn.get()] = id++;
     return;
@@ -430,10 +423,9 @@ void LeanPrinter::printProof(std::ostream& out,
   // than have s.... If the proof has a clausal conclusion (as argument), print
   // holds, otherwise thHolds and the result.
   bool hasClausalResult = args[2] != Node::null();
-  TNode res = pfn->getResult();
   if (d_letRules.find(rule) != d_letRules.end())
   {
-    out << "let s" << id << " := " << rule;
+    out << "let lean_s" << id << " := " << rule;
   }
   else
   {
@@ -443,7 +435,7 @@ void LeanPrinter::printProof(std::ostream& out,
     }
     else
     {
-      out << "have s" << id << " : ";
+      out << "have lean_s" << id << " : ";
       if (hasClausalResult)
       {
         out << "holds ";
@@ -521,8 +513,10 @@ void LeanPrinter::print(std::ostream& out,
     printSort(out, s.getType());
     out << "\n";
   }
-  AlwaysAssert(pfn->getChildren().size() == 1);
-  std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0];
+  // actual proof is below processed scope
+  AlwaysAssert(pfn->getChildren().size() == 1
+               && pfn->getChildren()[0]->getChildren().size() == 1);
+  std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0]->getChildren()[0];
   // compute the term lets. For this consider the assertions and the conclusions
   // of explicit proof steps
   for (const Node& a : assertions)
@@ -532,7 +526,7 @@ void LeanPrinter::print(std::ostream& out,
   ProofNodeUpdater updater(nullptr, *(d_cb.get()), false, false, false);
   updater.process(innerPf);
 
-  const std::vector<Node>& args = pfn->getArguments();
+  const std::vector<Node>& args = pfn->getChildren()[0]->getArguments();
   for (size_t i = 3, size = args.size(); i < size; ++i)
   {
     d_lbind.process(args[i]);
@@ -559,7 +553,8 @@ void LeanPrinter::print(std::ostream& out,
   else
   {
     AlwaysAssert(innerPf->getResult() == d_false)
-        << "conclusion is actually " << innerPf->getResult();
+      << "conclusion with rule " << getLeanRule(innerPf->getArguments()[0])
+        << " is actually " << innerPf->getResult();
     out << "thHolds bot :=\n";
   }
   // print initial assumptions
@@ -567,7 +562,7 @@ void LeanPrinter::print(std::ostream& out,
   for (size_t i = 3, size = args.size(); i < size; ++i)
   {
     pfAssumpMap[args[i]] = i - 3;
-    out << "fun a" << i - 3 << " : thHolds ";
+    out << "fun lean_a" << i - 3 << " : thHolds ";
     printTerm(out, args[i]);
     out << " =>\n";
   }

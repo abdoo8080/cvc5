@@ -125,66 +125,47 @@ bool LeanProofPostprocessCallback::update(Node res,
     // create clausal conclusion. Shortcut if before scope
     case PfRule::IMPLIES_ELIM:
     {
-      // if this implies elim is applied right after a scope, we short-circuit
-      // it
-      std::shared_ptr<ProofNode> childPf = cdp->getProofFor(children[0]);
-      PfRule childRule = childPf->getRule();
-      if (childRule == PfRule::SCOPE)
-      {
-        Assert(childPf->getChildren().size() == 1);
-        // need to pass proof of children to cdp
-        std::vector<Node> childrenOfChild;
-        const std::vector<std::shared_ptr<ProofNode>>& childrenPfsOfChild =
-            childPf->getChildren();
-        for (const std::shared_ptr<ProofNode>& cpoc : childrenPfsOfChild)
-        {
-          childrenOfChild.push_back(cpoc->getResult());
-          // store in the proof
-          cdp->addProof(cpoc);
-        }
-        // update child proof but with this step's conclusion
-        bool updateRes CVC5_UNUSED = update(res,
-                                            childRule,
-                                            childrenOfChild,
-                                            childPf->getArguments(),
-                                            cdp,
-                                            continueUpdate);
-        Assert(updateRes);
-      }
-      else
-      {
-        // regular case, just turn conclusion into clause
-        addLeanStep(res,
-                    LeanRule::IMPLIES_ELIM,
-                    nm->mkNode(kind::SEXPR, res[0].notNode(), res[1]),
-                    children,
-                    args,
-                    *cdp);
-      }
+      // regular case, just turn conclusion into clause
+      addLeanStep(res,
+                  LeanRule::IMPLIES_ELIM,
+                  Node::null(),
+                  children,
+                  args,
+                  *cdp);
       break;
     }
     // create clausal conclusion
     case PfRule::SCOPE:
     {
-      std::vector<Node> newRes;
+      // new result is an or with all assumptions negated and the original conclusion
+      std::vector<Node> newResChildren;
       for (const Node& n : args)
       {
-        newRes.push_back(n.notNode());
+        newResChildren.push_back(n.notNode());
       }
       if (res.getKind() == kind::NOT)
       {
-        newRes.push_back(d_false);
+        newResChildren.push_back(d_false);
       }
       else
       {
         Assert(res.getKind() == kind::IMPLIES || res.getKind() == kind::OR);
-        newRes.push_back(res[1]);
+        newResChildren.push_back(res[1]);
       }
-      addLeanStep(res,
+      Node newRes = nm->mkNode(kind::OR, newResChildren);
+      addLeanStep(newRes,
                   LeanRule::SCOPE,
-                  nm->mkNode(kind::SEXPR, newRes),
+                  Node::null(),
                   children,
                   args,
+                  *cdp);
+      // add a lifting step from the OR above to the original conclusion. It
+      // takes as arguments the number of assumptions and subproof conclusion
+      addLeanStep(res,
+                  LeanRule::LIFT_N_OR_TO_IMP,
+                  Node::null(),
+                  {newRes},
+                  {nm->mkConst<Rational>(args.size()), newResChildren.back()},
                   *cdp);
       break;
     }
@@ -231,7 +212,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       // clauses directly, it's necessary to turn the modus ponens rule into a
       // resolution step. Otherwise MP is translated directly
       std::shared_ptr<ProofNode> childPf1 = cdp->getProofFor(children[1]);
-      if (childPf1->getRule() == PfRule::SCOPE)
+      if (false && childPf1->getRule() == PfRule::SCOPE)
       {
         Trace("test-lean") << "..modus ponens with a scope\n";
         // first process the scope to have (OR (not arg0) ... (not argn) ch1Res)
@@ -723,14 +704,13 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::CNF_AND_NEG:
     {
-      // std::vector<Node> resArgs{args[0].begin(), args[0].end()};
+      std::vector<Node> resArgs{args[0].begin(), args[0].end()};
       std::vector<Node> resLits{res.begin(), res.end()};
       addLeanStep(res,
                   LeanRule::CNF_AND_NEG,
                   nm->mkNode(kind::SEXPR, resLits),
                   children,
-                  // {nm->mkNode(kind::SEXPR, resArgs), args[1]},
-                  {},
+                  {nm->mkNode(kind::SEXPR, resArgs)},
                   *cdp);
       break;
     }
@@ -922,14 +902,19 @@ bool LeanProofPostprocessClConnectCallback::update(
                          << "\n";
       AlwaysAssert(argsOfChild[2].getKind() == kind::SEXPR);
       // #if CVC5_ASSERTIONS
-      // if singleton, must be the same. Otherwise children[i] must be an or and
-      // the arguments must be the same
+      // if singleton, must be the same. Otherwise either children[i] must be an or and
+      // the arguments must be the same or it's the empty clause, false
       if (argsOfChild[2][0] != children[i])
       {
-        AlwaysAssert(children[i].getKind() == kind::OR
-                     && argsOfChild[2].getNumChildren() > 1);
-        std::vector<Node> lits{argsOfChild[2].begin(), argsOfChild[2].end()};
-        AlwaysAssert(children[i] == nm->mkNode(kind::OR, lits));
+        if (children[i].getKind() == kind::OR)
+        {
+          std::vector<Node> lits{argsOfChild[2].begin(), argsOfChild[2].end()};
+          AlwaysAssert(children[i] == nm->mkNode(kind::OR, lits));
+        }
+        else
+        {
+          AlwaysAssert(children[i] == d_false);
+        }
       }
       // #endif
       // I have to update the child proof, since newChildren[i] is actually

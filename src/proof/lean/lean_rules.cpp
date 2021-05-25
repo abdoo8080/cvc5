@@ -29,6 +29,7 @@ const char* toString(LeanRule id)
     case LeanRule::CL_ASSUME: return "clAssume";
     case LeanRule::CL_OR: return "clOr";
     case LeanRule::TH_ASSUME: return "thAssume";
+    case LeanRule::LIFT_N_OR_TO_IMP: return "liftNOrToImp";
 
     case LeanRule::R0: return "R0";
     case LeanRule::R0_PARTIAL: return "R0";
@@ -62,7 +63,7 @@ const char* toString(LeanRule id)
     case LeanRule::NOT_ITE_ELIM2: return "notIteElim2";
     case LeanRule::NOT_AND: return "notAnd";
     case LeanRule::CNF_AND_POS: return "@cnfAndPos";
-    case LeanRule::CNF_AND_NEG: return "cnfAndNeg";
+    case LeanRule::CNF_AND_NEG: return "@cnfAndNeg";
     case LeanRule::CNF_IMPLIES_POS: return "cnfImpliesPos";
     case LeanRule::CNF_IMPLIES_NEG1: return "cnfImpliesNeg1";
     case LeanRule::CNF_IMPLIES_NEG2: return "cnfImpliesNeg2";
