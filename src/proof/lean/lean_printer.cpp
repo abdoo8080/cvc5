@@ -269,12 +269,12 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       out << "]";
       break;
     }
-  case kind::STRING_LENGTH:
-  {
-    out << "mkLength ";
-    printTerm(out, nc[0]);
-    break;
-  }
+    case kind::STRING_LENGTH:
+    {
+      out << "mkLength ";
+      printTerm(out, nc[0]);
+      break;
+    }
     default: Unhandled() << " " << k;
   }
   out << ")" << (letTop ? "" : "\n");
