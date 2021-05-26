@@ -965,8 +965,8 @@ void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
   ProofNodeUpdater updater(d_pnm, *(d_cb.get()), false, false, false);
   updater.process(pf);
   ProofNodeUpdater updaterCl(d_pnm, *(d_cbCl.get()), false, false, false);
-  // we don't need to convert the final scope
-  updaterCl.process(pf->getChildren()[0]);
+  // we don't need to convert the final scope, which has been lifted
+  updaterCl.process(pf->getChildren()[0]->getChildren()[0]);
 };
 
 }  // namespace proof

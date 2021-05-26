@@ -348,6 +348,7 @@ void LeanPrinter::printProof(std::ostream& out,
   Trace("test-lean") << "printProof: args " << args << "\n";
   LeanRule rule = getLeanRule(args[0]);
   Trace("test-lean") << "printProof: rule " << rule << "\n";
+  Trace("test-lean") << "printProof: result " << res << "\n";
   if (rule == LeanRule::UNKNOWN)
   {
     // save proof step in map
@@ -513,10 +514,11 @@ void LeanPrinter::print(std::ostream& out,
     printSort(out, s.getType());
     out << "\n";
   }
-  // actual proof is below processed scope
+  // actual proof is below processed scope and possibly spurious thAssume
   AlwaysAssert(pfn->getChildren().size() == 1
                && pfn->getChildren()[0]->getChildren().size() == 1);
   std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0]->getChildren()[0];
+  Trace("test-lean") << "innerPf rule: " << getLeanRule(innerPf->getArguments()[0]) << "\n";
   // compute the term lets. For this consider the assertions and the conclusions
   // of explicit proof steps
   for (const Node& a : assertions)
@@ -526,10 +528,10 @@ void LeanPrinter::print(std::ostream& out,
   ProofNodeUpdater updater(nullptr, *(d_cb.get()), false, false, false);
   updater.process(innerPf);
 
-  const std::vector<Node>& args = pfn->getChildren()[0]->getArguments();
-  for (size_t i = 3, size = args.size(); i < size; ++i)
+  const std::vector<Node>& assumptions = pfn->getChildren()[0]->getArguments();
+  for (size_t i = 3, size = assumptions.size(); i < size; ++i)
   {
-    d_lbind.process(args[i]);
+    d_lbind.process(assumptions[i]);
   }
   printLetList(out);
 
@@ -537,10 +539,10 @@ void LeanPrinter::print(std::ostream& out,
   // conclude a proof of []. The assumptions are args[2..]
   out << "\ntheorem th0 : ";
   Assert(args.size() > 2);
-  for (size_t i = 3, size = args.size(); i < size; ++i)
+  for (size_t i = 3, size = assumptions.size(); i < size; ++i)
   {
     out << "thHolds ";
-    printTerm(out, args[i]);
+    printTerm(out, assumptions[i]);
     out << " -> ";
   }
   // whether conclusion is "thHolds bot" or "holds []" depends on what the inner
@@ -559,11 +561,11 @@ void LeanPrinter::print(std::ostream& out,
   }
   // print initial assumptions
   std::map<Node, size_t> pfAssumpMap;
-  for (size_t i = 3, size = args.size(); i < size; ++i)
+  for (size_t i = 3, size = assumptions.size(); i < size; ++i)
   {
-    pfAssumpMap[args[i]] = i - 3;
+    pfAssumpMap[assumptions[i]] = i - 3;
     out << "fun lean_a" << i - 3 << " : thHolds ";
-    printTerm(out, args[i]);
+    printTerm(out, assumptions[i]);
     out << " =>\n";
   }
   std::stringstream ss;
