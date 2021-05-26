@@ -312,7 +312,7 @@ void LeanPrinter::printStepId(std::ostream& out,
 {
   if (pfn->getRule() == PfRule::ASSUME)
   {
-    AlwaysAssert(pfAssumpMap.find(pfn->getResult()) != pfAssumpMap.end());
+    AlwaysAssert(pfAssumpMap.find(pfn->getResult()) != pfAssumpMap.end()) << pfn->getResult();
     out << "lean_a" << pfAssumpMap.find(pfn->getResult())->second;
   }
   else
@@ -538,7 +538,7 @@ void LeanPrinter::print(std::ostream& out,
   // print theorem header, which is to get proofs of all the assumptions and
   // conclude a proof of []. The assumptions are args[2..]
   out << "\ntheorem th0 : ";
-  Assert(args.size() > 2);
+  Assert(assumptions.size() > 2);
   for (size_t i = 3, size = assumptions.size(); i < size; ++i)
   {
     out << "thHolds ";
