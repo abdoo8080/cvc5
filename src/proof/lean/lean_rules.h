@@ -32,6 +32,7 @@ enum class LeanRule : uint32_t
   CL_OR,
   TH_ASSUME,
   LIFT_N_OR_TO_IMP,
+  LIFT_N_OR_TO_NEG,
   // boolean
   R0,
   R0_PARTIAL,

@@ -137,6 +137,7 @@ bool LeanProofPostprocessCallback::update(Node res,
     // create clausal conclusion
     case PfRule::SCOPE:
     {
+      bool negation = false;
       // new result is an or with all assumptions negated and the original conclusion
       std::vector<Node> newResChildren;
       for (const Node& n : args)
@@ -145,6 +146,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       }
       if (res.getKind() == kind::NOT)
       {
+        negation = true;
         newResChildren.push_back(d_false);
       }
       else
@@ -161,12 +163,13 @@ bool LeanProofPostprocessCallback::update(Node res,
                   *cdp);
       // add a lifting step from the OR above to the original conclusion. It
       // takes as arguments the number of assumptions and subproof conclusion
-      addLeanStep(res,
-                  LeanRule::LIFT_N_OR_TO_IMP,
-                  Node::null(),
-                  {newRes},
-                  {nm->mkConst<Rational>(args.size()), newResChildren.back()},
-                  *cdp);
+      addLeanStep(
+          res,
+          negation ? LeanRule::LIFT_N_OR_TO_NEG : LeanRule::LIFT_N_OR_TO_IMP,
+          Node::null(),
+          {newRes},
+          {nm->mkConst<Rational>(args.size()), newResChildren.back()},
+          *cdp);
       break;
     }
     // only the rule changes and can be described with a pure mapping

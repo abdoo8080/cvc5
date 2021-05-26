@@ -30,6 +30,7 @@ const char* toString(LeanRule id)
     case LeanRule::CL_OR: return "clOr";
     case LeanRule::TH_ASSUME: return "thAssume";
     case LeanRule::LIFT_N_OR_TO_IMP: return "liftNOrToImp";
+    case LeanRule::LIFT_N_OR_TO_NEG: return "liftNOrToNeg";
 
     case LeanRule::R0: return "R0";
     case LeanRule::R0_PARTIAL: return "R0";

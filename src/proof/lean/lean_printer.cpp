@@ -115,7 +115,7 @@ void LeanPrinter::printSort(std::ostream& out, TypeNode sort)
   // TODO HB will need to add cases for other theories
 
   // uninterpreted sort
-  AlwaysAssert(sort.isSort());
+  AlwaysAssert(sort.isSort()) << sort << "\n";
   out << sort;
 }
 
