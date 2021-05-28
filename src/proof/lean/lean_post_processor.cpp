@@ -578,7 +578,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       // conclusion is singleton only if it occurs in premise
       if (res.getKind() == kind::OR
           && std::find(children[0].begin(), children[0].end(), res)
-                 != children[0].end())
+                 == children[0].end())
       {
         std::vector<Node> resLits{res.begin(), res.end()};
         conclusion = nm->mkNode(kind::SEXPR, resLits);
