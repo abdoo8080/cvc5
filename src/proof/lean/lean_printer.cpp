@@ -365,7 +365,9 @@ void LeanPrinter::printProof(std::ostream& out,
     printTerm(out, res);
     out << " from\n";
     // each argument to the scope proof node corresponds to one scope to close
-    // in the Lean proof
+    // in the Lean proof. To avoid clashes, we shift the assumptions numbers by
+    // current pfAssumpMap' size
+    size_t assumptionsShift = pfAssumpMap.size();
     std::map<Node, size_t> backupMap;
     for (size_t i = 3, size = args.size(); i < size; ++i)
     {
@@ -374,14 +376,17 @@ void LeanPrinter::printProof(std::ostream& out,
       {
         backupMap[args[i]] = it->second;
       }
-      pfAssumpMap[args[i]] = i - 3;
+      pfAssumpMap[args[i]] = assumptionsShift + i - 3;
       // push and print offset
       printOffset(out, ++offset);
-      out << "(scope (fun lean_a" << i - 3 << " : thHolds ";
+      out << "(scope (fun lean_a" << assumptionsShift + i - 3 << " : thHolds ";
       printTerm(out, args[i]);
       out << " =>\n";
     }
-    size_t newId = 0;
+    // similarly, we shift step ids by the number of current steps
+    size_t newId = pfMap.size();
+    // use a new proof map for subproof
+    // std::map<const ProofNode*, size_t> subpfMap{pfMap};
     Trace("test-lean") << pop;
     AlwaysAssert(children.size() == 1);
     printProof(out, newId, ++offset, children[0], pfMap, pfAssumpMap);
