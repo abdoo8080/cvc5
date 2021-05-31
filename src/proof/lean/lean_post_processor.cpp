@@ -227,6 +227,8 @@ bool LeanProofPostprocessCallback::update(Node res,
         Unreachable() << "Lean printing without support for congruence over "
                          "closures for now\n";
       }
+      Kind k = res[0].getKind();
+      size_t nchildren = children.size();
       Node eqNode = ProofRuleChecker::mkKindNode(kind::EQUAL);
       Node op = args.size() == 2 ? args[1] : args[0];
       // add internal refl step
@@ -237,11 +239,71 @@ bool LeanProofPostprocessCallback::update(Node res,
                   {},
                   {mkPrintableOp(op)},
                   *cdp);
+      // Are we doing congruence of an n-ary operator with more than two
+      // arguments? If so, notice that op is a binary operator and we must apply
+      // congruence in a special way.
+      //
+      // special case: some kinds are n-ary but expect operators which are not,
+      // so we handle them in a regular manner below
+      bool isNary = NodeManager::isNAryKind(k) && k != kind::APPLY_UF
+                    && k != kind::APPLY_CONSTRUCTOR && k != kind::APPLY_SELECTOR
+                    && k != kind::APPLY_TESTER;
+      if (isNary && nchildren > 2)
+      {
+        // start with the last argument
+        Node currEq = children[nchildren - 1];
+        for (size_t i = 1; i < nchildren; ++i)
+        {
+          unsigned j = nchildren - i - 1;
+          // build equality of partial apps of argument j
+          Node argAppEq = nm->mkNode(kind::SEXPR, eqNode,
+                                   nm->mkNode(kind::SEXPR, op, children[j][0]),
+                                   nm->mkNode(kind::SEXPR, op, children[j][1]));
+          // add step that justify equality of partial apps
+          addLeanStep(argAppEq,
+                      LeanRule::CONG_PARTIAL,
+                      Node::null(),
+                      {opEq, children[j]},
+                      {},
+                      *cdp);
+          // last case, we add a CONG step to the original conclusion
+          if (j == 0)
+          {
+            addLeanStep(res,
+                        LeanRule::CONG,
+                        Node::null(),
+                        {argAppEq, currEq},
+                        {},
+                        *cdp);
+          }
+          else
+          {
+            // build equality of full app with argument j and previous equality
+            // in chain
+            Node nextEq =
+                nm->mkNode(kind::SEXPR,
+                           eqNode,
+                           nm->mkNode(kind::SEXPR, argAppEq, currEq[0]),
+                           nm->mkNode(kind::SEXPR, argAppEq, currEq[1]));
+            addLeanStep(nextEq,
+                        LeanRule::CONG_PARTIAL,
+                        Node::null(),
+                        {argAppEq, currEq},
+                        {},
+                        *cdp);
+            currEq = nextEq;
+
+          }
+        }
+        break;
+      }
+      // regular congruence over non-nary, non-closures
+      //
       // add internal steps
       Node curL = op;
       Node curR = op;
       Node currEq = opEq;
-      for (size_t i = 0, size = children.size(); i < size - 1; ++i)
+      for (size_t i = 0; i < nchildren - 1; ++i)
       {
         curL = nm->mkNode(kind::SEXPR, currEq, children[i][0]);
         curR = nm->mkNode(kind::SEXPR, currEq, children[i][0]);
@@ -292,12 +354,13 @@ bool LeanProofPostprocessCallback::update(Node res,
       Node cur = children[size - 1], first = children[0];
       for (size_t i = 1; i < size - 1; ++i)
       {
-        Node newCur = nm->mkNode(kind::AND, children[size - i - 1], cur);
+        unsigned j = size - i - 1;
+        Node newCur = nm->mkNode(kind::AND, children[j], cur);
         addLeanStep(newCur,
                     LeanRule::AND_INTRO_PARTIAL,
                     Node::null(),
                     {
-                        children[size - i - 1],
+                        children[j],
                         cur,
                     },
                     {},
