@@ -176,14 +176,16 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       Assert(nChildren >= 1);
       if (nChildren > 1)
       {
-        out << "mkAppN ";
+        // out << "mkAppN ";
+        out << "myMkAppN ";
         printTerm(out, op);
         out << " ";
         printTermList(out, nc);
       }
       else
       {
-        out << "mkApp ";
+        // out << "mkApp ";
+        out << "app ";
         printTerm(out, op);
         out << " ";
         printTerm(out, nc[0]);
@@ -192,24 +194,35 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
     }
     case kind::EQUAL:
     {
-      out << "mkEq ";
+      // out << "mkEq ";
+      out << "eq ";
       printTerm(out, nc[0]);
       out << " ";
       printTerm(out, nc[1]);
       break;
     }
-
+    case kind::XOR:
+    {
+      // out << "mkXor ";
+      out << "xor ";
+      printTerm(out, nc[0]);
+      out << " ";
+      printTerm(out, nc[1]);
+      break;
+    }
     case kind::OR:
     {
       Assert(nChildren >= 2);
       if (nChildren > 2)
       {
-        out << "mkOrN ";
+        // out << "mkOrN ";
+        out << "myMkOrN ";
         printTermList(out, nc);
       }
       else
       {
-        out << "mkOr ";
+        // out << "mkOr ";
+        out << "term.or ";
         printTerm(out, nc[0]);
         out << " ";
         printTerm(out, nc[1]);
@@ -221,12 +234,14 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       Assert(nChildren >= 2);
       if (nChildren > 2)
       {
-        out << "mkAndN ";
+        // out << "mkAndN ";
+        out << "myMkAndN ";
         printTermList(out, nc);
       }
       else
       {
-        out << "mkAnd ";
+        // out << "mkAnd ";
+        out << "term.and ";
         printTerm(out, nc[0]);
         out << " ";
         printTerm(out, nc[1]);
@@ -235,7 +250,8 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
     }
     case kind::IMPLIES:
     {
-      out << "mkImplies ";
+      // out << "mkImplies ";
+      out << "implies ";
       printTerm(out, nc[0]);
       out << " ";
       printTerm(out, nc[1]);
@@ -243,13 +259,15 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
     }
     case kind::NOT:
     {
-      out << "mkNot ";
+      // out << "mkNot ";
+      out << "term.not ";
       printTerm(out, nc[0]);
       break;
     }
     case kind::ITE:
     {
-      out << "mkIte ";
+      // out << "mkIte ";
+      out << "ite ";
       printTerm(out, nc[0]);
       out << " ";
       printTerm(out, nc[1]);
@@ -478,6 +496,9 @@ void LeanPrinter::print(std::ostream& out,
   Trace("test-lean") << "Post-processed proof " << *pfn.get() << "\n";
   // TODO preamble should be theory dependent
   out << "import Cdclt.Euf\n\n";
+  // increase recursion depth
+  out << "set_option maxRecDepth 1000\n\n";
+  // do includes
   out << "open proof\nopen proof.sort proof.term\n";
   out << "open rules eufRules\n\n";
 

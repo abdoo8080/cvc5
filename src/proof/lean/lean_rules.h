@@ -68,6 +68,8 @@ enum class LeanRule : uint32_t
   // tseitin
   CNF_AND_POS,
   CNF_AND_NEG,
+  CNF_OR_POS,
+  CNF_OR_NEG,
   CNF_IMPLIES_POS,
   CNF_IMPLIES_NEG1,
   CNF_IMPLIES_NEG2,

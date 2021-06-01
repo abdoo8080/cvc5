@@ -1,3 +1,3 @@
 #!/bin/bash
 
-~/cvc/wt-proofnew/prod/bin/cvc5 $@ | tail -n +2
+~/cvc/wt-diff/prod/bin/cvc5 $@ | tail -n +2

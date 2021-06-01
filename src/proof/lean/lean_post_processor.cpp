@@ -28,9 +28,9 @@ namespace proof {
 std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::EQ_RESOLVE, LeanRule::EQ_RESOLVE},
     {PfRule::AND_ELIM, LeanRule::AND_ELIM},
+    {PfRule::NOT_OR_ELIM, LeanRule::NOT_OR_ELIM},
     {PfRule::REFL, LeanRule::REFL},
     {PfRule::THEORY_REWRITE, LeanRule::TH_TRUST_VALID},
-    {PfRule::AND_ELIM, LeanRule::AND_ELIM},
     {PfRule::NOT_IMPLIES_ELIM1, LeanRule::NOT_IMPLIES1},
     {PfRule::NOT_IMPLIES_ELIM2, LeanRule::NOT_IMPLIES2},
     {PfRule::MODUS_PONENS, LeanRule::MODUS_PONENS},
@@ -39,6 +39,15 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::TRUE_ELIM, LeanRule::TRUE_ELIM},
     {PfRule::FALSE_INTRO, LeanRule::FALSE_INTRO},
     {PfRule::FALSE_ELIM, LeanRule::FALSE_ELIM},
+    {PfRule::CNF_EQUIV_POS1, LeanRule::CNF_EQUIV_POS1},
+    {PfRule::CNF_EQUIV_POS2, LeanRule::CNF_EQUIV_POS2},
+    {PfRule::CNF_EQUIV_NEG1, LeanRule::CNF_EQUIV_NEG1},
+    {PfRule::CNF_EQUIV_NEG2, LeanRule::CNF_EQUIV_NEG2},
+    {PfRule::CNF_XOR_POS1, LeanRule::CNF_XOR_POS1},
+    {PfRule::CNF_XOR_POS2, LeanRule::CNF_XOR_POS2},
+    {PfRule::CNF_XOR_NEG1, LeanRule::CNF_XOR_NEG1},
+    {PfRule::CNF_XOR_NEG2, LeanRule::CNF_XOR_NEG2},
+    {PfRule::NOT_NOT_ELIM, LeanRule::NOT_NOT_ELIM},
 };
 
 LeanProofPostprocess::LeanProofPostprocess(ProofNodeManager* pnm)
@@ -107,6 +116,36 @@ Node LeanProofPostprocessCallback::mkPrintableOp(Node n)
         return nm->mkBoundVar("orConst", nm->sExprType());
         break;
       }
+      case kind::AND:
+      {
+        return nm->mkBoundVar("andConst", nm->sExprType());
+        break;
+      }
+      case kind::XOR:
+      {
+        return nm->mkBoundVar("xorConst", nm->sExprType());
+        break;
+      }
+      case kind::IMPLIES:
+      {
+        return nm->mkBoundVar("impliesConst", nm->sExprType());
+        break;
+      }
+      case kind::ITE:
+      {
+        return nm->mkBoundVar("iteConst", nm->sExprType());
+        break;
+      }
+      case kind::PLUS:
+      {
+        return nm->mkBoundVar("plusConst", nm->sExprType());
+        break;
+      }
+      case kind::MINUS:
+      {
+        return nm->mkBoundVar("minusConst", nm->sExprType());
+        break;
+      }
       default:
       {
         Trace("test-lean") << "non-handled kind " << k << "\n";
@@ -130,7 +169,6 @@ bool LeanProofPostprocessCallback::update(Node res,
   NodeManager* nm = NodeManager::currentNM();
   switch (id)
   {
-    //-------- conversion rules (term -> clause)
     // create clausal conclusion. Shortcut if before scope
     case PfRule::IMPLIES_ELIM:
     {
@@ -184,6 +222,7 @@ bool LeanProofPostprocessCallback::update(Node res,
     // only the rule changes and can be described with a pure mapping
     case PfRule::EQ_RESOLVE:
     case PfRule::AND_ELIM:
+    case PfRule::NOT_OR_ELIM:
     case PfRule::REFL:
     case PfRule::NOT_IMPLIES_ELIM1:
     case PfRule::NOT_IMPLIES_ELIM2:
@@ -192,9 +231,15 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::FALSE_INTRO:
     case PfRule::FALSE_ELIM:
     case PfRule::MODUS_PONENS:
+    case PfRule::NOT_NOT_ELIM:
     {
       addLeanStep(
           res, s_pfRuleToLeanRule.at(id), Node::null(), children, args, *cdp);
+      break;
+    }
+    case PfRule::CONTRA:
+    {
+      addLeanStep(res, LeanRule::CONTRADICTION, d_empty, children, args, *cdp);
       break;
     }
     // minor reasoning to clean args
@@ -203,6 +248,25 @@ bool LeanProofPostprocessCallback::update(Node res,
     {
       addLeanStep(
           res, s_pfRuleToLeanRule.at(id), Node::null(), children, {}, *cdp);
+      break;
+    }
+    // create clausal conclusion and remove arguments
+    case PfRule::CNF_EQUIV_POS1:
+    case PfRule::CNF_EQUIV_POS2:
+    case PfRule::CNF_EQUIV_NEG1:
+    case PfRule::CNF_EQUIV_NEG2:
+    case PfRule::CNF_XOR_POS1:
+    case PfRule::CNF_XOR_POS2:
+    case PfRule::CNF_XOR_NEG1:
+    case PfRule::CNF_XOR_NEG2:
+    {
+      std::vector<Node> resLits{res.begin(), res.end()};
+      addLeanStep(res,
+                  s_pfRuleToLeanRule.at(id),
+                  nm->mkNode(kind::SEXPR, resLits),
+                  children,
+                  {},
+                  *cdp);
       break;
     }
     // minor reasoning to pick the rule
@@ -653,23 +717,6 @@ bool LeanProofPostprocessCallback::update(Node res,
       addLeanStep(res, LeanRule::FACTORING, conclusion, children, args, *cdp);
       break;
     }
-      {
-        Node conclusion;
-        // conclusion is singleton only if it occurs in premise
-        if (res.getKind() == kind::OR
-            && std::find(children[0].begin(), children[0].end(), res)
-                   != children[0].end())
-        {
-          std::vector<Node> resLits{res.begin(), res.end()};
-          conclusion = nm->mkNode(kind::SEXPR, resLits);
-        }
-        else
-        {
-          conclusion = nm->mkNode(kind::SEXPR, res);
-        }
-        addLeanStep(res, LeanRule::FACTORING, conclusion, children, args, *cdp);
-        break;
-      }
     case PfRule::CNF_AND_POS:
     {
       std::vector<Node> resArgs{args[0].begin(), args[0].end()};
@@ -690,6 +737,29 @@ bool LeanProofPostprocessCallback::update(Node res,
                   nm->mkNode(kind::SEXPR, resLits),
                   children,
                   {nm->mkNode(kind::SEXPR, resArgs)},
+                  *cdp);
+      break;
+    }
+    case PfRule::CNF_OR_POS:
+    {
+      std::vector<Node> resLits{res.begin(), res.end()};
+      std::vector<Node> resArgs{args[0].begin(), args[0].end()};
+      addLeanStep(res,
+                  LeanRule::CNF_OR_POS,
+                  nm->mkNode(kind::SEXPR, resLits),
+                  children,
+                  {nm->mkNode(kind::SEXPR, resArgs)},
+                  *cdp);
+      break;
+    }
+    case PfRule::CNF_OR_NEG:
+    {
+      std::vector<Node> resArgs{args[0].begin(), args[0].end()};
+      addLeanStep(res,
+                  LeanRule::CNF_OR_NEG,
+                  nm->mkNode(kind::SEXPR, res[0], res[1]),
+                  children,
+                  {nm->mkNode(kind::SEXPR, resArgs), args[1]},
                   *cdp);
       break;
     }

@@ -39,17 +39,28 @@ const char* toString(LeanRule id)
 
     case LeanRule::FACTORING: return "factoring";
     case LeanRule::REORDER: return "reorder";
-    case LeanRule::EQ_RESOLVE: return "eqResolve";
+    case LeanRule::EQ_RESOLVE: return "myEqResolve";
+    // case LeanRule::EQ_RESOLVE: return "eqResolve";
     case LeanRule::MODUS_PONENS: return "modusPonens";
-    case LeanRule::NOT_NOT_ELIM: return "notNotElim";
+    case LeanRule::NOT_NOT_ELIM: return "myNotNotElim";
+    // case LeanRule::NOT_NOT_ELIM: return "notNotElim";
     case LeanRule::CONTRADICTION: return "contradiction";
-    case LeanRule::AND_ELIM: return "andElim";
+    case LeanRule::AND_ELIM: return "myAndElim";
+    case LeanRule::NOT_OR_ELIM: return "myNotOrElim";
+    // case LeanRule::AND_ELIM: return "andElim";
+    // case LeanRule::NOT_OR_ELIM: return "notOrElim";
     case LeanRule::AND_INTRO: return "andIntro";
     case LeanRule::AND_INTRO_PARTIAL: return "andIntro";
-    case LeanRule::NOT_OR_ELIM: return "notOrElim";
-    case LeanRule::IMPLIES_ELIM: return "impliesElim";
-    case LeanRule::NOT_IMPLIES1: return "notImplies1";
-    case LeanRule::NOT_IMPLIES2: return "notImplies2";
+
+
+    case LeanRule::IMPLIES_ELIM: return "myimpliesElim";
+    case LeanRule::NOT_IMPLIES1: return "myNotImplies1";
+    case LeanRule::NOT_IMPLIES2: return "myNotImplies2";
+
+    // case LeanRule::IMPLIES_ELIM: return "impliesElim";
+    // case LeanRule::NOT_IMPLIES1: return "notImplies1";
+    // case LeanRule::NOT_IMPLIES2: return "notImplies2";
+
     case LeanRule::EQUIV_ELIM1: return "equivElim1";
     case LeanRule::EQUIV_ELIM2: return "equivElim2";
     case LeanRule::NOT_EQUIV_ELIM1: return "notEquivElim1";
@@ -65,40 +76,75 @@ const char* toString(LeanRule id)
     case LeanRule::NOT_AND: return "notAnd";
     case LeanRule::CNF_AND_POS: return "@cnfAndPos";
     case LeanRule::CNF_AND_NEG: return "@cnfAndNeg";
-    case LeanRule::CNF_IMPLIES_POS: return "cnfImpliesPos";
-    case LeanRule::CNF_IMPLIES_NEG1: return "cnfImpliesNeg1";
-    case LeanRule::CNF_IMPLIES_NEG2: return "cnfImpliesNeg2";
-    case LeanRule::CNF_EQUIV_POS1: return "cnfEquivPos1";
-    case LeanRule::CNF_EQUIV_POS2: return "cnfEquivPos2";
-    case LeanRule::CNF_EQUIV_NEG1: return "cnfEquivNeg1";
-    case LeanRule::CNF_EQUIV_NEG2: return "cnfEquivNeg2";
-    case LeanRule::CNF_XOR_POS1: return "cnfXorPos1";
-    case LeanRule::CNF_XOR_POS2: return "cnfXorPos2";
-    case LeanRule::CNF_XOR_NEG1: return "cnfXorNeg1";
-    case LeanRule::CNF_XOR_NEG2: return "cnfXorNeg2";
-    case LeanRule::CNF_ITE_POS1: return "cnfItePos1";
-    case LeanRule::CNF_ITE_POS2: return "cnfItePos2";
-    case LeanRule::CNF_ITE_POS3: return "cnfItePos3";
-    case LeanRule::CNF_ITE_NEG1: return "cnfIteNeg1";
-    case LeanRule::CNF_ITE_NEG2: return "cnfIteNeg2";
-    case LeanRule::CNF_ITE_NEG3: return "cnfIteNeg3";
+    case LeanRule::CNF_OR_POS: return "@cnfOrPos";
+    case LeanRule::CNF_OR_NEG: return "@cnfOrNeg";
+
+    case LeanRule::CNF_IMPLIES_POS: return "myCnfImpliesPos";
+    case LeanRule::CNF_IMPLIES_NEG1: return "myCnfImpliesNeg1";
+    case LeanRule::CNF_IMPLIES_NEG2: return "myCnfImpliesNeg2";
+    case LeanRule::CNF_EQUIV_POS1: return "myCnfEquivPos1";
+    case LeanRule::CNF_EQUIV_POS2: return "myCnfEquivPos2";
+    case LeanRule::CNF_EQUIV_NEG1: return "myCnfEquivNeg1";
+    case LeanRule::CNF_EQUIV_NEG2: return "myCnfEquivNeg2";
+    case LeanRule::CNF_XOR_POS1: return "myCnfXorPos1";
+    case LeanRule::CNF_XOR_POS2: return "myCnfXorPos2";
+    case LeanRule::CNF_XOR_NEG1: return "myCnfXorNeg1";
+    case LeanRule::CNF_XOR_NEG2: return "myCnfXorNeg2";
+    case LeanRule::CNF_ITE_POS1: return "myCnfItePos1";
+    case LeanRule::CNF_ITE_POS2: return "myCnfItePos2";
+    case LeanRule::CNF_ITE_POS3: return "myCnfItePos3";
+    case LeanRule::CNF_ITE_NEG1: return "myCnfIteNeg1";
+    case LeanRule::CNF_ITE_NEG2: return "myCnfIteNeg2";
+    case LeanRule::CNF_ITE_NEG3: return "myCnfIteNeg3";
+
+    // case LeanRule::CNF_IMPLIES_POS: return "cnfImpliesPos";
+    // case LeanRule::CNF_IMPLIES_NEG1: return "cnfImpliesNeg1";
+    // case LeanRule::CNF_IMPLIES_NEG2: return "cnfImpliesNeg2";
+    // case LeanRule::CNF_EQUIV_POS1: return "cnfEquivPos1";
+    // case LeanRule::CNF_EQUIV_POS2: return "cnfEquivPos2";
+    // case LeanRule::CNF_EQUIV_NEG1: return "cnfEquivNeg1";
+    // case LeanRule::CNF_EQUIV_NEG2: return "cnfEquivNeg2";
+    // case LeanRule::CNF_XOR_POS1: return "cnfXorPos1";
+    // case LeanRule::CNF_XOR_POS2: return "cnfXorPos2";
+    // case LeanRule::CNF_XOR_NEG1: return "cnfXorNeg1";
+    // case LeanRule::CNF_XOR_NEG2: return "cnfXorNeg2";
+    // case LeanRule::CNF_ITE_POS1: return "cnfItePos1";
+    // case LeanRule::CNF_ITE_POS2: return "cnfItePos2";
+    // case LeanRule::CNF_ITE_POS3: return "cnfItePos3";
+    // case LeanRule::CNF_ITE_NEG1: return "cnfIteNeg1";
+    // case LeanRule::CNF_ITE_NEG2: return "cnfIteNeg2";
+    // case LeanRule::CNF_ITE_NEG3: return "cnfIteNeg3";
     case LeanRule::TRUST: return "trust";
     case LeanRule::TH_TRUST: return "thTrust";
     case LeanRule::TH_TRUST_VALID: return "thTrustValid";
 
-    case LeanRule::CONG: return "cong";
-    case LeanRule::CONG_PARTIAL: return "cong";
-    case LeanRule::REFL: return "@refl";
-    case LeanRule::REFL_PARTIAL: return "@refl";
-    case LeanRule::TRANS: return "trans";
-    case LeanRule::TRANS_PARTIAL: return "trans";
-    case LeanRule::SYMM: return "symm";
-    case LeanRule::NEG_SYMM: return "negSymm";
+    case LeanRule::CONG: return "mycong";
+    case LeanRule::CONG_PARTIAL: return "mycong";
+    case LeanRule::REFL: return "@myrefl";
+    case LeanRule::REFL_PARTIAL: return "@myrefl";
+    case LeanRule::TRANS: return "mytrans";
+    case LeanRule::TRANS_PARTIAL: return "mytrans";
+    case LeanRule::SYMM: return "mysymm";
+    case LeanRule::NEG_SYMM: return "mynegSymm";
 
-    case LeanRule::TRUE_INTRO: return "trueIntro";
-    case LeanRule::TRUE_ELIM: return "trueElim";
-    case LeanRule::FALSE_INTRO: return "falseIntro";
-    case LeanRule::FALSE_ELIM: return "falseElim";
+    case LeanRule::TRUE_INTRO: return "mytrueIntro";
+    case LeanRule::TRUE_ELIM: return "mytrueElim";
+    case LeanRule::FALSE_INTRO: return "myfalseIntro";
+    case LeanRule::FALSE_ELIM: return "myfalseElim";
+
+    // case LeanRule::CONG: return "cong";
+    // case LeanRule::CONG_PARTIAL: return "cong";
+    // case LeanRule::REFL: return "@refl";
+    // case LeanRule::REFL_PARTIAL: return "@refl";
+    // case LeanRule::TRANS: return "trans";
+    // case LeanRule::TRANS_PARTIAL: return "trans";
+    // case LeanRule::SYMM: return "symm";
+    // case LeanRule::NEG_SYMM: return "negSymm";
+
+    // case LeanRule::TRUE_INTRO: return "trueIntro";
+    // case LeanRule::TRUE_ELIM: return "trueElim";
+    // case LeanRule::FALSE_INTRO: return "falseIntro";
+    // case LeanRule::FALSE_ELIM: return "falseElim";
 
     case LeanRule::UNKNOWN: return "UNKNOWN";
     default: return "?";
