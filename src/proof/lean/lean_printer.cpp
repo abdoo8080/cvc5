@@ -493,8 +493,8 @@ void LeanPrinter::print(std::ostream& out,
   Trace("test-lean") << "Post-processed proof " << *pfn.get() << "\n";
   // TODO preamble should be theory dependent
   out << "import Cdclt.Euf\n\n";
-  // increase recursion depth
-  out << "set_option maxRecDepth 1000\n\n";
+  // increase recursion depth and heartbeats
+  out << "set_option maxRecDepth 1000\nset_option maxHeartbeats 500000\n";
   // do includes
   out << "open proof\nopen proof.sort proof.term\n";
   out << "open rules eufRules\n\n";

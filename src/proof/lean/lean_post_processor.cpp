@@ -29,6 +29,7 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::EQ_RESOLVE, LeanRule::EQ_RESOLVE},
     {PfRule::AND_ELIM, LeanRule::AND_ELIM},
     {PfRule::NOT_OR_ELIM, LeanRule::NOT_OR_ELIM},
+    {PfRule::NOT_AND, LeanRule::NOT_AND},
     {PfRule::REFL, LeanRule::REFL},
     {PfRule::THEORY_REWRITE, LeanRule::TH_TRUST_VALID},
     {PfRule::NOT_IMPLIES_ELIM1, LeanRule::NOT_IMPLIES1},
@@ -39,6 +40,8 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::TRUE_ELIM, LeanRule::TRUE_ELIM},
     {PfRule::FALSE_INTRO, LeanRule::FALSE_INTRO},
     {PfRule::FALSE_ELIM, LeanRule::FALSE_ELIM},
+    {PfRule::EQUIV_ELIM1, LeanRule::EQUIV_ELIM1},
+    {PfRule::EQUIV_ELIM2, LeanRule::EQUIV_ELIM2},
     {PfRule::CNF_EQUIV_POS1, LeanRule::CNF_EQUIV_POS1},
     {PfRule::CNF_EQUIV_POS2, LeanRule::CNF_EQUIV_POS2},
     {PfRule::CNF_EQUIV_NEG1, LeanRule::CNF_EQUIV_NEG1},
@@ -47,6 +50,12 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::CNF_XOR_POS2, LeanRule::CNF_XOR_POS2},
     {PfRule::CNF_XOR_NEG1, LeanRule::CNF_XOR_NEG1},
     {PfRule::CNF_XOR_NEG2, LeanRule::CNF_XOR_NEG2},
+    {PfRule::CNF_ITE_POS1, LeanRule::CNF_ITE_POS1},
+    {PfRule::CNF_ITE_POS2, LeanRule::CNF_ITE_POS2},
+    {PfRule::CNF_ITE_POS3, LeanRule::CNF_ITE_POS3},
+    {PfRule::CNF_ITE_NEG1, LeanRule::CNF_ITE_NEG1},
+    {PfRule::CNF_ITE_NEG2, LeanRule::CNF_ITE_NEG2},
+    {PfRule::CNF_ITE_NEG3, LeanRule::CNF_ITE_NEG3},
     {PfRule::NOT_NOT_ELIM, LeanRule::NOT_NOT_ELIM},
 };
 
@@ -133,7 +142,7 @@ Node LeanProofPostprocessCallback::mkPrintableOp(Node n)
       }
       case kind::ITE:
       {
-        return nm->mkBoundVar("iteConst", nm->sExprType());
+        return nm->mkBoundVar("fIteConst", nm->sExprType());
         break;
       }
       case kind::PLUS:
@@ -259,6 +268,15 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::CNF_XOR_POS2:
     case PfRule::CNF_XOR_NEG1:
     case PfRule::CNF_XOR_NEG2:
+    case PfRule::CNF_ITE_POS1:
+    case PfRule::CNF_ITE_POS2:
+    case PfRule::CNF_ITE_POS3:
+    case PfRule::CNF_ITE_NEG1:
+    case PfRule::CNF_ITE_NEG2:
+    case PfRule::CNF_ITE_NEG3:
+    case PfRule::NOT_AND:
+    case PfRule::EQUIV_ELIM1:
+    case PfRule::EQUIV_ELIM2:
     {
       std::vector<Node> resLits{res.begin(), res.end()};
       addLeanStep(res,
@@ -441,46 +459,15 @@ bool LeanProofPostprocessCallback::update(Node res,
     {
       Node cur = children[0];
       std::vector<Node> arePremisesSingletons{d_false, d_false};
-      // If a child F = (or F1 ... Fn) is the result of a ASSUME or
-      // EQ_RESOLUTION we need to convert into a list (since these rules
-      // introduce terms). The question then is how to convert it, i.e., whether
-      // it's a singleton list or not
-      std::shared_ptr<ProofNode> childPf = cdp->getProofFor(children[0]);
-      Trace("test-lean") << "..child 0 has rule " << childPf->getRule() << "\n";
-      if (childPf->getRule() == PfRule::ASSUME
-          || childPf->getRule() == PfRule::EQ_RESOLVE)
+      // Whether child 0 is a singleton list. The first child is used as an OR
+      // non-singleton clause if it is not equal to its pivot L_1. Since it's
+      // the first clause in the resolution it can only be equal to the pivot in
+      // the case the polarity is true.
+      if (children[0].getKind() != kind::OR
+          || (args[0] == d_true && children[0] == args[1]))
       {
-        // Node conclusion;
-        // LeanRule childRule;
-        // The first child is used as a OR non-singleton clause if it is not
-        // equal to its pivot L_1. Since it's the first clause in the resolution
-        // it can only be equal to the pivot in the case the polarity is true.
-        if (children[0].getKind() == kind::OR
-            && (args[0] != d_true || children[0] != args[1]))
-        {
-          // Add clOr step
-          // std::vector<Node> lits{children[0].begin(), children[0].end()};
-          // conclusion = nm->mkNode(kind::SEXPR, lits);
-          // childRule = LeanRule::CL_OR;
-        }
-        else
-        {
-          // add clAssume step
-          // conclusion = nm->mkNode(kind::SEXPR, children[0]);
-          // childRule = LeanRule::CL_ASSUME;
-
-          // mark that this premise is a singleton
-          arePremisesSingletons[0] = d_true;
-        }
-        // Trace("test-lean") << "....updating to " << childRule << " : "
-        //                   << conclusion << "\n";
-        // addLeanStep(conclusion, childRule, {children[0]}, {}, *cdp);
-        // cur = conclusion;
+        arePremisesSingletons[0] = d_true;
       }
-
-      // add internal steps
-      // Node nextChild;
-
       // For all other children C_i the procedure is simliar. There is however a
       // key difference in the choice of the pivot element which is now the
       // L_{i-1}, i.e. the pivot of the child with the result of the i-1
@@ -490,39 +477,12 @@ bool LeanProofPostprocessCallback::update(Node res,
       // true if it isn't the pivot element.
       for (size_t i = 1, size = children.size(); i < size; ++i)
       {
-        // check whether need to listify premises
-        // nextChild = children[i];
-
-        childPf = cdp->getProofFor(children[i]);
-        if (childPf->getRule() == PfRule::ASSUME
-            || childPf->getRule() == PfRule::EQ_RESOLVE)
+        if (children[i].getKind() != kind::OR
+            || (args[2 * (i - 1)] == d_false
+                && args[2 * (i - 1) + 1] == children[i]))
         {
-          // LeanRule childRule;
-          // The first child is used as a OR non-singleton clause if it is not
-          // equal to its pivot L_1. Since it's the first clause in the
-          // resolution it can only be equal to the pivot in the case the
-          // polarity is true.
-          if (children[i].getKind() == kind::OR
-              && (args[2 * (i - 1)] != d_false
-                  || args[2 * (i - 1) + 1] != children[i]))
-          {
-            // Add clOr step
-
-            // std::vector<Node> lits{children[i].begin(), children[i].end()};
-            // nextChild = nm->mkNode(kind::SEXPR, lits);
-            // childRule = LeanRule::CL_OR;
-          }
-          else
-          {
-            // add clAssume step
-
-            // nextChild = nm->mkNode(kind::SEXPR, children[i]);
-            // childRule = LeanRule::CL_ASSUME;
-
-            // mark that this premise is a singleton
-            arePremisesSingletons[1] = d_true;
-          }
-          // addLeanStep(nextChild, childRule, {children[i]}, {}, *cdp);
+          // mark that this premise is a singleton
+          arePremisesSingletons[1] = d_true;
         }
         if (i < size - 1)
         {  // create a (unique) placeholder for the resulting binary
@@ -549,7 +509,7 @@ bool LeanProofPostprocessCallback::update(Node res,
           arePremisesSingletons[0] = Node::null();
         }
       }
-      // now check whether conclusion is a sigleton
+      // now check whether conclusion is a singleton
       //
       // If res is not an or node, then it's necessarily a singleton clause.
       bool isSingletonClause = res.getKind() != kind::OR;
