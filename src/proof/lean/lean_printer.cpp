@@ -176,8 +176,7 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       Assert(nChildren >= 1);
       if (nChildren > 1)
       {
-        // out << "mkAppN ";
-        out << "myMkAppN ";
+        out << "mkAppN ";
         printTerm(out, op);
         out << " ";
         printTermList(out, nc);
@@ -215,8 +214,7 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       Assert(nChildren >= 2);
       if (nChildren > 2)
       {
-        // out << "mkOrN ";
-        out << "myMkOrN ";
+        out << "mkOrN ";
         printTermList(out, nc);
       }
       else
@@ -234,8 +232,7 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       Assert(nChildren >= 2);
       if (nChildren > 2)
       {
-        // out << "mkAndN ";
-        out << "myMkAndN ";
+        out << "mkAndN ";
         printTermList(out, nc);
       }
       else
@@ -267,7 +264,7 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
     case kind::ITE:
     {
       // out << "mkIte ";
-      out << "ite ";
+      out << "fIte ";
       printTerm(out, nc[0]);
       out << " ";
       printTerm(out, nc[1]);
