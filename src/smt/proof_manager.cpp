@@ -170,7 +170,7 @@ void PfManager::printProof(std::ostream& out,
   {
     proof::LeanProofPostprocess lpfpp(d_pnm.get());
     std::vector<Node> assertions;
-    Trace("test-lean") << "Original proof: " << *fp.get() << "\n";
+    Trace("test-lean-pf") << "Original proof: " << *fp.get() << "\n";
     getAssertions(as, assertions);
     Trace("test-lean") << "Processing...\n";
     lpfpp.process(fp);

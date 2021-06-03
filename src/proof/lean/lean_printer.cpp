@@ -272,6 +272,14 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       printTerm(out, nc[2]);
       break;
     }
+    case kind::DISTINCT:
+    {
+      out << "distinct ";
+      printTerm(out, nc[0]);
+      out << " ";
+      printTerm(out, nc[1]);
+      break;
+    }
     case kind::SEXPR:
     {
       out << "[";
@@ -490,11 +498,11 @@ void LeanPrinter::print(std::ostream& out,
                         std::shared_ptr<ProofNode> pfn)
 {
   // outer method to print valid Lean output from a ProofNode
-  Trace("test-lean") << "Post-processed proof " << *pfn.get() << "\n";
+  Trace("test-lean-pf") << "Post-processed proof " << *pfn.get() << "\n";
   // TODO preamble should be theory dependent
   out << "import Cdclt.Euf\n\n";
   // increase recursion depth and heartbeats
-  out << "set_option maxRecDepth 1000\nset_option maxHeartbeats 500000\n";
+  out << "set_option maxRecDepth 1000\nset_option maxHeartbeats 500000\n\n";
   // do includes
   out << "open proof\nopen proof.sort proof.term\n";
   out << "open rules eufRules\n\n";
@@ -513,8 +521,11 @@ void LeanPrinter::print(std::ostream& out,
   for (const Node& s : syms)
   {
     TypeNode st = s.getType();
-    if (st.isSort())
+    // only collect for declaration non predefined sorts
+    if (st.isSort() && st.getKind() != kind::TYPE_CONSTANT)
     {
+      Trace("test-lean") << "collecting sort " << st << " with kind "
+                         << st.getKind() << "\n";
       sts.insert(st);
     }
     else if (st.isFunction())
@@ -522,7 +533,10 @@ void LeanPrinter::print(std::ostream& out,
       for (const auto& stc : st)
       {
         // TODO get recursively for functional sorts under functional sorts
-        sts.insert(stc);
+        if (stc.getKind() != kind::TYPE_CONSTANT)
+        {
+          sts.insert(stc);
+        }
       }
     }
   }

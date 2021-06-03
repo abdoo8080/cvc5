@@ -75,7 +75,6 @@ LeanProofPostprocessCallback::LeanProofPostprocessCallback(
       nm->mkNode(kind::SEXPR,
                  nm->getSkolemManager()->mkDummySkolem(
                      "", nm->sExprType(), "", NodeManager::SKOLEM_EXACT_NAME));
-  Trace("test-lean") << "d_empty is " << d_empty << "\n";
   d_true = nm->mkConst(true);
   d_false = nm->mkConst(false);
 }
@@ -907,7 +906,7 @@ bool LeanProofPostprocessClConnectCallback::update(
       {
         continue;
       }
-      Trace("test-lean") << "..child " << i << " is clausal: " << *childPf.get()
+      Trace("test-lean-pf") << "..child " << i << " is clausal: " << *childPf.get()
                          << "\n";
       AlwaysAssert(argsOfChild[2].getKind() == kind::SEXPR);
       // #if CVC5_ASSERTIONS
