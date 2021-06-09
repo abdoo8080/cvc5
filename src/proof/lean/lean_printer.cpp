@@ -88,7 +88,7 @@ void LeanPrinter::printSort(std::ostream& out, TypeNode sort)
   // functional sort
   if (sort.isFunction())
   {
-    out << "(mkArrowN [";
+    out << "(arrowN [";
     // print each arg sort
     size_t size = sort.getNumChildren();
     for (size_t i = 0; i < size - 1; ++i)
@@ -176,7 +176,7 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       Assert(nChildren >= 1);
       if (nChildren > 1)
       {
-        out << "mkAppN ";
+        out << "appN ";
         printTerm(out, op);
         out << " ";
         printTermList(out, nc);
@@ -214,7 +214,7 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       Assert(nChildren >= 2);
       if (nChildren > 2)
       {
-        out << "mkOrN ";
+        out << "orN ";
         printTermList(out, nc);
       }
       else
@@ -232,7 +232,7 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       Assert(nChildren >= 2);
       if (nChildren > 2)
       {
-        out << "mkAndN ";
+        out << "andN ";
         printTermList(out, nc);
       }
       else
