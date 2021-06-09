@@ -337,9 +337,12 @@ bool LeanProofPostprocessCallback::update(Node res,
         {
           unsigned j = nchildren - i - 1;
           // build equality of partial apps of argument j
-          Node argAppEq = nm->mkNode(kind::SEXPR, eqNode,
-                                   nm->mkNode(kind::SEXPR, op, children[j][0]),
-                                   nm->mkNode(kind::SEXPR, op, children[j][1]));
+          Node argAppEq =
+              nm->mkNode(kind::SEXPR,
+                         eqNode,
+                         nm->mkConst<Rational>(i),
+                         nm->mkNode(kind::SEXPR, op, children[j][0]),
+                         nm->mkNode(kind::SEXPR, op, children[j][1]));
           // add step that justify equality of partial apps
           addLeanStep(argAppEq,
                       LeanRule::CONG_PARTIAL,
