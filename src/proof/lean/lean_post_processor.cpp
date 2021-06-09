@@ -493,13 +493,14 @@ bool LeanProofPostprocessCallback::update(Node res,
         }
         if (i < size - 1)
         {  // create a (unique) placeholder for the resulting binary
-          // resolution. The placeholder is [res, pol, pivot], where pol and
+          // resolution. The placeholder is [res, i, pol, pivot], where pol and
           // pivot are relative to this part of the chain resolution
           Node pol = args[(i - 1) * 2];
           std::vector<Node> curArgs{args[(i - 1) * 2 + 1],
                                     arePremisesSingletons[0],
                                     arePremisesSingletons[1]};
-          Node newCur = nm->mkNode(kind::SEXPR, res, pol, curArgs[0]);
+          Node newCur = nm->mkNode(
+              kind::SEXPR, res, nm->mkConst<Rational>(i), pol, curArgs[0]);
           Trace("test-lean")
               << "..res [internal] " << i << " has singleton premises "
               << arePremisesSingletons << "\n";
