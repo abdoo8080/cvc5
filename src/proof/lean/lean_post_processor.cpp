@@ -172,8 +172,8 @@ bool LeanProofPostprocessCallback::update(Node res,
                                           bool& continueUpdate)
 {
   Trace("test-lean") << "Updating rule:\nres: " << res << "\nid: " << id
-                     << "\nchildren: " << children << "\nargs: " << args
-                     << "\n";
+                     << "\n.." << children.size() << " children: " << children
+                     << "\n.." << args.size() << " args: " << args << "\n";
   NodeManager* nm = NodeManager::currentNM();
   switch (id)
   {
@@ -456,12 +456,15 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::RESOLUTION:
     case PfRule::CHAIN_RESOLUTION:
     {
+      Trace("test-lean") << push;
       Node cur = children[0];
       std::vector<Node> arePremisesSingletons{d_false, d_false};
       // Whether child 0 is a singleton list. The first child is used as an OR
       // non-singleton clause if it is not equal to its pivot L_1. Since it's
       // the first clause in the resolution it can only be equal to the pivot in
       // the case the polarity is true.
+      Trace("test-lean") << "\t\ttesting args[0,1] " << args[0] << ", "
+                         << args[1] << ", child 0 " << children[0] << "\n";
       if (children[0].getKind() != kind::OR
           || (args[0] == d_true && children[0] == args[1]))
       {
@@ -476,10 +479,15 @@ bool LeanProofPostprocessCallback::update(Node res,
       // true if it isn't the pivot element.
       for (size_t i = 1, size = children.size(); i < size; ++i)
       {
+        Trace("test-lean") << "\t\ttesting args[" << 2 * (i - 1) << ","
+                           << 2 * (i - 1) + 1 << "] " << args[2 * (i - 1)]
+                           << ", " << args[2 * (i - 1) + 1] << ", child " << i
+                           << " " << children[i] << "\n";
         if (children[i].getKind() != kind::OR
             || (args[2 * (i - 1)] == d_false
                 && args[2 * (i - 1) + 1] == children[i]))
         {
+          Trace("test-lean") << "\t\t\t..child is singleton\n";
           // mark that this premise is a singleton
           arePremisesSingletons[1] = d_true;
         }
@@ -492,6 +500,9 @@ bool LeanProofPostprocessCallback::update(Node res,
                                     arePremisesSingletons[0],
                                     arePremisesSingletons[1]};
           Node newCur = nm->mkNode(kind::SEXPR, res, pol, curArgs[0]);
+          Trace("test-lean")
+              << "..res [internal] " << i << " has singleton premises "
+              << arePremisesSingletons << "\n";
           addLeanStep(
               newCur,
               pol.getConst<bool>() ? LeanRule::R0_PARTIAL
@@ -603,6 +614,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       }
       Node conclusion;
       size_t i = children.size() - 1;
+      Trace("test-lean") << "..res [final] " << i << " has singleton premises "
+                         << arePremisesSingletons << "\n";
       std::vector<Node> curArgs{args[(i - 1) * 2 + 1],
                                 arePremisesSingletons[0],
                                 arePremisesSingletons[1]};
@@ -620,7 +633,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       {
         conclusion = nm->mkNode(kind::SEXPR, res);
       }
-      Trace("test-lean") << "final step of res " << res << " with children "
+      Trace("test-lean") << "..final step of res " << res << " with children "
                          << cur << ", " << children.back() << " and args "
                          << conclusion << ", " << curArgs << "\n";
       addLeanStep(
@@ -630,6 +643,7 @@ bool LeanProofPostprocessCallback::update(Node res,
           {cur, children.back()},
           curArgs,
           *cdp);
+      Trace("test-lean") << pop;
       break;
     }
     case PfRule::REORDERING:
