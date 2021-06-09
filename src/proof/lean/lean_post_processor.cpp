@@ -506,6 +506,8 @@ bool LeanProofPostprocessCallback::update(Node res,
           // all the other resolutions in the chain are with the placeholder
           // clause as the first argument
           arePremisesSingletons[0] = Node::null();
+          // reset next child to be computed whether singleton
+          arePremisesSingletons[1] = d_false;
         }
       }
       // now check whether conclusion is a singleton
