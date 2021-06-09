@@ -171,9 +171,9 @@ bool LeanProofPostprocessCallback::update(Node res,
                                           CDProof* cdp,
                                           bool& continueUpdate)
 {
-  Trace("test-lean") << "Updating rule:\nres: " << res << "\nid: " << id
-                     << "\n.." << children.size() << " children: " << children
-                     << "\n.." << args.size() << " args: " << args << "\n";
+  Trace("test-lean") << "Updating rule " << id << ": " << res << "\n.."
+                     << children.size() << " children: " << children << "\n.."
+                     << args.size() << " args: " << args << "\n";
   NodeManager* nm = NodeManager::currentNM();
   switch (id)
   {
