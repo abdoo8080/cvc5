@@ -103,7 +103,12 @@ const char* toString(LeanRule id)
     case LeanRule::FALSE_INTRO: return "falseIntro";
     case LeanRule::FALSE_ELIM: return "falseElim";
 
-    case LeanRule::UNKNOWN: return "UNKNOWN";
+  case LeanRule::READ_OVER_WRITE: return "readOverWrite";
+  case LeanRule::READ_OVER_WRITE_CONTRA: return "readOverWriteContra";
+  case LeanRule::READ_OVER_WRITE_ID: return "readOverWriteIdentity";
+  case LeanRule::ARRAY_EXT: return "arrayExt";
+
+  case LeanRule::UNKNOWN: return "UNKNOWN";
     default: return "?";
   }
 }

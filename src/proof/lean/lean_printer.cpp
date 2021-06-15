@@ -101,6 +101,15 @@ void LeanPrinter::printSort(std::ostream& out, TypeNode sort)
     out << "])";
     return;
   }
+  if (sort.isArray())
+  {
+    out << "(array ";
+    printSort(out, sort.getArrayIndexType());
+    out << " ";
+    printSort(out, sort.getArrayConstituentType());
+    out << ")";
+    return;
+  }
   // boolean sort
   if (sort.isBoolean())
   {
@@ -278,6 +287,24 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
       printTerm(out, nc[0]);
       out << " ";
       printTerm(out, nc[1]);
+      break;
+    }
+    case kind::SELECT:
+    {
+      out << "select ";
+      printTerm(out, nc[0]);
+      out << " ";
+      printTerm(out, nc[1]);
+      break;
+    }
+    case kind::STORE:
+    {
+      out << "store ";
+      printTerm(out, nc[0]);
+      out << " ";
+      printTerm(out, nc[1]);
+      out << " ";
+      printTerm(out, nc[2]);
       break;
     }
     case kind::SEXPR:

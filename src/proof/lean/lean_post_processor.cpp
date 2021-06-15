@@ -57,6 +57,10 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::CNF_ITE_NEG2, LeanRule::CNF_ITE_NEG2},
     {PfRule::CNF_ITE_NEG3, LeanRule::CNF_ITE_NEG3},
     {PfRule::NOT_NOT_ELIM, LeanRule::NOT_NOT_ELIM},
+    {PfRule::ARRAYS_READ_OVER_WRITE,LeanRule::READ_OVER_WRITE},
+    {PfRule::ARRAYS_READ_OVER_WRITE_CONTRA,LeanRule::READ_OVER_WRITE_CONTRA},
+    {PfRule::ARRAYS_READ_OVER_WRITE_1,LeanRule::READ_OVER_WRITE_ID},
+    {PfRule::ARRAYS_EXT,LeanRule::ARRAY_EXT},
 };
 
 LeanProofPostprocess::LeanProofPostprocess(ProofNodeManager* pnm)
@@ -253,6 +257,10 @@ bool LeanProofPostprocessCallback::update(Node res,
     // minor reasoning to clean args
     case PfRule::PREPROCESS:
     case PfRule::THEORY_REWRITE:
+    case PfRule::ARRAYS_READ_OVER_WRITE:
+    case PfRule::ARRAYS_READ_OVER_WRITE_CONTRA:
+    case PfRule::ARRAYS_READ_OVER_WRITE_1:
+    case PfRule::ARRAYS_EXT:
     {
       addLeanStep(
           res, s_pfRuleToLeanRule.at(id), Node::null(), children, {}, *cdp);
