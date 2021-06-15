@@ -529,7 +529,7 @@ void LeanPrinter::print(std::ostream& out,
   // TODO preamble should be theory dependent
   out << "import Cdclt.Euf\n\n";
   // increase recursion depth and heartbeats
-  out << "set_option maxRecDepth 1000\nset_option maxHeartbeats 500000\n\n";
+  out << "set_option maxRecDepth 10000\nset_option maxHeartbeats 500000\n\n";
   // do includes
   out << "open proof\nopen proof.sort proof.term\n";
   out << "open rules eufRules\n\n";
