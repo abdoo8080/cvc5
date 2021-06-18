@@ -158,6 +158,11 @@ Node LeanProofPostprocessCallback::mkPrintableOp(Node n)
         return nm->mkBoundVar("minusConst", nm->sExprType());
         break;
       }
+      case kind::SELECT:
+      {
+        return nm->mkBoundVar("selectConst", nm->sExprType());
+        break;
+      }
       default:
       {
         Trace("test-lean") << "non-handled kind " << k << "\n";
