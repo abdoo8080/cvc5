@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-#####################
-## run_regression.py
-## Top contributors (to current version):
-##   Andres Noetzli, Yoni Zohar, Mathias Preiner
-## This file is part of the CVC5 project.
-## Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
-## in the top-level source directory and their institutional affiliations.
-## All rights reserved.  See the file COPYING in the top-level source
-## directory for licensing information.
+###############################################################################
+# Top contributors (to current version):
+#   Andres Noetzli, Mathias Preiner, Yoni Zohar
+#
+# This file is part of the cvc5 project.
+#
+# Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+# in the top-level source directory and their institutional affiliations.
+# All rights reserved.  See the file COPYING in the top-level source
+# directory for licensing information.
+# #############################################################################
 ##
+
 """
 Runs benchmark and checks for correct exit status and output.
 """
@@ -44,11 +47,29 @@ EXIT_FAILURE = 1
 EXIT_SKIP = 77
 STATUS_TIMEOUT = 124
 
+
 def print_colored(color, text):
     """Prints `text` in color `color`."""
 
     for line in text.splitlines():
         print(color + line + Color.ENDC)
+
+
+def print_diff(actual, expected):
+    """Prints the difference between `actual` and `expected`."""
+
+    for line in difflib.unified_diff(expected.splitlines(),
+                                     actual.splitlines(),
+                                     'expected',
+                                     'actual',
+                                     lineterm=''):
+        if line.startswith('+'):
+            print_colored(Color.GREEN, line)
+        elif line.startswith('-'):
+            print_colored(Color.RED, line)
+        else:
+            print(line)
+
 
 def run_process(args, cwd, timeout, s_input=None):
     """Runs a process with a timeout `timeout` in seconds. `args` are the
@@ -83,7 +104,7 @@ def run_process(args, cwd, timeout, s_input=None):
 
 
 def get_cvc5_features(cvc5_binary):
-    """Returns a list of features supported by the CVC5 binary `cvc5_binary`."""
+    """Returns a list of features supported by the cvc5 binary `cvc5_binary`."""
 
     output, _, _ = run_process([cvc5_binary, '--show-config'], None, None)
     if isinstance(output, bytes):
@@ -105,26 +126,56 @@ def get_cvc5_features(cvc5_binary):
 
 def run_benchmark(dump, wrapper, scrubber, error_scrubber, cvc5_binary,
                   command_line, benchmark_dir, benchmark_filename, timeout):
+    """Runs cvc5 on the file `benchmark_filename` in the directory
+    `benchmark_dir` using the binary `cvc5_binary` with the command line
+    options `command_line`. The output is scrubbed using `scrubber` and
+    `error_scrubber` for stdout and stderr, respectively. If dump is true, the
+    function first uses cvc5 to read in and dump the benchmark file and then
+    uses that as input."""
 
-    str1 = "CALL: "
-    for ele in command_line:
-      str1 += ele
-      str1 += " "
-    str1 += benchmark_dir
-    str1 += "/"
-    str1 += benchmark_filename
+    bin_args = wrapper[:]
+    bin_args.append(cvc5_binary)
 
-    output = str1
-    error = ''
-    exit_status = EXIT_OK
+    output = None
+    error = None
+    exit_status = None
+    if dump:
+        dump_args = [
+            '--preprocess-only', '--dump', 'raw-benchmark',
+            '--output-lang=smt2', '-qq'
+        ]
+        dump_output, _, _ = run_process(
+            bin_args + command_line + dump_args + [benchmark_filename],
+            benchmark_dir, timeout)
+        output, error, exit_status = run_process(
+            bin_args + command_line + ['--lang=smt2', '-'], benchmark_dir,
+            timeout, dump_output)
+    else:
+        output, error, exit_status = run_process(
+            bin_args + command_line + [benchmark_filename], benchmark_dir,
+            timeout)
 
+    # If a scrubber command has been specified then apply it to the output.
+    if scrubber:
+        output, _, _ = run_process(shlex.split(scrubber), benchmark_dir,
+                                   timeout, output)
+    if error_scrubber:
+        error, _, _ = run_process(shlex.split(error_scrubber), benchmark_dir,
+                                  timeout, error)
+
+    # Popen in Python 3 returns a bytes object instead of a string for
+    # stdout/stderr.
+    if isinstance(output, bytes):
+        output = output.decode()
+    if isinstance(error, bytes):
+        error = error.decode()
     return (output.strip(), error.strip(), exit_status)
 
 
 def run_regression(check_unsat_cores, check_proofs, dump, use_skip_return_code,
                    skip_timeout, wrapper, cvc5_binary, benchmark_path,
                    timeout):
-    """Determines the expected output for a benchmark, runs CVC5 on it and then
+    """Determines the expected output for a benchmark, runs cvc5 on it and then
     checks whether the output corresponds to the expected output. Optionally
     uses a wrapper `wrapper`, tests unsat cores (if check_unsat_cores is true),
     checks proofs (if check_proofs is true), or dumps a benchmark and uses that as
@@ -271,10 +322,22 @@ def run_regression(check_unsat_cores, check_proofs, dump, use_skip_return_code,
                 .format(all_args))
             continue
 
-        #command_line_args_configs.append(all_args)
+        command_line_args_configs.append(all_args)
 
         expected_output_lines = expected_output.split()
         extra_command_line_args = []
+        if benchmark_ext == '.sy' and \
+            '--no-check-synth-sol' not in all_args and \
+            '--sygus-rr' not in all_args and \
+            '--check-synth-sol' not in all_args:
+            all_args += ['--check-synth-sol']
+        if ('sat' in expected_output_lines or \
+            'not_entailed' in expected_output_lines or \
+            'unknown' in expected_output_lines) and \
+           '--no-debug-check-models' not in all_args and \
+           '--no-check-models' not in all_args and \
+           '--debug-check-models' not in all_args:
+            extra_command_line_args += ['--debug-check-models']
         if 'unsat' in expected_output_lines or 'entailed' in expected_output_lines:
             if check_unsat_cores and \
                '--no-produce-unsat-cores' not in all_args and \
@@ -289,27 +352,24 @@ def run_regression(check_unsat_cores, check_proofs, dump, use_skip_return_code,
             if check_proofs and \
                '--no-produce-proofs' not in all_args and \
                '--no-check-proofs' not in all_args and \
-               '--dump-instantiations' not in all_args and \
-               '--debug-inst' not in all_args and \
-               '-i' not in all_args and \
-               '-iq' not in all_args and \
-               '-mi' not in all_args and \
-               '--incremental' not in all_args and \
-               ':incremental true' not in benchmark_content and \
-               '--global-negate' not in all_args and \
-               ':global-negate true' not in benchmark_content and \
-               '--produce-unsat-cores' not in all_args and \
-               ':produce-unsat-cores true' not in benchmark_content and \
-               '--sygus-inference' not in all_args and \
-               ':sygus-inference true' not in benchmark_content:
-                extra_command_line_args += ['--dump-proofs --proof-format=lean']
+               '--check-proofs' not in all_args:
+                extra_command_line_args += ['--check-proofs']
+        if '--no-check-abducts' not in all_args and \
+            '--check-abducts' not in all_args and \
+            'get-abduct' in benchmark_content:
+            all_args += ['--check-abducts']
 
         # Create a test case for each extra argument
         for extra_arg in extra_command_line_args:
+            if isinstance(extra_arg, list):
+                command_line_args_configs.append(all_args + extra_arg)
+            else:
                 command_line_args_configs.append(all_args + [extra_arg])
 
-    # Run CVC5 on the benchmark with the different option sets and check
+    # Run cvc5 on the benchmark with the different option sets and check
     # whether the exit status, stdout output, stderr output are as expected.
+    print('1..{}'.format(len(command_line_args_configs)))
+    print('# Starting')
     exit_code = EXIT_OK
     for command_line_args in command_line_args_configs:
         output, error, exit_status = run_benchmark(dump, wrapper, scrubber,
@@ -319,9 +379,55 @@ def run_regression(check_unsat_cores, check_proofs, dump, use_skip_return_code,
                                                    benchmark_basename, timeout)
         output = re.sub(r'^[ \t]*', '', output, flags=re.MULTILINE)
         error = re.sub(r'^[ \t]*', '', error, flags=re.MULTILINE)
-        print(output)
-            print()
+        if exit_status == STATUS_TIMEOUT:
+            exit_code = EXIT_SKIP if skip_timeout else EXIT_FAILURE
+            print('Timeout - Flags: {}'.format(command_line_args))
+        elif output != expected_output:
             exit_code = EXIT_FAILURE
+            print('not ok - Flags: {}'.format(command_line_args))
+            print()
+            print('Standard output difference')
+            print('=' * 80)
+            print_diff(output, expected_output)
+            print('=' * 80)
+            print()
+            print()
+            if error:
+                print('Error output')
+                print('=' * 80)
+                print_colored(Color.YELLOW, error)
+                print('=' * 80)
+                print()
+        elif error != expected_error:
+            exit_code = EXIT_FAILURE
+            print(
+                'not ok - Differences between expected and actual output on stderr - Flags: {}'
+                .format(command_line_args))
+            print()
+            print('Error output difference')
+            print('=' * 80)
+            print_diff(error, expected_error)
+            print('=' * 80)
+            print()
+        elif expected_exit_status != exit_status:
+            exit_code = EXIT_FAILURE
+            print(
+                'not ok - Expected exit status "{}" but got "{}" - Flags: {}'.
+                format(expected_exit_status, exit_status, command_line_args))
+            print()
+            print('Output:')
+            print('=' * 80)
+            print_colored(Color.BLUE, output)
+            print('=' * 80)
+            print()
+            print()
+            print('Error output:')
+            print('=' * 80)
+            print_colored(Color.YELLOW, error)
+            print('=' * 80)
+            print()
+        else:
+            print('ok - Flags: {}'.format(command_line_args))
 
     return exit_code
 
