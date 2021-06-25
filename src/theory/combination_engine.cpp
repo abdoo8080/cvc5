@@ -16,8 +16,8 @@
 #include "theory/combination_engine.h"
 
 #include "expr/node_visitor.h"
+#include "proof/eager_proof_generator.h"
 #include "theory/care_graph.h"
-#include "theory/eager_proof_generator.h"
 #include "theory/ee_manager_distributed.h"
 #include "theory/model_manager.h"
 #include "theory/model_manager_distributed.h"
@@ -108,11 +108,6 @@ eq::EqualityEngineNotify* CombinationEngine::getModelEqualityEngineNotify()
 {
   // by default, no notifications from model's equality engine
   return nullptr;
-}
-
-void CombinationEngine::sendLemma(TrustNode trn, TheoryId atomsTo)
-{
-  d_te.lemma(trn, LemmaProperty::NONE, atomsTo);
 }
 
 void CombinationEngine::resetRound()

@@ -17,14 +17,21 @@
 
 #include <sstream>
 
+#include "expr/array_store_all.h"
 #include "expr/dtype.h"
 #include "expr/dtype_cons.h"
 #include "expr/node_manager_attributes.h"
+#include "expr/sequence.h"
 #include "expr/skolem_manager.h"
 #include "printer/smt2/smt2_printer.h"
-#include "theory/uf/theory_uf_rewriter.h"
 #include "theory/bv/theory_bv_utils.h"
 #include "theory/strings/word.h"
+#include "theory/uf/theory_uf_rewriter.h"
+#include "util/bitvector.h"
+#include "util/iand.h"
+#include "util/rational.h"
+#include "util/regexp.h"
+#include "util/string.h"
 
 using namespace cvc5::kind;
 
@@ -94,14 +101,18 @@ Node LfscNodeConverter::postConvert(Node n)
     if (tn.isConstructor() || tn.isSelector() || tn.isTester()
         || tn.isUpdater())
     {
-      // note these are not converted to their user named (cvc.) symbols here
+      // note these are not converted to their user named (cvc.) symbols here,
+      // to avoid type errors when constructing terms for postConvert
       return n;
     }
     // skolems v print as their witness forms
     // v is (skolem W) where W is the original or witness form of v
-    Node on = SkolemManager::getOriginalForm(n);
-    Node wi = on == n ? SkolemManager::getWitnessForm(n) : on;
-    Assert(!wi.isNull()) << "Missing skolem definition for " << n;
+    Node wi = SkolemManager::getOriginalForm(n);
+    if (wi == n)
+    {
+      // if it is not a purification skolem, maybe it is a witness skolem
+      wi = SkolemManager::getWitnessForm(n);
+    }
     if (!wi.isNull() && wi != n)
     {
       Trace("lfsc-term-process-debug") << "...witness form " << wi << std::endl;
@@ -112,16 +123,21 @@ Node LfscNodeConverter::postConvert(Node n)
       Node skolemOp = getSymbolInternal(k, ftype, "skolem");
       return nm->mkNode(APPLY_UF, skolemOp, wi);
     }
-    else
+    // might be a skolem function
+    Node ns = maybeMkSkolemFun(n);
+    if (!ns.isNull())
     {
-      // use a fresh variable
-      TypeNode intType = nm->integerType();
-      TypeNode varType = nm->mkFunctionType({intType, d_sortType}, tn);
-      Node var = mkInternalSymbol("var", varType);
-      Node index = nm->mkConst(Rational(getOrAssignIndexForVar(n)));
-      Node tc = typeAsNode(convertType(tn));
-      return nm->mkNode(APPLY_UF, var, index, tc);
+      return ns;
     }
+    // Otherwise, it is an uncategorized skolem, must use a fresh variable.
+    // This case will only apply for terms originating from places with no
+    // proof support.
+    TypeNode intType = nm->integerType();
+    TypeNode varType = nm->mkFunctionType({intType, d_sortType}, tn);
+    Node var = mkInternalSymbol("var", varType);
+    Node index = nm->mkConst(Rational(getOrAssignIndexForVar(n)));
+    Node tc = typeAsNode(convertType(tn));
+    return nm->mkNode(APPLY_UF, var, index, tc);
   }
   else if (n.isVar())
   {
@@ -136,7 +152,7 @@ Node LfscNodeConverter::postConvert(Node n)
     return convert(theory::uf::TheoryUfRewriter::getHoApplyForApplyUf(n));
   }
   else if (k == APPLY_CONSTRUCTOR || k == APPLY_SELECTOR || k == APPLY_TESTER
-           || k == APPLY_UPDATER)
+           || k == APPLY_SELECTOR_TOTAL || k == APPLY_UPDATER)
   {
     // must convert other kinds of apply to functions, since we convert to
     // HO_APPLY
@@ -167,7 +183,7 @@ Node LfscNodeConverter::postConvert(Node n)
       do
       {
         n = n[0];
-        Assert(n.getKind() == APPLY_UF || n.getKind()==CONST_RATIONAL);
+        Assert(n.getKind() == APPLY_UF || n.getKind() == CONST_RATIONAL);
       } while (n.getKind() != CONST_RATIONAL);
     }
     TypeNode tnv = nm->mkFunctionType(tn, tn);
@@ -255,8 +271,8 @@ Node LfscNodeConverter::postConvert(Node n)
     std::vector<Node> vecu;
     for (size_t i = 0, size = charVec.size(); i < size; i++)
     {
-      Node u = nm->mkNode(SEQ_UNIT, postConvert(charVec[size-(i+1)]));
-      if (size==1)
+      Node u = nm->mkNode(SEQ_UNIT, postConvert(charVec[size - (i + 1)]));
+      if (size == 1)
       {
         // singleton case
         return u;
@@ -275,12 +291,6 @@ Node LfscNodeConverter::postConvert(Node n)
     ArrayStoreAll storeAll = n.getConst<ArrayStoreAll>();
     return nm->mkNode(APPLY_UF, f, convert(storeAll.getValue()));
   }
-  else if (k == ITE)
-  {
-    // (ite C A B) is ((ite T) C A B) where T is the return type.
-    Node iteOp = getOperatorOfTerm(n, true);
-    return nm->mkNode(APPLY_UF, iteOp, n[0], n[1], n[2]);
-  }
   else if (k == GEQ || k == GT || k == LEQ || k == LT || k == MINUS
            || k == DIVISION || k == DIVISION_TOTAL || k == INTS_DIVISION
            || k == INTS_DIVISION_TOTAL || k == INTS_MODULUS
@@ -296,12 +306,15 @@ Node LfscNodeConverter::postConvert(Node n)
     children.insert(children.end(), n.begin(), n.end());
     return nm->mkNode(APPLY_UF, children);
   }
-  else if (k == EMPTYSET || k == UNIVERSE_SET || k==EMPTYBAG)
+  else if (k == EMPTYSET || k == UNIVERSE_SET || k == EMPTYBAG)
   {
     Node t = typeAsNode(convertType(tn));
     TypeNode etype = nm->mkFunctionType(d_sortType, tn);
-    Node ef =
-        getSymbolInternal(k, etype, k == EMPTYSET ? "emptyset" : ( k == UNIVERSE_SET ? "univset" : "emptybag") );
+    Node ef = getSymbolInternal(
+        k,
+        etype,
+        k == EMPTYSET ? "emptyset"
+                      : (k == UNIVERSE_SET ? "univset" : "emptybag"));
     return nm->mkNode(APPLY_UF, ef, t);
   }
   else if (n.isClosure())
@@ -338,6 +351,13 @@ Node LfscNodeConverter::postConvert(Node n)
   {
     // FIXME
     return n;
+  }
+  else if (k == SEP_NIL)
+  {
+    Node tnn = typeAsNode(convertType(tn));
+    TypeNode ftype = nm->mkFunctionType(d_sortType, tn);
+    Node s = getSymbolInternal(k, ftype, "sep.nil");
+    return nm->mkNode(APPLY_UF, s, tnn);
   }
   else if (NodeManager::isNAryKind(k) && n.getNumChildren() >= 2)
   {
@@ -504,7 +524,7 @@ TypeNode LfscNodeConverter::postConvertType(TypeNode tn)
     {
       std::stringstream ss;
       tn.toStream(ss, language::output::LANG_SMTLIB_V2_6);
-      if (tn.isSort() || ( tn.isDatatype() && !tn.isTuple()))
+      if (tn.isSort() || (tn.isDatatype() && !tn.isTuple()))
       {
         std::stringstream sss;
         sss << LfscNodeConverter::getNameForUserName(ss.str());
@@ -531,8 +551,8 @@ TypeNode LfscNodeConverter::postConvertType(TypeNode tn)
     if (k == PARAMETRIC_DATATYPE)
     {
       // erase first child, which repeats the datatype
-      targs.erase(targs.begin(), targs.begin()+1);
-      types.erase(types.begin(), types.begin()+1);
+      targs.erase(targs.begin(), targs.begin() + 1);
+      types.erase(types.begin(), types.begin() + 1);
       TypeNode ftype = nm->mkFunctionType(types, d_sortType);
       // the operator has been converted; it is no longer a datatype, thus
       // we must print to get its name.
@@ -595,6 +615,44 @@ bool LfscNodeConverter::shouldTraverse(Node n)
     }
   }
   return true;
+}
+
+Node LfscNodeConverter::maybeMkSkolemFun(Node k, bool macroApply)
+{
+  NodeManager* nm = NodeManager::currentNM();
+  SkolemManager* sm = nm->getSkolemManager();
+  SkolemFunId sfi = SkolemFunId::NONE;
+  Node cacheVal;
+  TypeNode tn = k.getType();
+  if (sm->isSkolemFunction(k, sfi, cacheVal))
+  {
+    if (sfi == SkolemFunId::SHARED_SELECTOR)
+    {
+      TypeNode fselt = nm->mkFunctionType(tn.getSelectorDomainType(),
+                                          tn.getSelectorRangeType());
+      TypeNode intType = nm->integerType();
+      TypeNode selt = nm->mkFunctionType({d_sortType, intType}, fselt);
+      Node sel = getSymbolInternal(k.getKind(), selt, "sel");
+      Node kn = typeAsNode(convertType(tn.getSelectorRangeType()));
+      Assert(!cacheVal.isNull() && cacheVal.getKind() == CONST_RATIONAL);
+      return nm->mkNode(APPLY_UF, sel, kn, cacheVal);
+    }
+    else if (sfi == SkolemFunId::RE_UNFOLD_POS_COMPONENT)
+    {
+      TypeNode strType = nm->stringType();
+      TypeNode reType = nm->regExpType();
+      TypeNode intType = nm->integerType();
+      TypeNode reut = nm->mkFunctionType({strType, reType, intType}, strType);
+      Node sk = getSymbolInternal(k.getKind(), reut, "skolem_re_unfold_pos");
+      Assert(!cacheVal.isNull() && cacheVal.getKind() == SEXPR
+             && cacheVal.getNumChildren() == 3);
+      // third value is mpz, which is not converted
+      return nm->mkNode(
+          APPLY_UF,
+          {sk, convert(cacheVal[0]), convert(cacheVal[1]), cacheVal[2]});
+    }
+  }
+  return Node::null();
 }
 
 Node LfscNodeConverter::typeAsNode(TypeNode tni) const
@@ -660,51 +718,66 @@ bool LfscNodeConverter::isIndexedOperatorKind(Kind k)
   return k == BITVECTOR_EXTRACT || k == BITVECTOR_REPEAT
          || k == BITVECTOR_ZERO_EXTEND || k == BITVECTOR_SIGN_EXTEND
          || k == BITVECTOR_ROTATE_LEFT || k == BITVECTOR_ROTATE_RIGHT
-         || k == INT_TO_BITVECTOR || k == IAND;
+         || k == INT_TO_BITVECTOR || k == IAND || k == APPLY_UPDATER
+         || k == APPLY_TESTER;
 }
 
-std::vector<Node> LfscNodeConverter::getOperatorIndices(Node n)
+std::vector<Node> LfscNodeConverter::getOperatorIndices(Kind k, Node n)
 {
   // TODO: this can be moved to a more central place
   NodeManager* nm = NodeManager::currentNM();
   std::vector<Node> indices;
-  Kind k = n.getKind();
   switch (k)
   {
-    case BITVECTOR_EXTRACT_OP:
+    case BITVECTOR_EXTRACT:
     {
       BitVectorExtract p = n.getConst<BitVectorExtract>();
       indices.push_back(nm->mkConst(Rational(p.d_high)));
       indices.push_back(nm->mkConst(Rational(p.d_low)));
       break;
     }
-    case BITVECTOR_REPEAT_OP:
+    case BITVECTOR_REPEAT:
       indices.push_back(
           nm->mkConst(Rational(n.getConst<BitVectorRepeat>().d_repeatAmount)));
       break;
-    case BITVECTOR_ZERO_EXTEND_OP:
+    case BITVECTOR_ZERO_EXTEND:
       indices.push_back(nm->mkConst(
           Rational(n.getConst<BitVectorZeroExtend>().d_zeroExtendAmount)));
       break;
-    case BITVECTOR_SIGN_EXTEND_OP:
+    case BITVECTOR_SIGN_EXTEND:
       indices.push_back(nm->mkConst(
           Rational(n.getConst<BitVectorSignExtend>().d_signExtendAmount)));
       break;
-    case BITVECTOR_ROTATE_LEFT_OP:
+    case BITVECTOR_ROTATE_LEFT:
       indices.push_back(nm->mkConst(
           Rational(n.getConst<BitVectorRotateLeft>().d_rotateLeftAmount)));
       break;
-    case BITVECTOR_ROTATE_RIGHT_OP:
+    case BITVECTOR_ROTATE_RIGHT:
       indices.push_back(nm->mkConst(
           Rational(n.getConst<BitVectorRotateRight>().d_rotateRightAmount)));
       break;
-    case INT_TO_BITVECTOR_OP:
+    case INT_TO_BITVECTOR:
       indices.push_back(
           nm->mkConst(Rational(n.getConst<IntToBitVector>().d_size)));
       break;
-    case IAND_OP:
+    case IAND:
       indices.push_back(nm->mkConst(Rational(n.getConst<IntAnd>().d_size)));
       break;
+    case APPLY_TESTER:
+    {
+      unsigned index = DType::indexOf(n);
+      const DType& dt = DType::datatypeOf(n);
+      indices.push_back(dt[index].getConstructor());
+    }
+    break;
+    case APPLY_UPDATER:
+    {
+      unsigned index = DType::indexOf(n);
+      const DType& dt = DType::datatypeOf(n);
+      unsigned cindex = DType::cindexOf(n);
+      indices.push_back(dt[cindex][index].getSelector());
+    }
+    break;
     default: Assert(false); break;
   }
   return indices;
@@ -717,25 +790,25 @@ Node LfscNodeConverter::getNullTerminator(Kind k, TypeNode tn)
   switch (k)
   {
     case OR: nullTerm = nm->mkConst(false); break;
-    case AND: 
-    case SEP_STAR:
-      nullTerm = nm->mkConst(true); break;
+    case AND:
+    case SEP_STAR: nullTerm = nm->mkConst(true); break;
     case PLUS: nullTerm = nm->mkConst(Rational(0)); break;
     case MULT:
     case NONLINEAR_MULT: nullTerm = nm->mkConst(Rational(1)); break;
     case STRING_CONCAT:
       // handles strings and sequences
       nullTerm = theory::strings::Word::mkEmptyWord(tn);
-    break;
+      break;
     case REGEXP_CONCAT:
       // the language containing only the empty string
-      nullTerm = nm->mkNode(STRING_TO_REGEXP, nm->mkConst(String("")));
+      // nullTerm = nm->mkNode(STRING_TO_REGEXP, nm->mkConst(String("")));
+      nullTerm = getSymbolInternal(k, tn, "re.empty");
       break;
     case BITVECTOR_AND:
       nullTerm = theory::bv::utils::mkOnes(tn.getBitVectorSize());
       break;
     case BITVECTOR_OR:
-    case BITVECTOR_PLUS:
+    case BITVECTOR_ADD:
     case BITVECTOR_XOR:
       nullTerm = theory::bv::utils::mkZero(tn.getBitVectorSize());
       break;
@@ -750,7 +823,7 @@ Node LfscNodeConverter::getNullTerminator(Kind k, TypeNode tn)
       TypeNode bvz = nm->mkBitVectorType(0);
       nullTerm = getSymbolInternal(k, bvz, "emptybv");
     }
-      break;
+    break;
     default:
       // not handled as null-terminated
       break;
@@ -765,13 +838,28 @@ Node LfscNodeConverter::getOperatorOfTerm(Node n, bool macroApply)
   NodeManager* nm = NodeManager::currentNM();
   Kind k = n.getKind();
   std::stringstream opName;
+  Trace("lfsc-term-process-debug2")
+      << "getOperatorOfTerm " << n << " " << k << " "
+      << (n.getMetaKind() == metakind::PARAMETERIZED) << " "
+      << isIndexedOperatorKind(k) << std::endl;
   if (n.getMetaKind() == metakind::PARAMETERIZED)
   {
     Node op = n.getOperator();
     std::vector<Node> indices;
     if (isIndexedOperatorKind(k))
     {
-      indices = getOperatorIndices(n.getOperator());
+      indices = getOperatorIndices(k, n.getOperator());
+      // we must convert the name of indices on updaters and testers
+      if (k == APPLY_UPDATER || k == APPLY_TESTER)
+      {
+        Assert(indices.size() == 1);
+        // must convert to user name
+        std::stringstream sss;
+        sss << indices[0];
+        TypeNode intType = nm->integerType();
+        indices[0] =
+            getSymbolInternal(k, intType, getNameForUserName(sss.str()));
+      }
     }
     else if (op.getType().isFunction())
     {
@@ -788,6 +876,7 @@ Node LfscNodeConverter::getOperatorOfTerm(Node n, bool macroApply)
     {
       ftype = nm->mkFunctionType(argTypes, ftype);
     }
+    Node ret;
     if (isIndexedOperatorKind(k))
     {
       std::vector<TypeNode> itypes;
@@ -801,45 +890,52 @@ Node LfscNodeConverter::getOperatorOfTerm(Node n, bool macroApply)
       }
       if (!macroApply)
       {
-        opName << "f_";
+        if (k != APPLY_UPDATER && k != APPLY_TESTER)
+        {
+          opName << "f_";
+        }
       }
       opName << printer::smt2::Smt2Printer::smtKindString(k);
     }
-    else if (k == APPLY_CONSTRUCTOR || k == APPLY_SELECTOR || k == APPLY_TESTER
-           || k == APPLY_UPDATER)
+    else if (k == APPLY_CONSTRUCTOR)
     {
-      // use is-C instead of (_ is C) syntax for testers
       unsigned index = DType::indexOf(op);
       const DType& dt = DType::datatypeOf(op);
-      if (k == APPLY_TESTER)
+      std::stringstream ssc;
+      ssc << dt[index].getConstructor();
+      opName << getNameForUserName(ssc.str());
+    }
+    else if (k == APPLY_SELECTOR)
+    {
+      unsigned index = DType::indexOf(op);
+      const DType& dt = DType::datatypeOf(op);
+      unsigned cindex = DType::cindexOf(op);
+      std::stringstream sss;
+      sss << dt[cindex][index].getSelector();
+      opName << getNameForUserName(sss.str());
+    }
+    else if (k == APPLY_SELECTOR_TOTAL)
+    {
+      ret = maybeMkSkolemFun(op, macroApply);
+      Assert(!ret.isNull());
+    }
+    else if (k == SINGLETON || k == MK_BAG)
+    {
+      if (!macroApply)
       {
-        opName << "is-";
+        opName << "f_";
       }
-      else if (k == APPLY_UPDATER)
-      {
-        opName << "update-";
-      }
-      if (k==APPLY_TESTER || k==APPLY_CONSTRUCTOR)
-      {
-        std::stringstream ssc;
-        ssc << dt[index].getConstructor();
-        opName << getNameForUserName(ssc.str());
-      }
-      else if (k==APPLY_SELECTOR || k==APPLY_UPDATER)
-      {
-        unsigned cindex = DType::cindexOf(op);
-        std::stringstream sss;
-        sss << dt[cindex][index].getSelector();
-        opName << getNameForUserName(sss.str());
-      }
+      opName << printer::smt2::Smt2Printer::smtKindString(k);
     }
     else
     {
       opName << op;
     }
-    Node ret = getSymbolInternal(k, ftype, opName.str());
+    if (ret.isNull())
+    {
+      ret = getSymbolInternal(k, ftype, opName.str());
+    }
     // TODO: if parametric, instantiate the parameters?
-
     // if indexed, apply to index
     if (!indices.empty())
     {
@@ -848,6 +944,7 @@ Node LfscNodeConverter::getOperatorOfTerm(Node n, bool macroApply)
       ichildren.insert(ichildren.end(), indices.begin(), indices.end());
       ret = nm->mkNode(APPLY_UF, ichildren);
     }
+    Trace("lfsc-term-process-debug2") << "...return " << ret << std::endl;
     return ret;
   }
   std::vector<TypeNode> argTypes;
@@ -872,7 +969,8 @@ Node LfscNodeConverter::getOperatorOfTerm(Node n, bool macroApply)
   if (k == PLUS || k == MULT || k == NONLINEAR_MULT || k == GEQ || k == GT
       || k == LEQ || k == LT || k == MINUS || k == DIVISION
       || k == DIVISION_TOTAL || k == INTS_DIVISION || k == INTS_DIVISION_TOTAL
-      || k == INTS_MODULUS || k == INTS_MODULUS_TOTAL || k == UMINUS || k == POW)
+      || k == INTS_MODULUS || k == INTS_MODULUS_TOTAL || k == UMINUS
+      || k == POW)
   {
     // currently allow subtyping
     opName << "a.";
@@ -896,16 +994,6 @@ Node LfscNodeConverter::getOperatorOfTerm(Node n, bool macroApply)
       || k == INTS_MODULUS_TOTAL)
   {
     opName << "_total";
-  }
-  if (k == ITE)
-  {
-    // ITE is indexed by its type
-    TypeNode boolType = nm->booleanType();
-    TypeNode itype = nm->mkFunctionType(d_sortType, ftype);
-    Node iteSym = getSymbolInternal(k, itype, opName.str());
-    Node typeNode = typeAsNode(convertType(tn));
-    Assert(!typeNode.isNull());
-    return nm->mkNode(APPLY_UF, iteSym, typeNode);
   }
   return getSymbolInternal(k, ftype, opName.str());
 }

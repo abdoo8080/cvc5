@@ -16,6 +16,8 @@
  * \todo document this file
  */
 
+#include "theory/arith/arith_rewriter.h"
+
 #include <set>
 #include <sstream>
 #include <stack>
@@ -23,11 +25,12 @@
 
 #include "smt/logic_exception.h"
 #include "theory/arith/arith_msum.h"
-#include "theory/arith/arith_rewriter.h"
 #include "theory/arith/arith_utilities.h"
 #include "theory/arith/normal_form.h"
 #include "theory/arith/operator_elim.h"
 #include "theory/theory.h"
+#include "util/bitvector.h"
+#include "util/divisible.h"
 #include "util/iand.h"
 
 namespace cvc5 {
@@ -109,6 +112,7 @@ RewriteResponse ArithRewriter::preRewriteTerm(TNode t){
     case kind::MULT:
     case kind::NONLINEAR_MULT: return preRewriteMult(t);
     case kind::IAND: return RewriteResponse(REWRITE_DONE, t);
+    case kind::POW2: return RewriteResponse(REWRITE_DONE, t);
     case kind::EXPONENTIAL:
     case kind::SINE:
     case kind::COSINE:
@@ -172,6 +176,7 @@ RewriteResponse ArithRewriter::postRewriteTerm(TNode t){
     case kind::MULT:
     case kind::NONLINEAR_MULT: return postRewriteMult(t);
     case kind::IAND: return postRewriteIAnd(t);
+    case kind::POW2: return postRewritePow2(t);
     case kind::EXPONENTIAL:
     case kind::SINE:
     case kind::COSINE:
@@ -376,6 +381,23 @@ RewriteResponse ArithRewriter::postRewriteMult(TNode t){
   }
 
   return RewriteResponse(REWRITE_DONE, res.getNode());
+}
+
+RewriteResponse ArithRewriter::postRewritePow2(TNode t)
+{
+  Assert(t.getKind() == kind::POW2);
+  NodeManager* nm = NodeManager::currentNM();
+  // if constant, we eliminate
+  if (t[0].isConst())
+  {
+    // pow2 is only supported for integers
+    Assert(t[0].getType().isInteger());
+    Integer i = t[0].getConst<Rational>().getNumerator();
+    unsigned long k = i.getUnsignedLong();
+    Node ret = nm->mkConst<Rational>(Rational(Integer(2).pow(k), Integer(1)));
+    return RewriteResponse(REWRITE_DONE, ret);
+  }
+  return RewriteResponse(REWRITE_DONE, t);
 }
 
 RewriteResponse ArithRewriter::postRewriteIAnd(TNode t)

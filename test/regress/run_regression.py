@@ -276,9 +276,17 @@ def run_regression(check_unsat_cores, check_proofs, dump, use_skip_return_code,
         expected_output_lines = expected_output.split()
         extra_command_line_args = []
         if 'unsat' in expected_output_lines or 'entailed' in expected_output_lines:
-            if benchmark_ext != '.sy' and \
-               '--dump-unsat-cores' not in all_args and \
-               '--dump-unsat-cores-full' not in all_args and \
+            if check_unsat_cores and \
+               '--no-produce-unsat-cores' not in all_args and \
+               '--no-check-unsat-cores' not in all_args and \
+               '--check-unsat-cores' not in all_args and \
+               'sygus-inference' not in benchmark_content and \
+               '--unconstrained-simp' not in all_args:
+                extra_command_line_args += ['--check-unsat-cores']
+                if '--no-check-unsat-cores' not in all_args and \
+                   '--produce-proofs' not in all_args:
+                    extra_command_line_args += [['--check-unsat-cores', '--unsat-cores-mode=assumptions']]
+            if check_proofs and \
                '--no-produce-proofs' not in all_args and \
                '--no-check-proofs' not in all_args and \
                '--dump-instantiations' not in all_args and \

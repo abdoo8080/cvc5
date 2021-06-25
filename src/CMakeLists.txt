@@ -29,6 +29,8 @@ libcvc5_add_sources(
   decision/decision_strategy.h
   decision/justification_heuristic.cpp
   decision/justification_heuristic.h
+  decision/justification_strategy.cpp
+  decision/justification_strategy.h
   decision/justify_info.cpp
   decision/justify_info.h
   decision/justify_stack.cpp
@@ -50,6 +52,8 @@ libcvc5_add_sources(
   omt/omt_optimizer.h
   preprocessing/assertion_pipeline.cpp
   preprocessing/assertion_pipeline.h
+  preprocessing/learned_literal_manager.cpp
+  preprocessing/learned_literal_manager.h
   preprocessing/passes/ackermann.cpp
   preprocessing/passes/ackermann.h
   preprocessing/passes/apply_substs.cpp
@@ -136,11 +140,23 @@ libcvc5_add_sources(
   printer/smt2/smt2_printer.h
   printer/tptp/tptp_printer.cpp
   printer/tptp/tptp_printer.h
+  proof/buffered_proof_generator.cpp
+  proof/buffered_proof_generator.h
+  proof/conv_proof_generator.cpp
+  proof/conv_proof_generator.h
+  proof/conv_seq_proof_generator.cpp
+  proof/conv_seq_proof_generator.h
   proof/clause_id.h
-  proof/cnf_proof.cpp
-  proof/cnf_proof.h
   proof/dot/dot_printer.cpp
   proof/dot/dot_printer.h
+  proof/eager_proof_generator.cpp
+  proof/eager_proof_generator.h
+  proof/lazy_proof.cpp
+  proof/lazy_proof.h
+  proof/lazy_proof_chain.cpp
+  proof/lazy_proof_chain.h
+  proof/lazy_tree_proof_generator.cpp
+  proof/lazy_tree_proof_generator.h
   proof/lean/lean_post_processor.cpp
   proof/lean/lean_post_processor.h
   proof/lean/lean_printer.cpp
@@ -157,14 +173,39 @@ libcvc5_add_sources(
   proof/lfsc/lfsc_printer.h
   proof/lfsc/lfsc_util.cpp
   proof/lfsc/lfsc_util.h
+  proof/method_id.cpp
+  proof/method_id.h
   proof/print_expr.cpp
   proof/print_expr.h
+  proof/proof.cpp
+  proof/proof.h
+  proof/proof_checker.cpp
+  proof/proof_checker.h
+  proof/proof_ensure_closed.cpp
+  proof/proof_ensure_closed.h
+  proof/proof_generator.cpp
+  proof/proof_generator.h
   proof/proof_letify.cpp
   proof/proof_letify.h
-  proof/proof_manager.cpp
-  proof/proof_manager.h
-  proof/sat_proof.h
-  proof/sat_proof_implementation.h
+  proof/proof_node.cpp
+  proof/proof_node.h
+  proof/proof_node_algorithm.cpp
+  proof/proof_node_algorithm.h
+  proof/proof_node_to_sexpr.cpp
+  proof/proof_node_to_sexpr.h
+  proof/proof_node_manager.cpp
+  proof/proof_node_manager.h
+  proof/proof_node_updater.cpp
+  proof/proof_node_updater.h
+  proof/proof_rule.cpp
+  proof/proof_rule.h
+  proof/proof_set.h
+  proof/proof_step_buffer.cpp
+  proof/proof_step_buffer.h
+  proof/trust_node.cpp
+  proof/trust_node.h
+  proof/theory_proof_step_buffer.cpp
+  proof/theory_proof_step_buffer.h
   proof/unsat_core.cpp
   proof/unsat_core.h
   proof/verit/verit_post_processor.cpp
@@ -309,8 +350,6 @@ libcvc5_add_sources(
   smt/sygus_solver.h
   smt/term_formula_removal.cpp
   smt/term_formula_removal.h
-  smt/theory_rewrite_rcons.cpp
-  smt/theory_rewrite_rcons.h
   smt/unsat_core_manager.cpp
   smt/unsat_core_manager.h
   smt/update_ostream.h
@@ -378,6 +417,8 @@ libcvc5_add_sources(
   theory/arith/nl/cad/cdcac_utils.h
   theory/arith/nl/cad/constraints.cpp
   theory/arith/nl/cad/constraints.h
+  theory/arith/nl/cad/lazard_evaluation.cpp
+  theory/arith/nl/cad/lazard_evaluation.h
   theory/arith/nl/cad/projections.cpp
   theory/arith/nl/cad/projections.h
   theory/arith/nl/cad/proof_checker.cpp
@@ -426,6 +467,8 @@ libcvc5_add_sources(
   theory/arith/nl/nonlinear_extension.h
   theory/arith/nl/poly_conversion.cpp
   theory/arith/nl/poly_conversion.h
+  theory/arith/nl/pow2_solver.cpp
+  theory/arith/nl/pow2_solver.h
   theory/arith/nl/stats.cpp
   theory/arith/nl/stats.h
   theory/arith/nl/strategy.cpp
@@ -579,6 +622,7 @@ libcvc5_add_sources(
   theory/bv/bv_subtheory_core.h
   theory/bv/bv_subtheory_inequality.cpp
   theory/bv/bv_subtheory_inequality.h
+  theory/bv/int_blaster.cpp
   theory/bv/int_blaster.h
   theory/bv/proof_checker.cpp
   theory/bv/proof_checker.h
@@ -634,8 +678,6 @@ libcvc5_add_sources(
   theory/decision_manager.h
   theory/decision_strategy.cpp
   theory/decision_strategy.h
-  theory/eager_proof_generator.cpp
-  theory/eager_proof_generator.h
   theory/ee_manager.cpp
   theory/ee_manager.h
   theory/ee_manager_distributed.cpp
@@ -665,8 +707,6 @@ libcvc5_add_sources(
   theory/inference_id.h
   theory/inference_manager_buffered.cpp
   theory/inference_manager_buffered.h
-  theory/lazy_tree_proof_generator.cpp
-  theory/lazy_tree_proof_generator.h
   theory/logic_info.cpp
   theory/logic_info.h
   theory/model_manager.cpp
@@ -843,8 +883,8 @@ libcvc5_add_sources(
   theory/quantifiers/sygus/example_infer.h
   theory/quantifiers/sygus/example_min_eval.cpp
   theory/quantifiers/sygus/example_min_eval.h
-  theory/quantifiers/sygus/rcons_obligation_info.cpp
-  theory/quantifiers/sygus/rcons_obligation_info.h
+  theory/quantifiers/sygus/rcons_obligation.cpp
+  theory/quantifiers/sygus/rcons_obligation.h
   theory/quantifiers/sygus/rcons_type_info.cpp
   theory/quantifiers/sygus/rcons_type_info.h
   theory/quantifiers/sygus/sygus_abduct.cpp
@@ -939,6 +979,8 @@ libcvc5_add_sources(
   theory/rewrite_db_term_process.h
   theory/rewrite_proof_rule.cpp
   theory/rewrite_proof_rule.h
+  theory/rewrite_rcons.cpp
+  theory/rewrite_rcons.h
   theory/rewriter.cpp
   theory/rewriter.h
   theory/rewriter_attributes.h
@@ -1073,14 +1115,10 @@ libcvc5_add_sources(
   theory/theory_model_builder.h
   theory/theory_preprocessor.cpp
   theory/theory_preprocessor.h
-  theory/theory_proof_step_buffer.cpp
-  theory/theory_proof_step_buffer.h
   theory/theory_rewriter.cpp
   theory/theory_rewriter.h
   theory/theory_state.cpp
   theory/theory_state.h
-  theory/trust_node.cpp
-  theory/trust_node.h
   theory/trust_substitutions.cpp
   theory/trust_substitutions.h
   theory/type_enumerator.h
@@ -1140,6 +1178,13 @@ set(KINDS_FILES
   ${PROJECT_SOURCE_DIR}/src/theory/quantifiers/kinds)
 
 #-----------------------------------------------------------------------------#
+
+set(REWRITES_FILES
+  ${PROJECT_SOURCE_DIR}/src/theory/arith/rewrites
+  ${PROJECT_SOURCE_DIR}/src/theory/booleans/rewrites
+  ${PROJECT_SOURCE_DIR}/src/theory/strings/rewrites)
+
+#-----------------------------------------------------------------------------#
 # Add subdirectories
 
 add_subdirectory(base)
@@ -1149,6 +1194,7 @@ add_subdirectory(options)
 if (NOT BUILD_LIB_ONLY)
   add_subdirectory(parser)
 endif()
+add_subdirectory(rewriter)
 add_subdirectory(theory)
 add_subdirectory(util)
 
@@ -1157,6 +1203,7 @@ add_subdirectory(util)
 # LIBCVC5_GEN_SRCS (via libcvc5_add_sources). We can now build libcvc5.
 
 set_source_files_properties(${LIBCVC5_GEN_SRCS} PROPERTIES GENERATED TRUE)
+
 add_library(cvc5 ${LIBCVC5_SRCS} ${LIBCVC5_GEN_SRCS}
   $<TARGET_OBJECTS:cvc5base> $<TARGET_OBJECTS:cvc5context>)
 target_include_directories(cvc5
@@ -1176,7 +1223,7 @@ install(TARGETS cvc5
 set_target_properties(cvc5 PROPERTIES SOVERSION ${CVC5_SOVERSION})
 target_compile_definitions(cvc5 PRIVATE -D__BUILDING_CVC5LIB)
 # Add libcvc5 dependencies for generated sources.
-add_dependencies(cvc5 gen-expr gen-gitinfo gen-options gen-tags gen-theory)
+add_dependencies(cvc5 gen-expr gen-gitinfo gen-options gen-rewrites gen-tags gen-theory)
 
 # Add library/include dependencies
 if(ENABLE_VALGRIND)
@@ -1186,9 +1233,9 @@ if(USE_ABC)
   target_link_libraries(cvc5 PRIVATE ${ABC_LIBRARIES})
   target_include_directories(cvc5 PRIVATE ${ABC_INCLUDE_DIR})
 endif()
-if(USE_CADICAL)
-  target_link_libraries(cvc5 PRIVATE CaDiCaL)
-endif()
+
+target_link_libraries(cvc5 PRIVATE CaDiCaL)
+
 if(USE_CLN)
   target_link_libraries(cvc5 PRIVATE CLN)
 endif()
@@ -1205,9 +1252,8 @@ endif()
 if(USE_POLY)
   target_link_libraries(cvc5 PRIVATE Polyxx)
 endif()
-if(USE_SYMFPU)
-  target_link_libraries(cvc5 PRIVATE SymFPU)
-endif()
+
+target_link_libraries(cvc5 PRIVATE SymFPU)
 
 # Note: When linked statically GMP needs to be linked after CLN since CLN
 # depends on GMP.

@@ -21,11 +21,12 @@
 #include <map>
 
 #include "expr/node.h"
-#include "expr/proof_node.h"
 #include "printer/let_binding.h"
 #include "proof/lfsc/lfsc_node_converter.h"
 #include "proof/lfsc/lfsc_util.h"
 #include "proof/print_expr.h"
+#include "proof/proof_node.h"
+#include "theory/rewrite_db.h"
 
 namespace cvc5 {
 namespace proof {
@@ -35,7 +36,7 @@ class LfscPrintChannel;
 class LfscPrinter
 {
  public:
-  LfscPrinter(LfscNodeConverter& ltp);
+  LfscPrinter(LfscNodeConverter& ltp, theory::RewriteDb* rdb);
   ~LfscPrinter() {}
 
   /**
@@ -59,6 +60,10 @@ class LfscPrinter
    * Print node to stream in the expected format of LFSC.
    */
   void printLetify(std::ostream& out, Node n);
+  /**
+   * Print node to stream in the expected format of LFSC.
+   */
+  void printInternal(std::ostream& out, Node n);
   /**
    * Print node to stream in the expected format of LFSC.
    */
@@ -112,8 +117,12 @@ class LfscPrinter
   Node d_ff;
   /** Boolean type */
   TypeNode d_boolType;
+  /** assumption counter */
+  size_t d_assumpCounter;
   /** for debugging the open rules, the set of PfRule we have warned about */
   std::unordered_set<PfRule, PfRuleHashFunction> d_trustWarned;
+  /** Pointer to the rewrite database */
+  theory::RewriteDb* d_rdb;
 };
 
 }  // namespace proof

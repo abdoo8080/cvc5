@@ -1,16 +1,17 @@
-/*********************                                                        */
-/*! \file rewrite_db.h
- ** \verbatim
- ** Top contributors (to current version):
- **   Andrew Reynolds
- ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2019 by the authors listed in the file AUTHORS
- ** in the top-level source directory) and their institutional affiliations.
- ** All rights reserved.  See the file COPYING in the top-level source
- ** directory for licensing information.\endverbatim
- **
- ** \brief Rewrite database
- **/
+/******************************************************************************
+ * Top contributors (to current version):
+ *   Andrew Reynolds
+ *
+ * This file is part of the cvc5 project.
+ *
+ * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * in the top-level source directory and their institutional affiliations.
+ * All rights reserved.  See the file COPYING in the top-level source
+ * directory for licensing information.
+ * ****************************************************************************
+ *
+ * Rewrite database
+ */
 
 #include "cvc5_private.h"
 
@@ -23,6 +24,7 @@
 #include "expr/match_trie.h"
 #include "expr/node.h"
 #include "expr/term_canonize.h"
+#include "rewriter/rewrites.h"
 #include "theory/rewrite_proof_rule.h"
 
 namespace cvc5 {
@@ -41,13 +43,18 @@ class RewriteDb
   RewriteDb();
   ~RewriteDb() {}
   /** Add rule, return its identifier */
-  DslPfRule addRule(Node a, Node b, Node cond, const std::string& name);
+  void addRule(rewriter::DslPfRule id,
+               const std::vector<Node> fvs,
+               Node a,
+               Node b,
+               Node cond);
   /** get matches */
   void getMatches(Node eq, expr::NotifyMatch* ntm);
   /** get rule for id */
-  const RewriteProofRule& getRule(DslPfRule id) const;
+  const RewriteProofRule& getRule(rewriter::DslPfRule id) const;
   /** get ids for conclusion */
-  const std::vector<DslPfRule>& getRuleIdsForConclusion(Node eq) const;
+  const std::vector<rewriter::DslPfRule>& getRuleIdsForConclusion(
+      Node eq) const;
 
  private:
   /** common constants */
@@ -58,13 +65,11 @@ class RewriteDb
   /** The match trie */
   expr::MatchTrie d_mt;
   /** map ids to rewrite db rule information */
-  std::map<DslPfRule, RewriteProofRule> d_rewDbRule;
+  std::map<rewriter::DslPfRule, RewriteProofRule> d_rewDbRule;
   /** map conclusions to proof ids */
-  std::map<Node, std::vector<DslPfRule> > d_concToRules;
+  std::map<Node, std::vector<rewriter::DslPfRule> > d_concToRules;
   /** dummy empty vector */
-  std::vector<DslPfRule> d_emptyVec;
-  /** currently allocating id */
-  DslPfRule d_idCounter;
+  std::vector<rewriter::DslPfRule> d_emptyVec;
 };
 
 }  // namespace theory

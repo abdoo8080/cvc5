@@ -33,13 +33,13 @@
 #include "expr/node.h"
 #include "expr/node_algorithm.h"
 #include "expr/node_builder.h"
-#include "expr/proof_generator.h"
-#include "expr/proof_node_manager.h"
-#include "expr/proof_rule.h"
 #include "expr/skolem_manager.h"
 #include "options/arith_options.h"
-#include "options/smt_options.h"  // for incrementalSolving()
+#include "options/base_options.h"
 #include "preprocessing/util/ite_utilities.h"
+#include "proof/proof_generator.h"
+#include "proof/proof_node_manager.h"
+#include "proof/proof_rule.h"
 #include "smt/logic_exception.h"
 #include "smt/smt_statistics_registry.h"
 #include "smt_util/boolean_simplification.h"
@@ -1830,15 +1830,15 @@ void TheoryArithPrivate::outputConflicts(){
   }
 }
 
-void TheoryArithPrivate::outputTrustedLemma(TrustNode lemma, InferenceId id)
+bool TheoryArithPrivate::outputTrustedLemma(TrustNode lemma, InferenceId id)
 {
   Debug("arith::channel") << "Arith trusted lemma: " << lemma << std::endl;
-  d_containing.d_im.trustedLemma(lemma, id);
+  return d_containing.d_im.trustedLemma(lemma, id);
 }
 
-void TheoryArithPrivate::outputLemma(TNode lem, InferenceId id) {
+bool TheoryArithPrivate::outputLemma(TNode lem, InferenceId id) {
   Debug("arith::channel") << "Arith lemma: " << lem << std::endl;
-  d_containing.d_im.lemma(lem, id);
+  return d_containing.d_im.lemma(lem, id);
 }
 
 void TheoryArithPrivate::outputTrustedConflict(TrustNode conf, InferenceId id)
@@ -2906,10 +2906,10 @@ void TheoryArithPrivate::importSolution(const ApproximateSimplex::Solution& solu
   if(d_qflraStatus != Result::UNSAT){
     static const int32_t pass2Limit = 20;
     int16_t oldCap = options::arithStandardCheckVarOrderPivots();
-    Options::current().set(options::arithStandardCheckVarOrderPivots, pass2Limit);
+    Options::current().arith.arithStandardCheckVarOrderPivots = pass2Limit;
     SimplexDecisionProcedure& simplex = selectSimplex(false);
     d_qflraStatus = simplex.findModel(false);
-    Options::current().set(options::arithStandardCheckVarOrderPivots, oldCap);
+    Options::current().arith.arithStandardCheckVarOrderPivots = oldCap;
   }
 
   if(Debug.isOn("arith::importSolution")){
@@ -3391,11 +3391,13 @@ bool TheoryArithPrivate::postCheck(Theory::Effort effortLevel)
       if(getDioCuttingResource()){
         TrustNode possibleLemma = dioCutting();
         if(!possibleLemma.isNull()){
-          emmittedConflictOrSplit = true;
           d_hasDoneWorkSinceCut = false;
           d_cutCount = d_cutCount + 1;
           Debug("arith::lemma") << "dio cut   " << possibleLemma << endl;
-          outputTrustedLemma(possibleLemma, InferenceId::ARITH_DIO_CUT);
+          if (outputTrustedLemma(possibleLemma, InferenceId::ARITH_DIO_CUT))
+          {
+            emmittedConflictOrSplit = true;
+          }
         }
       }
     }
@@ -3406,10 +3408,12 @@ bool TheoryArithPrivate::postCheck(Theory::Effort effortLevel)
       {
         ++(d_statistics.d_externalBranchAndBounds);
         d_cutCount = d_cutCount + 1;
-        emmittedConflictOrSplit = true;
         Debug("arith::lemma") << "rrbranch lemma"
                               << possibleLemma << endl;
-        outputTrustedLemma(possibleLemma, InferenceId::ARITH_BB_LEMMA);
+        if (outputTrustedLemma(possibleLemma, InferenceId::ARITH_BB_LEMMA))
+        {
+          emmittedConflictOrSplit = true;
+        }
       }
     }
 
@@ -4124,7 +4128,7 @@ void TheoryArithPrivate::presolve(){
   for(; i != i_end; ++i){
     TrustNode lem = *i;
     Debug("arith::oldprop") << " lemma lemma duck " <<lem << endl;
-    outputTrustedLemma(lem, InferenceId::UNKNOWN);
+    outputTrustedLemma(lem, InferenceId::ARITH_UNATE);
   }
 }
 
@@ -4568,11 +4572,11 @@ bool TheoryArithPrivate::rowImplicationCanBeApplied(RowIndex ridx, bool rowUp, C
 
         // Output it
         TrustNode trustedClause = d_pfGen->mkTrustNode(clause, clausePf);
-        outputTrustedLemma(trustedClause, InferenceId::UNKNOWN);
+        outputTrustedLemma(trustedClause, InferenceId::ARITH_ROW_IMPL);
       }
       else
       {
-        outputLemma(clause, InferenceId::UNKNOWN);
+        outputLemma(clause, InferenceId::ARITH_ROW_IMPL);
       }
     }else{
       Assert(!implied->negationHasProof());

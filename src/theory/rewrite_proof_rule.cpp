@@ -17,39 +17,39 @@
 #include <sstream>
 
 #include "expr/node_algorithm.h"
+#include "proof/proof_checker.h"
 #include "theory/rewrite_db_sc.h"
 #include "theory/rewrite_db_term_process.h"
 
 using namespace cvc5::kind;
+using namespace cvc5::rewriter;
 
 namespace cvc5 {
 namespace theory {
 
-const char* toString(DslPfRule drule)
+bool getDslPfRule(TNode n, DslPfRule& id)
 {
-  switch (drule)
+  uint32_t i;
+  if (ProofRuleChecker::getUInt32(n, i))
   {
-    case DslPfRule::FAIL: return "FAIL";
-    case DslPfRule::REFL: return "REFL";
-    case DslPfRule::EVAL: return "EVAL";
-    default: return "USER_?";
+    id = static_cast<DslPfRule>(i);
+    return true;
   }
+  return false;
 }
 
-std::ostream& operator<<(std::ostream& out, DslPfRule drule)
-{
-  out << toString(drule);
-  return out;
-}
+RewriteProofRule::RewriteProofRule() : d_id(DslPfRule::FAIL) {}
 
-RewriteProofRule::RewriteProofRule() : d_name("") {}
-
-void RewriteProofRule::init(const std::string& name,
+void RewriteProofRule::init(DslPfRule id,
+                            const std::vector<Node>& userFvs,
+                            const std::vector<Node>& fvs,
                             const std::vector<Node>& cond,
                             Node conc)
 {
-  d_name = name;
-  d_cond.clear();
+  // not initialized yet
+  Assert (d_cond.empty() && d_obGen.empty() && d_fvs.empty());
+  d_id = id;
+  d_userFvs = userFvs;
   // Must purify side conditions from the condition. For each subterm of
   // condition c that is an application of a side condition, we replace it
   // with a free variable and add its definition to d_scs. In the end,
@@ -57,13 +57,11 @@ void RewriteProofRule::init(const std::string& name,
   // (internally generated) variables.
   for (const Node& c : cond)
   {
+    d_cond.push_back(c);
     Node cc = purifySideConditions(c, d_scs);
-    d_cond.push_back(cc);
+    d_obGen.push_back(cc);
   }
   d_conc = conc;
-
-  std::unordered_set<Node> fvs;
-  expr::getFreeVariables(conc, fvs);
 
   d_numFv = fvs.size();
 
@@ -145,22 +143,34 @@ Node RewriteProofRule::purifySideConditions(Node n, std::vector<Node>& scs)
   return visited[n];
 }
 
-const std::string& RewriteProofRule::getName() const { return d_name; }
+const char* RewriteProofRule::getName() const { return toString(d_id); }
 
+const std::vector<Node>& RewriteProofRule::getUserVarList() const { return d_userFvs; }
+const std::vector<Node>& RewriteProofRule::getVarList() const { return d_fvs; }
+bool RewriteProofRule::isExplicitVar(Node v) const
+{
+  Assert(std::find(d_fvs.begin(), d_fvs.end(), v) != d_fvs.end());
+  return d_noOccVars.find(v) != d_noOccVars.end();
+}
 bool RewriteProofRule::hasConditions() const { return !d_cond.empty(); }
+
+const std::vector<Node>& RewriteProofRule::getConditions() const
+{
+  return d_cond;
+}
 
 bool RewriteProofRule::hasSideConditions() const { return !d_scs.empty(); }
 
-bool RewriteProofRule::getConditions(const std::vector<Node>& vs,
-                                     const std::vector<Node>& ss,
-                                     std::vector<Node>& vcs) const
+bool RewriteProofRule::getObligations(const std::vector<Node>& vs,
+                                      const std::vector<Node>& ss,
+                                      std::vector<Node>& vcs) const
 {
   if (!d_scs.empty())
   {
     return runSideConditions(vs, ss, vcs);
   }
   // otherwise, just substitute into each condition
-  for (const Node& c : d_cond)
+  for (const Node& c : d_obGen)
   {
     Node sc = c.substitute(vs.begin(), vs.end(), ss.begin(), ss.end());
     vcs.push_back(sc);
@@ -199,7 +209,7 @@ bool RewriteProofRule::runSideConditions(const std::vector<Node>& vs,
     vctx.push_back(sc[1]);
     sctx.push_back(res);
   }
-  for (const Node& c : d_cond)
+  for (const Node& c : d_obGen)
   {
     Node sc = c.substitute(vctx.begin(), vctx.end(), sctx.begin(), sctx.end());
     vcs.push_back(sc);

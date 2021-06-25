@@ -18,10 +18,9 @@
 #include <sstream>
 
 #include "expr/node_algorithm.h"
-#include "expr/proof_checker.h"
-#include "expr/proof_node.h"
 #include "options/expr_options.h"
 #include "proof/lean/lean_rules.h"
+#include "util/string.h"
 
 namespace cvc5 {
 
@@ -588,7 +587,7 @@ void LeanPrinter::print(std::ostream& out,
   {
     d_lbind.process(a);
   }
-  ProofNodeUpdater updater(nullptr, *(d_cb.get()), false, false, false);
+  ProofNodeUpdater updater(nullptr, *(d_cb.get()), false, false);
   updater.process(innerPf);
 
   const std::vector<Node>& assumptions = pfn->getChildren()[0]->getArguments();

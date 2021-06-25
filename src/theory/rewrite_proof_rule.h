@@ -19,32 +19,15 @@
 
 #include <string>
 #include <vector>
+
 #include "expr/node.h"
+#include "rewriter/rewrites.h"
 
 namespace cvc5 {
 namespace theory {
 
-enum class DslPfRule : uint32_t
-{
-  FAIL = 0,
-  REFL,
-  EVAL,
-  USER_START
-};
-/**
- * Converts a DSL proof rule to a string.
- * @param drule The DSL proof rule
- * @return The name of the DSL proof rule
- */
-const char* toString(DslPfRule drule);
-/**
- * Writes a DSL proof rule name to a stream.
- *
- * @param out The stream to write to
- * @param drule The DSL proof rule to write to the stream
- * @return The stream
- */
-std::ostream& operator<<(std::ostream& out, DslPfRule drule);
+/** Get DslPfRule from node */
+bool getDslPfRule(TNode n, rewriter::DslPfRule& id);
 
 /**
  * The definition of a (conditional) rewrite rule.
@@ -53,21 +36,49 @@ class RewriteProofRule
 {
  public:
   RewriteProofRule();
-  /** initialize this rule */
-  void init(const std::string& name, const std::vector<Node>& cond, Node conc);
+  /** 
+   * Initialize this rule.
+   * @param id The identifier of this rule
+   * @param userFvs The (user-provided) free variable list of the rule. This
+   * is used only to track the original names of the arguments to the rule.
+   * @param fvs The internal free variable list of the rule. Notice these
+   * variables are normalized such that *all* proof rules use the same
+   * variables, per type. In detail, the n^th argument left-to-right of a given
+   * type T is the same for all rules. This is to facilitate parallel matching.
+   * @param cond The conditions of the rule, normalized to fvs.
+   * @param conc The conclusion of the rule, which is an equality of the form
+   * (= t s), where t is specified as rewriting to s. This equality is
+   * normalized to fvs.
+   */
+  void init(rewriter::DslPfRule id,
+            const std::vector<Node>& userFvs,
+            const std::vector<Node>& fvs,
+            const std::vector<Node>& cond,
+            Node conc);
   /** get name */
-  const std::string& getName() const;
+  const char* getName() const;
+  /** Get user variable list */
+  const std::vector<Node>& getUserVarList() const;
+  /** Get variable list */
+  const std::vector<Node>& getVarList() const;
+  /**
+   * Is variable explicit? An explicit variable is one that does not occur
+   * in a condition and thus its value must be specified in a proof.
+   */
+  bool isExplicitVar(Node v) const;
   /** Does this rule have conditions? */
   bool hasConditions() const;
+  /** Get (declared) conditions */
+  const std::vector<Node>& getConditions() const;
   /** Does this rule have side conditions? */
   bool hasSideConditions() const;
   /**
    * Get the conditions in context { vs -> ss }. This may involve running the
    * side conditions of this method.
    */
-  bool getConditions(const std::vector<Node>& vs,
-                     const std::vector<Node>& ss,
-                     std::vector<Node>& vcs) const;
+  bool getObligations(const std::vector<Node>& vs,
+                      const std::vector<Node>& ss,
+                      std::vector<Node>& vcs) const;
   /** Get conclusion of the rule */
   Node getConclusion() const;
 
@@ -84,14 +95,18 @@ class RewriteProofRule
   bool runSideConditions(const std::vector<Node>& vs,
                          const std::vector<Node>& ss,
                          std::vector<Node>& vcs) const;
-  /** The name of the rule */
-  std::string d_name;
+  /** The id of the rule */
+  rewriter::DslPfRule d_id;
   /** The side conditions of the rule */
   std::vector<Node> d_scs;
   /** The conditions of the rule */
   std::vector<Node> d_cond;
+  /** The obligation generator formulas of the rule */
+  std::vector<Node> d_obGen;
   /** The conclusion of the rule (an equality) */
   Node d_conc;
+  /** the ordered list of free variables, provided by the user */
+  std::vector<Node> d_userFvs;
   /** the ordered list of free variables */
   std::vector<Node> d_fvs;
   /** number of free variables */

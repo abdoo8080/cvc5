@@ -15,6 +15,8 @@
 #include "theory/rewrite_db_term_process.h"
 
 #include "expr/attribute.h"
+#include "util/rational.h"
+#include "util/string.h"
 
 using namespace cvc5::kind;
 
@@ -26,24 +28,14 @@ struct RdtpInternalAttributeId
 };
 typedef expr::Attribute<RdtpInternalAttributeId, Node> RdtpInternalAttribute;
 
-struct RdtpExternalAttributeId
-{
-};
-typedef expr::Attribute<RdtpExternalAttributeId, Node> RdtpExternalAttribute;
-
-Node RewriteDbTermProcess::toInternal(Node n) { return convert(n, true); }
-Node RewriteDbTermProcess::toExternal(Node n) { return convert(n, false); }
-
-Node RewriteDbTermProcess::convert(Node n, bool toInternal)
+Node RewriteDbTermProcess::toInternal(Node n)
 {
   if (n.isNull())
   {
     return n;
   }
-  Trace("rdtp-debug") << "RewriteDbTermProcess::convert: " << toInternal << " "
-                      << n << std::endl;
+  Trace("rdtp-debug") << "RewriteDbTermProcess::toInternal: " << n << std::endl;
   RdtpInternalAttribute ria;
-  RdtpExternalAttribute rea;
   NodeManager* nm = NodeManager::currentNM();
   std::unordered_map<TNode, Node> visited;
   std::unordered_map<TNode, Node>::iterator it;
@@ -58,13 +50,9 @@ Node RewriteDbTermProcess::convert(Node n, bool toInternal)
 
     if (it == visited.end())
     {
-      if (toInternal && cur.hasAttribute(ria))
+      if (cur.hasAttribute(ria))
       {
         visited[cur] = cur.getAttribute(ria);
-      }
-      else if (!toInternal && cur.hasAttribute(rea))
-      {
-        visited[cur] = cur.getAttribute(rea);
       }
       else
       {
@@ -102,16 +90,8 @@ Node RewriteDbTermProcess::convert(Node n, bool toInternal)
       {
         ret = nm->mkNode(cur.getKind(), children);
       }
-      if (toInternal)
-      {
-        ret = computeInternal(ret);
-        cur.setAttribute(ria, ret);
-      }
-      else
-      {
-        ret = computeExternal(ret);
-        cur.setAttribute(rea, ret);
-      }
+      ret = computeInternal(ret);
+      cur.setAttribute(ria, ret);
       visited[cur] = ret;
     }
   } while (!visit.empty());
@@ -167,39 +147,6 @@ Node RewriteDbTermProcess::computeInternal(Node n)
       ret = nm->mkNode(ck, children[i], ret);
     }
     return ret;
-  }
-  return n;
-}
-
-Node RewriteDbTermProcess::computeExternal(Node n)
-{
-  Kind ck = n.getKind();
-  if (NodeManager::isNAryKind(ck))
-  {
-    Assert(n.getNumChildren() == 2);
-    if (n[1].getKind() == ck)
-    {
-      // flatten to n-ary
-      std::vector<Node> children;
-      children.push_back(n[0]);
-      children.insert(children.end(), n[1].begin(), n[1].end());
-      NodeManager* nm = NodeManager::currentNM();
-      return nm->mkNode(ck, children);
-    }
-    else if (n[1].getKind() == CONST_STRING && n[0].getKind() == CONST_STRING)
-    {
-      // flatten (non-empty) constants
-      const std::vector<unsigned>& v0 = n[0].getConst<String>().getVec();
-      const std::vector<unsigned>& v1 = n[1].getConst<String>().getVec();
-      if (v0.size() == 1 && !v1.empty())
-      {
-        std::vector<unsigned> vres;
-        vres.push_back(v0[0]);
-        vres.insert(vres.end(), v1.begin(), v1.end());
-        NodeManager* nm = NodeManager::currentNM();
-        return nm->mkConst(String(vres));
-      }
-    }
   }
   return n;
 }

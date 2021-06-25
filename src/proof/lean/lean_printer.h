@@ -22,11 +22,11 @@
 #include <string>
 
 #include "expr/node_algorithm.h"
-#include "expr/proof_checker.h"
-#include "expr/proof_node.h"
-#include "expr/proof_node_updater.h"
 #include "printer/let_binding.h"
 #include "proof/lean/lean_rules.h"
+#include "proof/proof_node_updater.h"
+#include "proof/proof_checker.h"
+#include "proof/proof_node.h"
 
 namespace cvc5 {
 

@@ -126,7 +126,7 @@ typedef NodeTemplate<true> Node;
  *
  * More guidelines on when to use TNodes is available in the cvc5
  * Developer's Guide:
- * https://github.com/CVC4/CVC4/wiki/Developer-Guide#dealing-with-expressions-nodes-and-tnodes
+ * https://github.com/cvc5/cvc5/wiki/Developer-Guide#dealing-with-expressions-nodes-and-tnodes
  */
 typedef NodeTemplate<false> TNode;
 
@@ -261,8 +261,12 @@ public:
                  Iterator substitutionsEnd,
                  std::unordered_map<TNode, TNode>& cache) const;
 
- /** Default constructor, makes a null expression. */
- NodeTemplate() : d_nv(&expr::NodeValue::null()) {}
+ /** Default constructor, makes a null expression.
+  *
+  * This constructor is `explicit` to avoid accidentially creating a null node
+  * from an empty braced-init-list.
+  */
+ explicit NodeTemplate() : d_nv(&expr::NodeValue::null()) {}
 
  /**
   * Conversion between nodes that are reference-counted and those that are

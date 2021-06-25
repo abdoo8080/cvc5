@@ -18,6 +18,8 @@
 #include "expr/skolem_manager.h"
 #include "smt/term_formula_removal.h"
 #include "theory/evaluator.h"
+#include "theory/rewrite_db.h"
+#include "theory/rewrite_proof_rule.h"
 #include "theory/rewriter.h"
 #include "theory/substitutions.h"
 #include "theory/theory.h"
@@ -26,39 +28,6 @@ using namespace cvc5::kind;
 
 namespace cvc5 {
 namespace theory {
-
-const char* toString(MethodId id)
-{
-  switch (id)
-  {
-    case MethodId::RW_REWRITE: return "RW_REWRITE";
-    case MethodId::RW_EXT_REWRITE: return "RW_EXT_REWRITE";
-    case MethodId::RW_REWRITE_EQ_EXT: return "RW_REWRITE_EQ_EXT";
-    case MethodId::RW_EVALUATE: return "RW_EVALUATE";
-    case MethodId::RW_IDENTITY: return "RW_IDENTITY";
-    case MethodId::RW_REWRITE_THEORY_PRE: return "RW_REWRITE_THEORY_PRE";
-    case MethodId::RW_REWRITE_THEORY_POST: return "RW_REWRITE_THEORY_POST";
-    case MethodId::SB_DEFAULT: return "SB_DEFAULT";
-    case MethodId::SB_LITERAL: return "SB_LITERAL";
-    case MethodId::SB_FORMULA: return "SB_FORMULA";
-    case MethodId::SBA_SEQUENTIAL: return "SBA_SEQUENTIAL";
-    case MethodId::SBA_SIMUL: return "SBA_SIMUL";
-    case MethodId::SBA_FIXPOINT: return "SBA_FIXPOINT";
-    default: return "MethodId::Unknown";
-  };
-}
-
-std::ostream& operator<<(std::ostream& out, MethodId id)
-{
-  out << toString(id);
-  return out;
-}
-
-Node mkMethodId(MethodId id)
-{
-  return NodeManager::currentNM()->mkConst(Rational(static_cast<uint32_t>(id)));
-}
-
 namespace builtin {
 
 void BuiltinProofRuleChecker::registerTo(ProofChecker* pc)
@@ -74,6 +43,7 @@ void BuiltinProofRuleChecker::registerTo(ProofChecker* pc)
   pc->registerChecker(PfRule::MACRO_SR_PRED_TRANSFORM, this);
   pc->registerChecker(PfRule::THEORY_REWRITE, this);
   pc->registerChecker(PfRule::REMOVE_TERM_FORMULA_AXIOM, this);
+  pc->registerChecker(PfRule::DSL_REWRITE, this);
   // trusted rules
   pc->registerTrustedChecker(PfRule::THEORY_LEMMA, this, 1);
   pc->registerTrustedChecker(PfRule::PREPROCESS, this, 3);
@@ -85,10 +55,13 @@ void BuiltinProofRuleChecker::registerTo(ProofChecker* pc)
   pc->registerTrustedChecker(PfRule::TRUST_REWRITE, this, 1);
   pc->registerTrustedChecker(PfRule::TRUST_SUBS, this, 1);
   pc->registerTrustedChecker(PfRule::TRUST_SUBS_MAP, this, 1);
+  pc->registerTrustedChecker(PfRule::TRUST_SUBS_EQ, this, 3);
   // another category
   pc->registerChecker(PfRule::LFSC_RULE, this);
   pc->registerChecker(PfRule::VERIT_RULE, this);
   pc->registerChecker(PfRule::LEAN_RULE, this);
+
+  d_rdb = pc->getRewriteDatabase();
 }
 
 Node BuiltinProofRuleChecker::applySubstitutionRewrite(
@@ -252,17 +225,6 @@ Node BuiltinProofRuleChecker::applySubstitution(Node n,
     ns = ns.substitute(v, s);
   }
   return ns;
-}
-
-bool BuiltinProofRuleChecker::getMethodId(TNode n, MethodId& i)
-{
-  uint32_t index;
-  if (!getUInt32(n, index))
-  {
-    return false;
-  }
-  i = static_cast<MethodId>(index);
-  return true;
 }
 
 Node BuiltinProofRuleChecker::checkInternal(PfRule id,
@@ -447,7 +409,7 @@ Node BuiltinProofRuleChecker::checkInternal(PfRule id,
            || id == PfRule::THEORY_EXPAND_DEF || id == PfRule::WITNESS_AXIOM
            || id == PfRule::THEORY_LEMMA || id == PfRule::THEORY_REWRITE
            || id == PfRule::TRUST_REWRITE || id == PfRule::TRUST_SUBS
-           || id == PfRule::TRUST_SUBS_MAP)
+           || id == PfRule::TRUST_SUBS_MAP || id == PfRule::TRUST_SUBS_EQ)
   {
     // "trusted" rules
     Assert(!args.empty());
@@ -461,61 +423,46 @@ Node BuiltinProofRuleChecker::checkInternal(PfRule id,
     Assert(args[0].getType().isInteger());
     return args[1];
   }
+  else if (id == PfRule::DSL_REWRITE)
+  {
+    // consult rewrite db, apply args[1]...args[n] as a substituion
+    // to variable list and prove equality between LHS and RHS.
+    Assert(d_rdb != nullptr);
+    rewriter::DslPfRule di;
+    if (!getDslPfRule(args[0], di))
+    {
+      return Node::null();
+    }
+    const RewriteProofRule& rpr = d_rdb->getRule(di);
+    const std::vector<Node>& varList = rpr.getVarList();
+    const std::vector<Node>& conds = rpr.getConditions();
+    std::vector<Node> subs(args.begin() + 1, args.end());
+    if (varList.size() != subs.size())
+    {
+      return Node::null();
+    }
+    // check whether child proof match
+    if (conds.size() != children.size())
+    {
+      return Node::null();
+    }
+    for (size_t i = 0, nchildren = children.size(); i < nchildren; i++)
+    {
+      Node scond = conds[i].substitute(
+          varList.begin(), varList.end(), subs.begin(), subs.end());
+      if (scond != children[i])
+      {
+        return Node::null();
+      }
+    }
+    // conclusion is substituted form of rewrite rule conclusion
+    Node conc = rpr.getConclusion();
+    return conc.substitute(
+        varList.begin(), varList.end(), subs.begin(), subs.end());
+  }
 
   // no rule
   return Node::null();
-}
-
-bool BuiltinProofRuleChecker::getMethodIds(const std::vector<Node>& args,
-                                           MethodId& ids,
-                                           MethodId& ida,
-                                           MethodId& idr,
-                                           size_t index)
-{
-  ids = MethodId::SB_DEFAULT;
-  ida = MethodId::SBA_SEQUENTIAL;
-  idr = MethodId::RW_REWRITE;
-  for (size_t offset = 0; offset <= 2; offset++)
-  {
-    if (args.size() > index + offset)
-    {
-      MethodId& id = offset == 0 ? ids : (offset == 1 ? ida : idr);
-      if (!getMethodId(args[index + offset], id))
-      {
-        Trace("builtin-pfcheck")
-            << "Failed to get id from " << args[index + offset] << std::endl;
-        return false;
-      }
-    }
-    else
-    {
-      break;
-    }
-  }
-  Trace("builtin-pfcheck") << "Got MethodIds ids/ida/idr: " << ids << " / "
-                           << ida << " / " << idr << "\n";
-  return true;
-}
-
-void BuiltinProofRuleChecker::addMethodIds(std::vector<Node>& args,
-                                           MethodId ids,
-                                           MethodId ida,
-                                           MethodId idr)
-{
-  bool ndefRewriter = (idr != MethodId::RW_REWRITE);
-  bool ndefApply = (ida != MethodId::SBA_SEQUENTIAL);
-  if (ids != MethodId::SB_DEFAULT || ndefRewriter || ndefApply)
-  {
-    args.push_back(mkMethodId(ids));
-  }
-  if (ndefApply || ndefRewriter)
-  {
-    args.push_back(mkMethodId(ida));
-  }
-  if (ndefRewriter)
-  {
-    args.push_back(mkMethodId(idr));
-  }
 }
 
 bool BuiltinProofRuleChecker::getTheoryId(TNode n, TheoryId& tid)

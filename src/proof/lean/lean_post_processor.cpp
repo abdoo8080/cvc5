@@ -14,12 +14,12 @@
 
 #include "proof/lean/lean_post_processor.h"
 
-#include "expr/lazy_proof.h"
-#include "expr/proof_checker.h"
-#include "expr/proof_node_algorithm.h"
-#include "expr/proof_node_manager.h"
 #include "expr/skolem_manager.h"
+#include "proof/lazy_proof.h"
 #include "proof/lean/lean_rules.h"
+#include "proof/proof_node_algorithm.h"
+#include "proof/proof_node_manager.h"
+#include "util/rational.h"
 
 namespace cvc5 {
 
@@ -350,12 +350,12 @@ bool LeanProofPostprocessCallback::update(Node res,
         {
           unsigned j = nchildren - i - 1;
           // build equality of partial apps of argument j
-          Node argAppEq =
-              nm->mkNode(kind::SEXPR,
-                         eqNode,
-                         nm->mkConst<Rational>(i),
-                         nm->mkNode(kind::SEXPR, op, children[j][0]),
-                         nm->mkNode(kind::SEXPR, op, children[j][1]));
+          std::vector<Node> argAppEqChildren{
+              eqNode,
+              nm->mkConst<Rational>(i),
+              nm->mkNode(kind::SEXPR, op, children[j][0]),
+              nm->mkNode(kind::SEXPR, op, children[j][1])};
+          Node argAppEq = nm->mkNode(kind::SEXPR, argAppEqChildren);
           // add step that justify equality of partial apps
           addLeanStep(argAppEq,
                       LeanRule::CONG_PARTIAL,
@@ -515,8 +515,8 @@ bool LeanProofPostprocessCallback::update(Node res,
           std::vector<Node> curArgs{args[(i - 1) * 2 + 1],
                                     arePremisesSingletons[0],
                                     arePremisesSingletons[1]};
-          Node newCur = nm->mkNode(
-              kind::SEXPR, res, nm->mkConst<Rational>(i), pol, curArgs[0]);
+          std::vector<Node> curChildren{res, nm->mkConst<Rational>(i), pol, curArgs[0]};
+          Node newCur = nm->mkNode(kind::SEXPR, curChildren);
           Trace("test-lean")
               << "..res [internal] " << i << " has singleton premises "
               << arePremisesSingletons << "\n";
@@ -1003,9 +1003,9 @@ bool LeanProofPostprocessClConnectCallback::update(
 
 void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
 {
-  ProofNodeUpdater updater(d_pnm, *(d_cb.get()), false, false, false);
+  ProofNodeUpdater updater(d_pnm, *(d_cb.get()), false, false);
   updater.process(pf);
-  ProofNodeUpdater updaterCl(d_pnm, *(d_cbCl.get()), false, false, false);
+  ProofNodeUpdater updaterCl(d_pnm, *(d_cbCl.get()), false, false);
   // we don't need to convert the final scope, which has been lifted
   updaterCl.process(pf->getChildren()[0]->getChildren()[0]);
 };

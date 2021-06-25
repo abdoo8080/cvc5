@@ -16,12 +16,15 @@
 
 #include <vector>
 
+#include "expr/datatype_index.h"
 #include "expr/dtype_cons.h"
 #include "expr/node_manager_attributes.h"
 #include "expr/type_properties.h"
 #include "options/base_options.h"
 #include "options/quantifiers_options.h"
 #include "theory/type_enumerator.h"
+#include "util/bitvector.h"
+#include "util/cardinality.h"
 
 using namespace std;
 
@@ -669,7 +672,8 @@ const DType& TypeNode::getDType() const
     DatatypeIndexConstant dic = getConst<DatatypeIndexConstant>();
     return NodeManager::currentNM()->getDTypeForIndex(dic.getIndex());
   }
-  AlwaysAssert(getKind() == kind::PARAMETRIC_DATATYPE) << "Cannot get datatype for " << getKind();
+  AlwaysAssert(getKind() == kind::PARAMETRIC_DATATYPE)
+      << "Cannot get datatype for " << getKind();
   return (*this)[0].getDType();
 }
 
@@ -682,6 +686,18 @@ TypeNode TypeNode::getBagElementType() const
 {
   Assert(isBag());
   return (*this)[0];
+}
+
+bool TypeNode::isBitVector(unsigned size) const
+{
+  return (getKind() == kind::BITVECTOR_TYPE
+          && getConst<BitVectorSize>() == size);
+}
+
+uint32_t TypeNode::getBitVectorSize() const
+{
+  Assert(isBitVector());
+  return getConst<BitVectorSize>();
 }
 
 }  // namespace cvc5

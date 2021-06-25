@@ -14,7 +14,8 @@
 
 #include "proof/lfsc/lfsc_util.h"
 
-#include "expr/proof_checker.h"
+#include "proof/proof_checker.h"
+#include "util/rational.h"
 
 namespace cvc5 {
 namespace proof {
@@ -26,8 +27,6 @@ const char* toString(LfscRule id)
     case LfscRule::SCOPE: return "scope";
     case LfscRule::NEG_SYMM: return "neg_symm";
     case LfscRule::CONG: return "cong";
-    case LfscRule::AND_ELIM1: return "and_elim1";
-    case LfscRule::AND_ELIM2: return "and_elim2";
     case LfscRule::AND_INTRO1: return "and_intro1";
     case LfscRule::AND_INTRO2: return "and_intro2";
     case LfscRule::NOT_AND_REV: return "not_and_rev";

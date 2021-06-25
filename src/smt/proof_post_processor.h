@@ -22,10 +22,11 @@
 #include <sstream>
 #include <unordered_set>
 
-#include "expr/proof_node_updater.h"
-#include "smt/theory_rewrite_rcons.h"
+#include "proof/proof_node_updater.h"
 #include "smt/witness_form.h"
+#include "theory/rewrite_db_proof_generator.h"
 #include "util/statistics_stats.h"
+#include "rewriter/rewrites.h"
 
 namespace cvc5 {
 
@@ -43,6 +44,7 @@ class ProofPostprocessCallback : public ProofNodeUpdaterCallback
   ProofPostprocessCallback(ProofNodeManager* pnm,
                            SmtEngine* smte,
                            ProofGenerator* pppg,
+                           theory::RewriteDb* rdb,
                            bool updateScopedAssumptions);
   ~ProofPostprocessCallback() {}
   /**
@@ -78,10 +80,10 @@ class ProofPostprocessCallback : public ProofNodeUpdaterCallback
   SmtEngine* d_smte;
   /** The preprocessing proof generator */
   ProofGenerator* d_pppg;
+  /** The rewrite database proof generator */
+  theory::RewriteDbProofCons d_rdbPc;
   /** The witness form proof generator */
   WitnessFormGenerator d_wfpm;
-  /** The theory rewrite reconstruction proof generator */
-  TheoryRewriteRCons d_trrc;
   /** The witness form assumptions used in the proof */
   std::vector<Node> d_wfAssumptions;
   /** Kinds of proof rules we are eliminating */
@@ -259,6 +261,8 @@ class ProofPostprocessFinalCallback : public ProofNodeUpdaterCallback
  private:
   /** Counts number of postprocessed proof nodes for each kind of proof rule */
   HistogramStat<PfRule> d_ruleCount;
+  /** Counts number of postprocessed proof nodes for each kind of DSL proof rule */
+  HistogramStat<rewriter::DslPfRule> d_dslRuleCount;
   /** Total number of postprocessed rule applications */
   IntStat d_totalRuleCount;
   /** The minimum pedantic level of any rule encountered */
@@ -293,6 +297,7 @@ class ProofPostproccess
   ProofPostproccess(ProofNodeManager* pnm,
                     SmtEngine* smte,
                     ProofGenerator* pppg,
+                    theory::RewriteDb* rdb,
                     bool updateScopedAssumptions = true);
   ~ProofPostproccess();
   /** post-process */

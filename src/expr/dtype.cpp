@@ -20,6 +20,7 @@
 #include "expr/node_algorithm.h"
 #include "expr/skolem_manager.h"
 #include "expr/type_matcher.h"
+#include "util/rational.h"
 
 using namespace cvc5::kind;
 
@@ -259,10 +260,9 @@ void DType::setSygus(TypeNode st, Node bvl, bool allowConst, bool allowAll)
   // Notice we only want to do this for sygus datatypes that are user-provided.
   // At the moment, the condition !allow_all implies the grammar is
   // user-provided and hence may require a default constant.
-  // TODO (https://github.com/CVC4/cvc4-projects/issues/38):
-  // In an API for SyGuS, it probably makes more sense for the user to
-  // explicitly add the "any constant" constructor with a call instead of
-  // passing a flag. This would make the block of code unnecessary.
+  // For the SyGuS API, we could consider requiring the user to explicitly add
+  // the "any constant" constructor with a call instead of passing a flag. This
+  // would make the block of code unnecessary.
   if (allowConst && !allowAll)
   {
     // if I don't already have a constant (0-ary constructor)
@@ -867,12 +867,12 @@ Node DType::getSharedSelector(TypeNode dtt, TypeNode t, size_t index) const
   SkolemManager* sm = nm->getSkolemManager();
   TypeNode stype = nm->mkSelectorType(dtt, t);
   Node nindex = nm->mkConst(Rational(index));
-  //s = sm->mkSkolemFunction(SkolemFunId::SHARED_SELECTOR, stype, nindex);
-  s = sm->mkDummySkolem(ss.str(),
-                        stype,
-                        "is a shared selector",
-                        NodeManager::SKOLEM_NO_NOTIFY);
+  s = sm->mkSkolemFunction(SkolemFunId::SHARED_SELECTOR,
+                           stype,
+                           nindex,
+                           NodeManager::SKOLEM_NO_NOTIFY);
   d_sharedSel[dtt][t][index] = s;
+  d_sharedSelList.push_back(s);
   Trace("dt-shared-sel") << "Made " << s << " of type " << dtt << " -> " << t
                          << std::endl;
   return s;
@@ -894,6 +894,10 @@ const std::vector<std::shared_ptr<DTypeConstructor> >& DType::getConstructors()
     const
 {
   return d_constructors;
+}
+const std::vector<Node>& DType::getSharedSelectors() const
+{
+  return d_sharedSelList;
 }
 
 std::ostream& operator<<(std::ostream& os, const DType& dt)

@@ -16,7 +16,7 @@
 
 #include <iostream>
 
-#include "expr/proof_checker.h"
+#include "proof/proof_checker.h"
 
 namespace cvc5 {
 namespace proof {

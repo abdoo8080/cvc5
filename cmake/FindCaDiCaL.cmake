@@ -47,9 +47,7 @@ if(NOT CaDiCaL_FOUND_SYSTEM)
   include(CheckSymbolExists)
   include(ExternalProject)
 
-  fail_if_include_missing("sys/resource.h" "CaDiCaL")
-
-  set(CaDiCaL_VERSION "1.2.1")
+  set(CaDiCaL_VERSION "rel-1.4.1")
 
   # avoid configure script and instantiate the makefile manually the configure
   # scripts unnecessarily fails for cross compilation thus we do the bare
@@ -73,8 +71,8 @@ if(NOT CaDiCaL_FOUND_SYSTEM)
     CaDiCaL-EP
     ${COMMON_EP_CONFIG}
     BUILD_IN_SOURCE ON
-    URL https://github.com/arminbiere/cadical/archive/refs/tags/rel-${CaDiCaL_VERSION}.tar.gz
-    URL_HASH SHA1=9de1176737b74440921ba86395fe5edbb3b131eb
+    URL https://github.com/arminbiere/cadical/archive/${CaDiCaL_VERSION}.tar.gz
+    URL_HASH SHA1=ad3be225f20e5c5b3883290478282698624c14a5
     CONFIGURE_COMMAND mkdir -p <SOURCE_DIR>/build
     # avoid configure script, prepare the makefile manually
     COMMAND ${CMAKE_COMMAND} -E copy <SOURCE_DIR>/makefile.in
@@ -104,6 +102,16 @@ set_target_properties(
 set_target_properties(
   CaDiCaL PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${CaDiCaL_INCLUDE_DIR}"
 )
+
+if (WIN32)
+  # The Windows version of CaDiCaL calls GetProcessMemoryInfo(), which is
+  # defined in the Process Status API (psapi), so we declare it as a dependency
+  # of the CaDiCaL library (without this, linking a static cvc5 executable
+  # fails).
+  set_target_properties(
+    CaDiCaL PROPERTIES IMPORTED_LINK_INTERFACE_LIBRARIES psapi
+  )
+endif ()
 
 mark_as_advanced(CaDiCaL_FOUND)
 mark_as_advanced(CaDiCaL_FOUND_SYSTEM)

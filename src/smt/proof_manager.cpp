@@ -15,9 +15,6 @@
 
 #include "smt/proof_manager.h"
 
-#include "expr/proof_checker.h"
-#include "expr/proof_node_algorithm.h"
-#include "expr/proof_node_manager.h"
 #include "options/base_options.h"
 #include "options/proof_options.h"
 #include "options/smt_options.h"
@@ -26,6 +23,9 @@
 #include "proof/lean/lean_printer.h"
 #include "proof/lfsc/lfsc_post_processor.h"
 #include "proof/lfsc/lfsc_printer.h"
+#include "proof/proof_checker.h"
+#include "proof/proof_node_algorithm.h"
+#include "proof/proof_node_manager.h"
 #include "proof/verit/verit_post_processor.h"
 #include "proof/verit/verit_printer.h"
 #include "smt/assertions.h"
@@ -37,15 +37,16 @@ namespace cvc5 {
 namespace smt {
 
 PfManager::PfManager(context::UserContext* u, SmtEngine* smte)
-    : d_pchecker(new ProofChecker(options::proofPedantic())),
+    : d_rewriteDb(new theory::RewriteDb),
+      d_pchecker(new ProofChecker(options::proofPedantic(), d_rewriteDb.get())),
       d_pnm(new ProofNodeManager(d_pchecker.get())),
-      d_rewriteDb(new theory::RewriteDb),
       d_pppg(new PreprocessProofGenerator(
           d_pnm.get(), u, "smt::PreprocessProofGenerator")),
       d_pfpp(new ProofPostproccess(
           d_pnm.get(),
           smte,
           d_pppg.get(),
+          d_rewriteDb.get(),
           // by default the post-processor will update all assumptions, which
           // can lead to SCOPE subproofs of the form
           //   A
@@ -140,9 +141,8 @@ void PfManager::setFinalProof(std::shared_ptr<ProofNode> pfn, Assertions& as)
   Trace("smt-proof") << "SmtEngine::setFinalProof(): make scope...\n";
 
   // Now make the final scope, which ensures that the only open leaves of the
-  // proof are the assertions, unless we are doing proofs to generate unsat
-  // cores, in which case we do not care.
-  d_finalProof = d_pnm->mkScope(pfn, assertions, !options::unsatCores());
+  // proof are the assertions.
+  d_finalProof = d_pnm->mkScope(pfn, assertions);
   Trace("smt-proof") << "SmtEngine::setFinalProof(): finished.\n";
 }
 
@@ -164,7 +164,8 @@ void PfManager::printProof(std::ostream& out,
 
   if (options::proofFormatMode() == options::ProofFormatMode::DOT)
   {
-    proof::DotPrinter::print(out, fp.get());
+    proof::DotPrinter dotPrinter;
+    dotPrinter.print(out, fp.get());
   }
   else if (options::proofFormatMode() == options::ProofFormatMode::LEAN)
   {
@@ -195,7 +196,7 @@ void PfManager::printProof(std::ostream& out,
     proof::LfscNodeConverter ltp;
     proof::LfscProofPostprocess lpp(ltp, d_pnm.get());
     lpp.process(fp);
-    proof::LfscPrinter lp(ltp);
+    proof::LfscPrinter lp(ltp, d_rewriteDb.get());
     lp.print(out, assertions, fp.get());
   }
   else
