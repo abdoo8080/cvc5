@@ -345,7 +345,6 @@ void LeanPrinter::printLetList(std::ostream& out)
 {
   std::vector<Node> letList;
   d_lbind.letify(letList);
-  std::map<Node, size_t>::const_iterator it;
   for (TNode n : letList)
   {
     size_t id = d_lbind.getId(n);
