@@ -37,7 +37,9 @@ namespace proof {
 class LetUpdaterPfCallback : public ProofNodeUpdaterCallback
 {
  public:
-  LetUpdaterPfCallback(LetBinding& lbind, std::set<LeanRule>& letRules);
+  LetUpdaterPfCallback(LetBinding& lbind,
+                       std::map<Node, Node>& skMap,
+                       std::set<LeanRule>& letRules);
   ~LetUpdaterPfCallback();
   /**
    * Initialize, called once for each new ProofNode to process. This
@@ -58,13 +60,14 @@ class LetUpdaterPfCallback : public ProofNodeUpdaterCallback
 
  protected:
   LetBinding& d_lbind;
+  std::map<Node, Node> d_skMap;
   std::set<LeanRule> d_letRules;
 };
 
 class LeanPrinter
 {
  public:
-  LeanPrinter();
+  LeanPrinter(std::unordered_set<Node>& internalSymbols);
   ~LeanPrinter();
 
   /**
@@ -115,6 +118,10 @@ class LeanPrinter
   std::set<LeanRule> d_letRules;
 
   LetBinding d_lbind;
+
+  std::map<Node, Node> d_skMap;
+
+  std::unordered_set<Node> d_internalSymbols;
 
   std::unique_ptr<LetUpdaterPfCallback> d_cb;
 };

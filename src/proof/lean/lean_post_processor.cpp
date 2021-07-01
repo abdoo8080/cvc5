@@ -57,22 +57,23 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::CNF_ITE_NEG2, LeanRule::CNF_ITE_NEG2},
     {PfRule::CNF_ITE_NEG3, LeanRule::CNF_ITE_NEG3},
     {PfRule::NOT_NOT_ELIM, LeanRule::NOT_NOT_ELIM},
-    {PfRule::ARRAYS_READ_OVER_WRITE,LeanRule::READ_OVER_WRITE},
-    {PfRule::ARRAYS_READ_OVER_WRITE_CONTRA,LeanRule::READ_OVER_WRITE_CONTRA},
-    {PfRule::ARRAYS_READ_OVER_WRITE_1,LeanRule::READ_OVER_WRITE_ID},
-    {PfRule::ARRAYS_EXT,LeanRule::ARRAY_EXT},
+    {PfRule::ARRAYS_READ_OVER_WRITE, LeanRule::READ_OVER_WRITE},
+    {PfRule::ARRAYS_READ_OVER_WRITE_CONTRA, LeanRule::READ_OVER_WRITE_CONTRA},
+    {PfRule::ARRAYS_READ_OVER_WRITE_1, LeanRule::READ_OVER_WRITE_ID},
+    {PfRule::ARRAYS_EXT, LeanRule::ARRAY_EXT},
 };
 
-LeanProofPostprocess::LeanProofPostprocess(ProofNodeManager* pnm)
-    : d_cb(new LeanProofPostprocessCallback(pnm)),
-      d_cbCl(new LeanProofPostprocessClConnectCallback(pnm)),
+LeanProofPostprocess::LeanProofPostprocess(
+    ProofNodeManager* pnm, std::unordered_set<Node>& internalSymbols)
+    : d_cb(new LeanProofPostprocessCallback(pnm, internalSymbols)),
+      d_cbCl(new LeanProofPostprocessClConnectCallback(pnm, internalSymbols)),
       d_pnm(pnm)
 {
 }
 
 LeanProofPostprocessCallback::LeanProofPostprocessCallback(
-    ProofNodeManager* pnm)
-    : d_pnm(pnm), d_pc(pnm->getChecker())
+    ProofNodeManager* pnm, std::unordered_set<Node>& internalSymbols)
+    : d_pnm(pnm), d_pc(pnm->getChecker()), d_internalSymbols(internalSymbols)
 {
   NodeManager* nm = NodeManager::currentNM();
   d_empty =
@@ -116,57 +117,75 @@ Node LeanProofPostprocessCallback::mkPrintableOp(Node n)
     NodeManager* nm = NodeManager::currentNM();
     switch (k)
     {
-      case kind::NOT: { return nm->mkBoundVar("notConst", nm->sExprType());
+      case kind::NOT:
+      {
+        Node var = nm->mkBoundVar("notConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
       }
       case kind::EQUAL:
       {
-        return nm->mkBoundVar("eqConst", nm->sExprType());
-        break;
+        Node var = nm->mkBoundVar("eqConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
       }
       case kind::OR:
       {
-        return nm->mkBoundVar("orConst", nm->sExprType());
-        break;
+        Node var = nm->mkBoundVar("orConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
       }
       case kind::AND:
       {
-        return nm->mkBoundVar("andConst", nm->sExprType());
-        break;
+        Node var = nm->mkBoundVar("andConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
       }
       case kind::XOR:
       {
-        return nm->mkBoundVar("xorConst", nm->sExprType());
-        break;
+        Node var = nm->mkBoundVar("xorConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
       }
       case kind::IMPLIES:
       {
-        return nm->mkBoundVar("impliesConst", nm->sExprType());
-        break;
+        Node var = nm->mkBoundVar("impliesConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
       }
       case kind::ITE:
       {
-        return nm->mkBoundVar("fIteConst", nm->sExprType());
-        break;
+        Node var = nm->mkBoundVar("fteConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
       }
       case kind::PLUS:
       {
-        return nm->mkBoundVar("plusConst", nm->sExprType());
-        break;
+        Node var = nm->mkBoundVar("plusConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
       }
       case kind::MINUS:
       {
-        return nm->mkBoundVar("minusConst", nm->sExprType());
-        break;
+        Node var = nm->mkBoundVar("minusConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
       }
       case kind::SELECT:
       {
-        return nm->mkBoundVar("selectConst", nm->sExprType());
-        break;
+        Node var = nm->mkBoundVar("selectConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
+      }
+      case kind::STORE:
+      {
+        Node var = nm->mkBoundVar("storeConst", nm->sExprType());
+        d_internalSymbols.insert(var);
+        return var;
       }
       default:
       {
         Trace("test-lean") << "non-handled kind " << k << "\n";
-        Node::null();
       }
     }
   }
@@ -190,19 +209,16 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::IMPLIES_ELIM:
     {
       // regular case, just turn conclusion into clause
-      addLeanStep(res,
-                  LeanRule::IMPLIES_ELIM,
-                  Node::null(),
-                  children,
-                  args,
-                  *cdp);
+      addLeanStep(
+          res, LeanRule::IMPLIES_ELIM, Node::null(), children, args, *cdp);
       break;
     }
     // create clausal conclusion
     case PfRule::SCOPE:
     {
       bool negation = false;
-      // new result is an or with all assumptions negated and the original conclusion
+      // new result is an or with all assumptions negated and the original
+      // conclusion
       std::vector<Node> newResChildren;
       for (const Node& n : args)
       {
@@ -219,12 +235,7 @@ bool LeanProofPostprocessCallback::update(Node res,
         newResChildren.push_back(res[1]);
       }
       Node newRes = nm->mkNode(kind::OR, newResChildren);
-      addLeanStep(newRes,
-                  LeanRule::SCOPE,
-                  Node::null(),
-                  children,
-                  args,
-                  *cdp);
+      addLeanStep(newRes, LeanRule::SCOPE, Node::null(), children, args, *cdp);
       // add a lifting step from the OR above to the original conclusion. It
       // takes as arguments the number of assumptions and subproof conclusion
       addLeanStep(
@@ -265,10 +276,27 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::ARRAYS_READ_OVER_WRITE:
     case PfRule::ARRAYS_READ_OVER_WRITE_CONTRA:
     case PfRule::ARRAYS_READ_OVER_WRITE_1:
-    case PfRule::ARRAYS_EXT:
     {
       addLeanStep(
           res, s_pfRuleToLeanRule.at(id), Node::null(), children, {}, *cdp);
+      break;
+    }
+    // retrieve witness form
+    case PfRule::ARRAYS_EXT:
+    {
+      // The skolem is res[0][0][1]
+      Node k = res[0][0][1];
+      Trace("test-lean") << "skolem " << k << " has witness form "
+                         << SkolemManager::getWitnessForm(k) << "\n";
+      Node var = SkolemManager::getWitnessForm(k)[0][0];
+      // arguments will be the id of the variable and its sort
+      addLeanStep(res,
+                  s_pfRuleToLeanRule.at(id),
+                  Node::null(),
+                  children,
+                  {nm->mkConst<Rational>(var.getId()),
+                   nm->mkBoundVar(var.getType().getName(), nm->sExprType())},
+                  *cdp);
       break;
     }
     // create clausal conclusion and remove arguments
@@ -389,7 +417,6 @@ bool LeanProofPostprocessCallback::update(Node res,
                         {},
                         *cdp);
             currEq = nextEq;
-
           }
         }
         break;
@@ -515,7 +542,8 @@ bool LeanProofPostprocessCallback::update(Node res,
           std::vector<Node> curArgs{args[(i - 1) * 2 + 1],
                                     arePremisesSingletons[0],
                                     arePremisesSingletons[1]};
-          std::vector<Node> curChildren{res, nm->mkConst<Rational>(i), pol, curArgs[0]};
+          std::vector<Node> curChildren{
+              res, nm->mkConst<Rational>(i), pol, curArgs[0]};
           Node newCur = nm->mkNode(kind::SEXPR, curChildren);
           Trace("test-lean")
               << "..res [internal] " << i << " has singleton premises "
@@ -765,8 +793,8 @@ bool LeanProofPostprocessCallback::update(Node res,
 }
 
 LeanProofPostprocessClConnectCallback::LeanProofPostprocessClConnectCallback(
-    ProofNodeManager* pnm)
-    : LeanProofPostprocessCallback(pnm)
+    ProofNodeManager* pnm, std::unordered_set<Node>& internalSymbols)
+    : LeanProofPostprocessCallback(pnm, internalSymbols)
 {
   // init conversion rules
   NodeManager* nm = NodeManager::currentNM();
@@ -939,12 +967,12 @@ bool LeanProofPostprocessClConnectCallback::update(
       {
         continue;
       }
-      Trace("test-lean-pf") << "..child " << i << " is clausal: " << *childPf.get()
-                         << "\n";
+      Trace("test-lean-pf")
+          << "..child " << i << " is clausal: " << *childPf.get() << "\n";
       AlwaysAssert(argsOfChild[2].getKind() == kind::SEXPR);
       // #if CVC5_ASSERTIONS
-      // if singleton, must be the same. Otherwise either children[i] must be an or and
-      // the arguments must be the same or it's the empty clause, false
+      // if singleton, must be the same. Otherwise either children[i] must be an
+      // or and the arguments must be the same or it's the empty clause, false
       if (argsOfChild[2][0] != children[i])
       {
         if (children[i].getKind() == kind::OR)

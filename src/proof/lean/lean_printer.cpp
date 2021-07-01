@@ -18,6 +18,7 @@
 #include <sstream>
 
 #include "expr/node_algorithm.h"
+#include "expr/skolem_manager.h"
 #include "options/expr_options.h"
 #include "proof/lean/lean_rules.h"
 #include "util/string.h"
@@ -27,8 +28,9 @@ namespace cvc5 {
 namespace proof {
 
 LetUpdaterPfCallback::LetUpdaterPfCallback(LetBinding& lbind,
+                                           std::map<Node, Node>& skMap,
                                            std::set<LeanRule>& letRules)
-    : d_lbind(lbind), d_letRules(letRules)
+    : d_lbind(lbind), d_skMap(skMap), d_letRules(letRules)
 {
 }
 
@@ -51,24 +53,30 @@ bool LetUpdaterPfCallback::update(Node res,
                                   bool& continueUpdate)
 {
   d_lbind.process(res);
+  // Skolem rules
+  // if (id == PfRule::ARRAYS_EXT)
+  // {
+  //   d_skMap[res[0][0][1]] = SkolemManager::getWitnessForm(k);
+  // }
   return false;
 }
 
-LeanPrinter::LeanPrinter()
+LeanPrinter::LeanPrinter(std::unordered_set<Node>& internalSymbols)
     : d_letRules({
-          LeanRule::R0_PARTIAL,
-          LeanRule::R1_PARTIAL,
-          LeanRule::REFL_PARTIAL,
-          LeanRule::CONG_PARTIAL,
-          LeanRule::TRANS_PARTIAL,
-          LeanRule::AND_INTRO_PARTIAL,
-          LeanRule::CL_OR,
-          LeanRule::CL_ASSUME,
-          LeanRule::TH_ASSUME,
-      }),
+        LeanRule::R0_PARTIAL,
+        LeanRule::R1_PARTIAL,
+        LeanRule::REFL_PARTIAL,
+        LeanRule::CONG_PARTIAL,
+        LeanRule::TRANS_PARTIAL,
+        LeanRule::AND_INTRO_PARTIAL,
+        LeanRule::CL_OR,
+        LeanRule::CL_ASSUME,
+        LeanRule::TH_ASSUME,
+    }),
       d_lbind(options::defaultDagThresh() ? options::defaultDagThresh() + 1
                                           : 0),
-      d_cb(new LetUpdaterPfCallback(d_lbind, d_letRules))
+      d_internalSymbols(internalSymbols),
+      d_cb(new LetUpdaterPfCallback(d_lbind, d_skMap, d_letRules))
 {
   d_false = NodeManager::currentNM()->mkConst(false);
 }
@@ -146,7 +154,14 @@ void LeanPrinter::printConstant(std::ostream& out, TNode n)
     }
     out << "])";
   }
-  else  // k == kind::BOUND_VARIABLE
+  // only print bound variables as actual variables if they are not auxiliary
+  // internal symbols created during processing
+  else if (k == kind::BOUND_VARIABLE
+           && d_internalSymbols.find(n) == d_internalSymbols.end())
+  {
+    out << "(const " << n.getId() << " " << n.getType() << ")";
+  }
+  else
   {
     out << n;
   }
@@ -164,12 +179,24 @@ void LeanPrinter::printTermList(std::ostream& out, TNode n)
 
 void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
 {
+  if (n.getKind() == kind::SKOLEM)
+  {
+    Node wi = SkolemManager::getWitnessForm(n);
+    AlwaysAssert(!wi.isNull());
+    printTerm(out, wi);
+    return;
+  }
+  if (n.getNumChildren() == 0)
+  {
+    printConstant(out, n);
+    return;
+  }
   Node nc = d_lbind.convert(n, "let", letTop);
   size_t nChildren = nc.getNumChildren();
   // printing constant symbol
   if (nChildren == 0)
   {
-    printConstant(out, nc);
+    out << nc << ")" << (letTop ? "" : "\n");
     return;
   }
   // printing applications / formulas
@@ -178,6 +205,13 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
   TypeNode tn = nc.getType();
   switch (k)
   {
+    case kind::WITNESS:
+    {
+      Node var = n[0][0];
+      out << "choice " << var.getId() << " ";
+      printTerm(out, n[1]);
+      break;
+    }
     case kind::APPLY_UF:
     {
       Node op = nc.getOperator();
@@ -347,6 +381,7 @@ void LeanPrinter::printLetList(std::ostream& out)
   for (TNode n : letList)
   {
     size_t id = d_lbind.getId(n);
+    Trace("test-lean") << "printLetList, guy with id " << id << ": " << n << "\n";
     Assert(id != 0);
     out << "def let" << id << " := ";
     printTerm(out, n, false);
@@ -546,22 +581,16 @@ void LeanPrinter::print(std::ostream& out,
   for (const Node& s : syms)
   {
     TypeNode st = s.getType();
-    // only collect for declaration non predefined sorts
-    if (st.isSort() && st.getKind() != kind::TYPE_CONSTANT)
+    std::unordered_set<TypeNode> ctypes;
+    expr::getComponentTypes(st, ctypes);
+    for (const TypeNode& stc : ctypes)
     {
-      Trace("test-lean") << "collecting sort " << st << " with kind "
-                         << st.getKind() << "\n";
-      sts.insert(st);
-    }
-    else if (st.isFunction())
-    {
-      for (const auto& stc : st)
+      // only collect for declaration non predefined sorts
+      if (stc.isSort() && stc.getKind() != kind::TYPE_CONSTANT)
       {
-        // TODO get recursively for functional sorts under functional sorts
-        if (stc.getKind() != kind::TYPE_CONSTANT)
-        {
-          sts.insert(stc);
-        }
+        Trace("test-lean") << "collecting sort " << stc << " with kind "
+                           << stc.getKind() << "\n";
+        sts.insert(stc);
       }
     }
   }
@@ -581,12 +610,13 @@ void LeanPrinter::print(std::ostream& out,
                && pfn->getChildren()[0]->getChildren().size() == 1);
   std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0]->getChildren()[0];
   Trace("test-lean") << "innerPf rule: " << getLeanRule(innerPf->getArguments()[0]) << "\n";
-  // compute the term lets. For this consider the assertions and the conclusions
-  // of explicit proof steps
+  // compute the term lets. For this consider the assertions
   for (const Node& a : assertions)
   {
     d_lbind.process(a);
   }
+  // Traverse the proof node to letify the conclusions of explicit proof steps.
+  // This traversal will collect the skolems to de defined.
   ProofNodeUpdater updater(nullptr, *(d_cb.get()), false, false);
   updater.process(innerPf);
 

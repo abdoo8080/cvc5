@@ -35,7 +35,8 @@ namespace proof {
 class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
 {
  public:
-  LeanProofPostprocessCallback(ProofNodeManager* pnm);
+  LeanProofPostprocessCallback(ProofNodeManager* pnm,
+                               std::unordered_set<Node>& internalSymbols);
   /**
    * Initialize, called once for each new ProofNode to process. This
    * initializes static information to be used by successive calls to update.
@@ -61,11 +62,15 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
    */
   ProofChecker* d_pc;
 
+  std::unordered_set<Node> d_internalSymbols;
+
   /** Placeholder for the empty clause */
   Node d_empty;
   /** True and false nodes. Cached since used frequently during processing. */
   Node d_true;
   Node d_false;
+
+
 
   /**
    * Recall the Lean rule:
@@ -96,7 +101,8 @@ class LeanProofPostprocessClConnectCallback
     : public LeanProofPostprocessCallback
 {
  public:
-  LeanProofPostprocessClConnectCallback(ProofNodeManager* pnm);
+  LeanProofPostprocessClConnectCallback(
+      ProofNodeManager* pnm, std::unordered_set<Node>& internalSymbols);
   ~LeanProofPostprocessClConnectCallback();
 
   /** Update the proof node iff has the LEAN_RULE id. */
@@ -127,7 +133,8 @@ class LeanProofPostprocessClConnectCallback
 class LeanProofPostprocess
 {
  public:
-  LeanProofPostprocess(ProofNodeManager* pnm);
+  LeanProofPostprocess(ProofNodeManager* pnm,
+                       std::unordered_set<Node>& internalSymbols);
   /** post-process */
   void process(std::shared_ptr<ProofNode> pf);
 
