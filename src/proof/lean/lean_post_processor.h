@@ -21,7 +21,7 @@
 #include <unordered_set>
 
 #include "proof/lean/lean_rules.h"
-#include "proof/proof_checker.h"
+#include "proof/lean/lean_node_converter.h"
 #include "proof/proof_node_updater.h"
 
 namespace cvc5 {
@@ -35,8 +35,7 @@ namespace proof {
 class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
 {
  public:
-  LeanProofPostprocessCallback(ProofNodeManager* pnm,
-                               std::unordered_set<Node>& internalSymbols);
+  LeanProofPostprocessCallback(ProofNodeManager* pnm, LeanNodeConverter& lnc);
   /**
    * Initialize, called once for each new ProofNode to process. This
    * initializes static information to be used by successive calls to update.
@@ -57,20 +56,15 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
  protected:
   /** The proof node manager */
   ProofNodeManager* d_pnm;
-  /** The proof checker is used to generate conclusions from local
-   * proof steps. This is currently only used in the resolution rule.
-   */
-  ProofChecker* d_pc;
 
-  std::unordered_set<Node> d_internalSymbols;
+  /** The node converter */
+  LeanNodeConverter& d_lnc;
 
   /** Placeholder for the empty clause */
   Node d_empty;
   /** True and false nodes. Cached since used frequently during processing. */
   Node d_true;
   Node d_false;
-
-
 
   /**
    * Recall the Lean rule:
@@ -90,8 +84,6 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
                    const std::vector<Node>& children,
                    const std::vector<Node>& args,
                    CDProof& cdp);
-
-  Node mkPrintableOp(Node n);
 };
 
 /** Similar to the above call back, but tries to update all the premises all
@@ -102,7 +94,7 @@ class LeanProofPostprocessClConnectCallback
 {
  public:
   LeanProofPostprocessClConnectCallback(
-      ProofNodeManager* pnm, std::unordered_set<Node>& internalSymbols);
+      ProofNodeManager* pnm, LeanNodeConverter& lnc);
   ~LeanProofPostprocessClConnectCallback();
 
   /** Update the proof node iff has the LEAN_RULE id. */
@@ -133,8 +125,7 @@ class LeanProofPostprocessClConnectCallback
 class LeanProofPostprocess
 {
  public:
-  LeanProofPostprocess(ProofNodeManager* pnm,
-                       std::unordered_set<Node>& internalSymbols);
+  LeanProofPostprocess(ProofNodeManager* pnm, LeanNodeConverter& lnc);
   /** post-process */
   void process(std::shared_ptr<ProofNode> pf);
 

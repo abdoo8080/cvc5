@@ -15,6 +15,7 @@
 #include "proof/lean/lean_post_processor.h"
 
 #include "expr/skolem_manager.h"
+#include "proof/proof_checker.h"
 #include "proof/lazy_proof.h"
 #include "proof/lean/lean_rules.h"
 #include "proof/proof_node_algorithm.h"
@@ -63,17 +64,17 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::ARRAYS_EXT, LeanRule::ARRAY_EXT},
 };
 
-LeanProofPostprocess::LeanProofPostprocess(
-    ProofNodeManager* pnm, std::unordered_set<Node>& internalSymbols)
-    : d_cb(new LeanProofPostprocessCallback(pnm, internalSymbols)),
-      d_cbCl(new LeanProofPostprocessClConnectCallback(pnm, internalSymbols)),
+LeanProofPostprocess::LeanProofPostprocess(ProofNodeManager* pnm,
+                                           LeanNodeConverter& lnc)
+    : d_cb(new LeanProofPostprocessCallback(pnm, lnc)),
+      d_cbCl(new LeanProofPostprocessClConnectCallback(pnm, lnc)),
       d_pnm(pnm)
 {
 }
 
 LeanProofPostprocessCallback::LeanProofPostprocessCallback(
-    ProofNodeManager* pnm, std::unordered_set<Node>& internalSymbols)
-    : d_pnm(pnm), d_pc(pnm->getChecker()), d_internalSymbols(internalSymbols)
+    ProofNodeManager* pnm, LeanNodeConverter& lnc)
+    : d_pnm(pnm), d_lnc(lnc)
 {
   NodeManager* nm = NodeManager::currentNM();
   d_empty =
@@ -108,89 +109,6 @@ bool LeanProofPostprocessCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
 {
   return pn->getRule() != PfRule::LEAN_RULE && pn->getRule() != PfRule::ASSUME;
 };
-
-Node LeanProofPostprocessCallback::mkPrintableOp(Node n)
-{
-  Kind k;
-  if (ProofRuleChecker::getKind(n, k))
-  {
-    NodeManager* nm = NodeManager::currentNM();
-    switch (k)
-    {
-      case kind::NOT:
-      {
-        Node var = nm->mkBoundVar("notConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      case kind::EQUAL:
-      {
-        Node var = nm->mkBoundVar("eqConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      case kind::OR:
-      {
-        Node var = nm->mkBoundVar("orConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      case kind::AND:
-      {
-        Node var = nm->mkBoundVar("andConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      case kind::XOR:
-      {
-        Node var = nm->mkBoundVar("xorConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      case kind::IMPLIES:
-      {
-        Node var = nm->mkBoundVar("impliesConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      case kind::ITE:
-      {
-        Node var = nm->mkBoundVar("fteConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      case kind::PLUS:
-      {
-        Node var = nm->mkBoundVar("plusConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      case kind::MINUS:
-      {
-        Node var = nm->mkBoundVar("minusConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      case kind::SELECT:
-      {
-        Node var = nm->mkBoundVar("selectConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      case kind::STORE:
-      {
-        Node var = nm->mkBoundVar("storeConst", nm->sExprType());
-        d_internalSymbols.insert(var);
-        return var;
-      }
-      default:
-      {
-        Trace("test-lean") << "non-handled kind " << k << "\n";
-      }
-    }
-  }
-  return n;
-}
 
 bool LeanProofPostprocessCallback::update(Node res,
                                           PfRule id,
@@ -359,7 +277,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   LeanRule::REFL_PARTIAL,
                   Node::null(),
                   {},
-                  {mkPrintableOp(op)},
+                  {d_lnc.mkPrintableOp(op)},
                   *cdp);
       // Are we doing congruence of an n-ary operator with more than two
       // arguments? If so, notice that op is a binary operator and we must apply
@@ -793,8 +711,8 @@ bool LeanProofPostprocessCallback::update(Node res,
 }
 
 LeanProofPostprocessClConnectCallback::LeanProofPostprocessClConnectCallback(
-    ProofNodeManager* pnm, std::unordered_set<Node>& internalSymbols)
-    : LeanProofPostprocessCallback(pnm, internalSymbols)
+    ProofNodeManager* pnm, LeanNodeConverter& lnc)
+    : LeanProofPostprocessCallback(pnm, lnc)
 {
   // init conversion rules
   NodeManager* nm = NodeManager::currentNM();

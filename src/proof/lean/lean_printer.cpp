@@ -61,7 +61,7 @@ bool LetUpdaterPfCallback::update(Node res,
   return false;
 }
 
-LeanPrinter::LeanPrinter(std::unordered_set<Node>& internalSymbols)
+LeanPrinter::LeanPrinter(LeanNodeConverter& lnc)
     : d_letRules({
         LeanRule::R0_PARTIAL,
         LeanRule::R1_PARTIAL,
@@ -75,7 +75,7 @@ LeanPrinter::LeanPrinter(std::unordered_set<Node>& internalSymbols)
     }),
       d_lbind(options::defaultDagThresh() ? options::defaultDagThresh() + 1
                                           : 0),
-      d_internalSymbols(internalSymbols),
+      d_lnc(lnc),
       d_cb(new LetUpdaterPfCallback(d_lbind, d_skMap, d_letRules))
 {
   d_false = NodeManager::currentNM()->mkConst(false);
@@ -156,11 +156,11 @@ void LeanPrinter::printConstant(std::ostream& out, TNode n)
   }
   // only print bound variables as actual variables if they are not auxiliary
   // internal symbols created during processing
-  else if (k == kind::BOUND_VARIABLE
-           && d_internalSymbols.find(n) == d_internalSymbols.end())
-  {
-    out << "(const " << n.getId() << " " << n.getType() << ")";
-  }
+  // else if (k == kind::BOUND_VARIABLE
+  //          && d_internalSymbols.find(n) == d_internalSymbols.end())
+  // {
+  //   out << "(const " << n.getId() << " " << n.getType() << ")";
+  // }
   else
   {
     out << n;

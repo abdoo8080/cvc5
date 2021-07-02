@@ -170,13 +170,13 @@ void PfManager::printProof(std::ostream& out,
   else if (options::proofFormatMode() == options::ProofFormatMode::LEAN)
   {
     std::vector<Node> assertions;
-    std::unordered_set<Node> internalSymbols;
     Trace("test-lean-pf") << "Original proof: " << *fp.get() << "\n";
     getAssertions(as, assertions);
     Trace("test-lean") << "Processing...\n";
-    proof::LeanProofPostprocess lpfpp(d_pnm.get(), internalSymbols);
+    proof::LeanNodeConverter lnc;
+    proof::LeanProofPostprocess lpfpp(d_pnm.get(), lnc);
     lpfpp.process(fp);
-    proof::LeanPrinter lp(internalSymbols);
+    proof::LeanPrinter lp(lnc);
     lp.print(out, assertions, fp);
   }
   else if (options::proofFormatMode() == options::ProofFormatMode::VERIT

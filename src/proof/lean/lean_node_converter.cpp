@@ -10,34 +10,100 @@
  * directory for licensing information.
  * ****************************************************************************
  *
- * Implementation of Lean node conversion
+ * Lean node conversion utility
  */
-#include "cvc5_private.h"
+#include "proof/lean/lean_node_converter.h"
 
-#ifndef CVC4__PROOF__LEAN__LEAN_NODE_CONVERTER_H
-#define CVC4__PROOF__LEAN__LEAN_NODE_CONVERTER_H
+#include "proof/proof_checker.h"
 
-#include <iostream>
-#include <map>
-
-#include "expr/node.h"
-#include "expr/node_converter.h"
-#include "expr/type_node.h"
+#include <sstream>
 
 namespace cvc5 {
 namespace proof {
 
-class LeanNodeConverter : public NodeConverter
+LeanNodeConverter::LeanNodeConverter() {}
+LeanNodeConverter::~LeanNodeConverter() {}
+
+Node LeanNodeConverter::postConvert(Node n)
 {
-  LeanNodeConverter();
-  ~LeanNodeConverter();
-  /** convert to internal */
-  Node postConvert(Node n) override;
-  /** convert to internal */
-  TypeNode postConvertType(TypeNode tn) override;
-};
+  return Node::null();
+}
+
+Node LeanNodeConverter::mkPrintableOp(Node n)
+{
+  Kind k;
+  if (!ProofRuleChecker::getKind(n, k))
+  {
+    return n;
+  }
+  switch (k)
+  {
+    case kind::NOT:
+    {
+      return mkInternalSymbol("notConst");
+    }
+    case kind::EQUAL:
+    {
+      return mkInternalSymbol("eqConst");
+    }
+    case kind::OR:
+    {
+      return mkInternalSymbol("orConst");
+    }
+    case kind::AND:
+    {
+      return mkInternalSymbol("andConst");
+    }
+    case kind::XOR:
+    {
+      return mkInternalSymbol("xorConst");
+    }
+    case kind::IMPLIES:
+    {
+      return mkInternalSymbol("impliesConst");
+    }
+    case kind::ITE:
+    {
+      return mkInternalSymbol("fteConst");
+    }
+    case kind::PLUS:
+    {
+      return mkInternalSymbol("plusConst");
+    }
+    case kind::MINUS:
+    {
+      return mkInternalSymbol("minusConst");
+    }
+    case kind::SELECT:
+    {
+      return mkInternalSymbol("selectConst");
+    }
+    case kind::STORE:
+    {
+      return mkInternalSymbol("storeConst");
+    }
+    default:
+    {
+      Trace("test-lean") << "non-handled kind " << k << "\n";
+    }
+  }
+  return n;
+}
+
+Node LeanNodeConverter::mkInternalSymbol(const std::string& name)
+{
+  NodeManager* nm = NodeManager::currentNM();
+  Node sym = nm->mkBoundVar(name, nm->sExprType());
+  d_symbols.insert(sym);
+  return sym;
+}
+
+Node LeanNodeConverter::mkInternalSymbol(const std::string& name, TypeNode tn)
+{
+  Node sym = NodeManager::currentNM()->mkBoundVar(name, tn);
+  d_symbols.insert(sym);
+  return sym;
+}
 
 }  // namespace proof
 }  // namespace cvc5
-
-#endif

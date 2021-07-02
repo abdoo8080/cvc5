@@ -24,6 +24,7 @@
 #include "expr/node_algorithm.h"
 #include "printer/let_binding.h"
 #include "proof/lean/lean_rules.h"
+#include "proof/lean/lean_node_converter.h"
 #include "proof/proof_node_updater.h"
 #include "proof/proof_checker.h"
 #include "proof/proof_node.h"
@@ -67,7 +68,7 @@ class LetUpdaterPfCallback : public ProofNodeUpdaterCallback
 class LeanPrinter
 {
  public:
-  LeanPrinter(std::unordered_set<Node>& internalSymbols);
+  LeanPrinter(LeanNodeConverter& lnc);
   ~LeanPrinter();
 
   /**
@@ -121,9 +122,11 @@ class LeanPrinter
 
   std::map<Node, Node> d_skMap;
 
-  std::unordered_set<Node> d_internalSymbols;
+  LeanNodeConverter& d_lnc;
 
   std::unique_ptr<LetUpdaterPfCallback> d_cb;
+
+
 };
 
 }  // namespace proof
