@@ -80,7 +80,8 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
    */
   void addLeanStep(Node res,
                    LeanRule rule,
-                   Node clause,
+                   Node convertedResult,
+                   bool isClause,
                    const std::vector<Node>& children,
                    const std::vector<Node>& args,
                    CDProof& cdp);

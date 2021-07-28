@@ -14,6 +14,7 @@
  */
 #include "proof/lean/lean_node_converter.h"
 
+#include "expr/skolem_manager.h"
 #include "proof/proof_checker.h"
 
 #include <sstream>
@@ -21,11 +22,186 @@
 namespace cvc5 {
 namespace proof {
 
-LeanNodeConverter::LeanNodeConverter() {}
+LeanNodeConverter::LeanNodeConverter() {
+  NodeManager* nm = NodeManager::currentNM();
+  d_lbrack =
+      nm->mkNode(kind::SEXPR,
+                 nm->getSkolemManager()->mkDummySkolem(
+                     "[", nm->sExprType(), "", NodeManager::SKOLEM_EXACT_NAME));
+  d_rbrack =
+      nm->mkNode(kind::SEXPR,
+                 nm->getSkolemManager()->mkDummySkolem(
+                     "]", nm->sExprType(), "", NodeManager::SKOLEM_EXACT_NAME));
+  d_choice =
+      nm->mkNode(kind::SEXPR,
+                 nm->getSkolemManager()->mkDummySkolem(
+                     "choice", nm->sExprType(), "", NodeManager::SKOLEM_EXACT_NAME));
+}
 LeanNodeConverter::~LeanNodeConverter() {}
 
 Node LeanNodeConverter::postConvert(Node n)
 {
+  Kind k = n.getKind();
+  TypeNode tn = n.getType();
+  size_t nChildren = n.getNumChildren();
+  switch (k)
+  {
+    case kind::WITNESS:
+    {
+      Node var = n[0][0];
+      out << "choice " << var.getId() << " ";
+      printTerm(out, n[1]);
+      break;
+    }
+    case kind::APPLY_UF:
+    {
+      Node op = n.getOperator();
+      Assert(nChildren >= 1);
+      if (nChildren > 1)
+      {
+        out << "appN ";
+        printTerm(out, op);
+        out << " ";
+        printTermList(out, n);
+      }
+      else
+      {
+        // out << "mkApp ";
+        out << "app ";
+        printTerm(out, op);
+        out << " ";
+        printTerm(out, n[0]);
+      }
+      break;
+    }
+    case kind::EQUAL:
+    {
+      // out << "mkEq ";
+      out << "eq ";
+      printTerm(out, n[0]);
+      out << " ";
+      printTerm(out, n[1]);
+      break;
+    }
+    case kind::XOR:
+    {
+      // out << "mkXor ";
+      out << "xor ";
+      printTerm(out, n[0]);
+      out << " ";
+      printTerm(out, n[1]);
+      break;
+    }
+    case kind::OR:
+    {
+      Assert(nChildren >= 2);
+      if (nChildren > 2)
+      {
+        out << "orN ";
+        printTermList(out, n);
+      }
+      else
+      {
+        // out << "mkOr ";
+        out << "term.or ";
+        printTerm(out, n[0]);
+        out << " ";
+        printTerm(out, n[1]);
+      }
+      break;
+    }
+    case kind::AND:
+    {
+      Assert(nChildren >= 2);
+      if (nChildren > 2)
+      {
+        out << "andN ";
+        printTermList(out, n);
+      }
+      else
+      {
+        // out << "mkAnd ";
+        out << "term.and ";
+        printTerm(out, n[0]);
+        out << " ";
+        printTerm(out, n[1]);
+      }
+      break;
+    }
+    case kind::IMPLIES:
+    {
+      // out << "mkImplies ";
+      out << "implies ";
+      printTerm(out, n[0]);
+      out << " ";
+      printTerm(out, n[1]);
+      break;
+    }
+    case kind::NOT:
+    {
+      // out << "mkNot ";
+      out << "term.not ";
+      printTerm(out, n[0]);
+      break;
+    }
+    case kind::ITE:
+    {
+      // out << "mkIte ";
+      out << "fIte ";
+      printTerm(out, n[0]);
+      out << " ";
+      printTerm(out, n[1]);
+      out << " ";
+      printTerm(out, n[2]);
+      break;
+    }
+    case kind::DISTINCT:
+    {
+      out << "distinct ";
+      printTerm(out, n[0]);
+      out << " ";
+      printTerm(out, n[1]);
+      break;
+    }
+    case kind::SELECT:
+    {
+      out << "select ";
+      printTerm(out, n[0]);
+      out << " ";
+      printTerm(out, n[1]);
+      break;
+    }
+    case kind::STORE:
+    {
+      out << "store ";
+      printTerm(out, n[0]);
+      out << " ";
+      printTerm(out, n[1]);
+      out << " ";
+      printTerm(out, n[2]);
+      break;
+    }
+    case kind::SEXPR:
+    {
+      out << "[";
+      printTerm(out, nc[0]);
+      for (size_t i = 1, size = n.getNumChildren(); i < size; ++i)
+      {
+        out << ", ";
+        printTerm(out, n[i]);
+      }
+      out << "]";
+      break;
+    }
+    case kind::STRING_LENGTH:
+    {
+      out << "mkLength ";
+      printTerm(out, n[0]);
+      break;
+    }
+    default: Unreachable() << " Unhandled kind: " << k << "\n";
+  }
+
   return Node::null();
 }
 

@@ -196,7 +196,7 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
   // printing constant symbol
   if (nChildren == 0)
   {
-    out << nc << ")" << (letTop ? "" : "\n");
+    out << nc << (letTop ? "" : "\n");
     return;
   }
   // printing applications / formulas
@@ -422,6 +422,7 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     return;
   }
+  // The result to be printer is the third argument of the LEAN_RULE
   TNode res = pfn->getResult();
   // print rule specific lean syntax, traversing children before parents in
   // ProofNode tree
@@ -511,7 +512,7 @@ void LeanPrinter::printProof(std::ostream& out,
   // print conclusion: proof node concludes `false`, print as show ... rather
   // than have s.... If the proof has a clausal conclusion (as argument), print
   // holds, otherwise thHolds and the result.
-  bool hasClausalResult = args[2] != Node::null();
+  bool hasClausalResult = args[2] != d_false;
   if (d_letRules.find(rule) != d_letRules.end())
   {
     out << "let lean_s" << id << " := " << rule;

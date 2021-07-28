@@ -52,6 +52,10 @@ class LeanNodeConverter : public NodeConverter
  private:
   /** the set of all internally generated symbols */
   std::unordered_set<Node> d_symbols;
+
+  Node d_lbrack;
+  Node d_rbrack;
+  Node d_choice;
 };
 
 }  // namespace proof

@@ -88,7 +88,8 @@ LeanProofPostprocessCallback::LeanProofPostprocessCallback(
 void LeanProofPostprocessCallback::addLeanStep(
     Node res,
     LeanRule rule,
-    Node clause,
+    Node convertedResult,
+    bool isClause,
     const std::vector<Node>& children,
     const std::vector<Node>& args,
     CDProof& cdp)
@@ -96,7 +97,8 @@ void LeanProofPostprocessCallback::addLeanStep(
   std::vector<Node> leanArgs = {
       NodeManager::currentNM()->mkConst<Rational>(static_cast<uint32_t>(rule)),
       res,
-      clause};
+      convertedResult,
+      isClause ? d_true : d_false};
   leanArgs.insert(leanArgs.end(), args.begin(), args.end());
   bool success CVC5_UNUSED =
       cdp.addStep(res, PfRule::LEAN_RULE, children, leanArgs);
@@ -127,8 +129,13 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::IMPLIES_ELIM:
     {
       // regular case, just turn conclusion into clause
-      addLeanStep(
-          res, LeanRule::IMPLIES_ELIM, Node::null(), children, args, *cdp);
+      addLeanStep(res,
+                  LeanRule::IMPLIES_ELIM,
+                  d_lnc.convert(res),
+                  false,
+                  children,
+                  args,
+                  *cdp);
       break;
     }
     // create clausal conclusion
@@ -153,13 +160,20 @@ bool LeanProofPostprocessCallback::update(Node res,
         newResChildren.push_back(res[1]);
       }
       Node newRes = nm->mkNode(kind::OR, newResChildren);
-      addLeanStep(newRes, LeanRule::SCOPE, Node::null(), children, args, *cdp);
+      addLeanStep(newRes,
+                  LeanRule::SCOPE,
+                  d_lnc.convert(newRes),
+                  false,
+                  children,
+                  args,
+                  *cdp);
       // add a lifting step from the OR above to the original conclusion. It
       // takes as arguments the number of assumptions and subproof conclusion
       addLeanStep(
           res,
           negation ? LeanRule::LIFT_N_OR_TO_NEG : LeanRule::LIFT_N_OR_TO_IMP,
-          Node::null(),
+          d_lnc.convert(res),
+          false,
           {newRes},
           {nm->mkConst<Rational>(args.size()), newResChildren.back()},
           *cdp);
@@ -179,13 +193,19 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::MODUS_PONENS:
     case PfRule::NOT_NOT_ELIM:
     {
-      addLeanStep(
-          res, s_pfRuleToLeanRule.at(id), Node::null(), children, args, *cdp);
+      addLeanStep(res,
+                  s_pfRuleToLeanRule.at(id),
+                  d_lnc.convert(res),
+                  false,
+                  children,
+                  args,
+                  *cdp);
       break;
     }
     case PfRule::CONTRA:
     {
-      addLeanStep(res, LeanRule::CONTRADICTION, d_empty, children, args, *cdp);
+      addLeanStep(
+          res, LeanRule::CONTRADICTION, d_empty, true, children, args, *cdp);
       break;
     }
     // minor reasoning to clean args
@@ -195,8 +215,13 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::ARRAYS_READ_OVER_WRITE_CONTRA:
     case PfRule::ARRAYS_READ_OVER_WRITE_1:
     {
-      addLeanStep(
-          res, s_pfRuleToLeanRule.at(id), Node::null(), children, {}, *cdp);
+      addLeanStep(res,
+                  s_pfRuleToLeanRule.at(id),
+                  d_lnc.convert(res),
+                  false,
+                  children,
+                  {},
+                  *cdp);
       break;
     }
     // retrieve witness form
@@ -210,7 +235,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       // arguments will be the id of the variable and its sort
       addLeanStep(res,
                   s_pfRuleToLeanRule.at(id),
-                  Node::null(),
+                  d_lnc.convert(res),
+                  false,
                   children,
                   {nm->mkConst<Rational>(var.getId()),
                    nm->mkBoundVar(var.getType().getName(), nm->sExprType())},
@@ -239,7 +265,9 @@ bool LeanProofPostprocessCallback::update(Node res,
       std::vector<Node> resLits{res.begin(), res.end()};
       addLeanStep(res,
                   s_pfRuleToLeanRule.at(id),
-                  nm->mkNode(kind::SEXPR, resLits),
+                  // TODO make a "convert clause" which takes the vector?
+                  d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
+                  false,
                   children,
                   {},
                   *cdp);
@@ -251,7 +279,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       addLeanStep(
           res,
           res.getKind() == kind::EQUAL ? LeanRule::SYMM : LeanRule::NEG_SYMM,
-          Node::null(),
+          d_lnc.convert(res),
+          false,
           children,
           {},
           *cdp);
@@ -276,6 +305,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       addLeanStep(opEq,
                   LeanRule::REFL_PARTIAL,
                   Node::null(),
+                  false,
                   {},
                   {d_lnc.mkPrintableOp(op)},
                   *cdp);
@@ -306,6 +336,7 @@ bool LeanProofPostprocessCallback::update(Node res,
           addLeanStep(argAppEq,
                       LeanRule::CONG_PARTIAL,
                       Node::null(),
+                      false,
                       {opEq, children[j]},
                       {},
                       *cdp);
@@ -314,7 +345,8 @@ bool LeanProofPostprocessCallback::update(Node res,
           {
             addLeanStep(res,
                         LeanRule::CONG,
-                        Node::null(),
+                        d_lnc.convert(res),
+                        false,
                         {argAppEq, currEq},
                         {},
                         *cdp);
@@ -331,6 +363,7 @@ bool LeanProofPostprocessCallback::update(Node res,
             addLeanStep(nextEq,
                         LeanRule::CONG_PARTIAL,
                         Node::null(),
+                        false,
                         {argAppEq, currEq},
                         {},
                         *cdp);
@@ -353,6 +386,7 @@ bool LeanProofPostprocessCallback::update(Node res,
         addLeanStep(nextEq,
                     LeanRule::CONG_PARTIAL,
                     Node::null(),
+                    false,
                     {currEq, children[i]},
                     {},
                     *cdp);
@@ -362,7 +396,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       }
       addLeanStep(res,
                   LeanRule::CONG,
-                  Node::null(),
+                  d_lnc.convert(res),
+                  false,
                   {currEq, children.back()},
                   {},
                   *cdp);
@@ -377,6 +412,7 @@ bool LeanProofPostprocessCallback::update(Node res,
         addLeanStep(newCur,
                     LeanRule::TRANS_PARTIAL,
                     Node::null(),
+                    false,
                     {cur, children[i]},
                     {},
                     *cdp);
@@ -384,7 +420,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       }
       addLeanStep(res,
                   LeanRule::TRANS,
-                  Node::null(),
+                  d_lnc.convert(res),
+                  false,
                   {cur, children.back()},
                   args,
                   *cdp);
@@ -401,6 +438,7 @@ bool LeanProofPostprocessCallback::update(Node res,
         addLeanStep(newCur,
                     LeanRule::AND_INTRO_PARTIAL,
                     Node::null(),
+                    false,
                     {
                         children[j],
                         cur,
@@ -409,8 +447,13 @@ bool LeanProofPostprocessCallback::update(Node res,
                     *cdp);
         cur = newCur;
       }
-      addLeanStep(
-          res, LeanRule::AND_INTRO, Node::null(), {first, cur}, {}, *cdp);
+      addLeanStep(res,
+                  LeanRule::AND_INTRO,
+                  d_lnc.convert(res),
+                  false,
+                  {first, cur},
+                  {},
+                  *cdp);
       break;
     }
     //-------- clausal rules
@@ -470,9 +513,8 @@ bool LeanProofPostprocessCallback::update(Node res,
               newCur,
               pol.getConst<bool>() ? LeanRule::R0_PARTIAL
                                    : LeanRule::R1_PARTIAL,
-              // since a null result here marks this as a non-clausal step,
-              // which it actually is, we use a non-null node as a marker
-              d_false,
+              Node::null(),
+              true,
               {cur, children[i]},
               curArgs,
               *cdp);
@@ -602,7 +644,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       addLeanStep(
           res,
           args[(i - 1) * 2].getConst<bool>() ? LeanRule::R0 : LeanRule::R1,
-          conclusion,
+          d_lnc.convert(conclusion),
+          true,
           {cur, children.back()},
           curArgs,
           *cdp);
@@ -631,7 +674,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       // turn conclusion into clause
       addLeanStep(res,
                   LeanRule::REORDER,
-                  nm->mkNode(kind::SEXPR, resLits),
+                  d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
+                  true,
                   children,
                   {nm->mkNode(kind::SEXPR, pos)},
                   *cdp);
@@ -652,7 +696,13 @@ bool LeanProofPostprocessCallback::update(Node res,
       {
         conclusion = nm->mkNode(kind::SEXPR, res);
       }
-      addLeanStep(res, LeanRule::FACTORING, conclusion, children, args, *cdp);
+      addLeanStep(res,
+                  LeanRule::FACTORING,
+                  d_lnc.convert(conclusion),
+                  true,
+                  children,
+                  args,
+                  *cdp);
       break;
     }
     case PfRule::CNF_AND_POS:
@@ -660,7 +710,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       std::vector<Node> resArgs{args[0].begin(), args[0].end()};
       addLeanStep(res,
                   LeanRule::CNF_AND_POS,
-                  nm->mkNode(kind::SEXPR, res[0], res[1]),
+                  d_lnc.convert(nm->mkNode(kind::SEXPR, res[0], res[1])),
+                  true,
                   children,
                   {nm->mkNode(kind::SEXPR, resArgs), args[1]},
                   *cdp);
@@ -672,7 +723,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       std::vector<Node> resLits{res.begin(), res.end()};
       addLeanStep(res,
                   LeanRule::CNF_AND_NEG,
-                  nm->mkNode(kind::SEXPR, resLits),
+                  d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
+                  true,
                   children,
                   {nm->mkNode(kind::SEXPR, resArgs)},
                   *cdp);
@@ -684,7 +736,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       std::vector<Node> resArgs{args[0].begin(), args[0].end()};
       addLeanStep(res,
                   LeanRule::CNF_OR_POS,
-                  nm->mkNode(kind::SEXPR, resLits),
+                  d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
+                  true,
                   children,
                   {nm->mkNode(kind::SEXPR, resArgs)},
                   *cdp);
@@ -695,7 +748,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       std::vector<Node> resArgs{args[0].begin(), args[0].end()};
       addLeanStep(res,
                   LeanRule::CNF_OR_NEG,
-                  nm->mkNode(kind::SEXPR, res[0], res[1]),
+                  d_lnc.convert(nm->mkNode(kind::SEXPR, res[0], res[1])),
+                  true,
                   children,
                   {nm->mkNode(kind::SEXPR, resArgs), args[1]},
                   *cdp);
@@ -704,7 +758,7 @@ bool LeanProofPostprocessCallback::update(Node res,
     default:
     {
       Trace("test-lean") << "Unhandled rule " << id << "\n";
-      addLeanStep(res, LeanRule::UNKNOWN, Node::null(), children, args, *cdp);
+      addLeanStep(res, LeanRule::UNKNOWN, Node::null(), false, children, args, *cdp);
     }
   };
   return true;
@@ -805,13 +859,13 @@ bool LeanProofPostprocessClConnectCallback::update(
       AlwaysAssert(children.size() == 2);
       for (size_t i = 0; i < 2; ++i)
       {
-        // check if conclusion is a term
+        // check if conclusion is clausal, in which case nothing to do
         std::shared_ptr<ProofNode> childPf = cdp->getProofFor(children[i]);
         AlwaysAssert(childPf->getRule() == PfRule::ASSUME
                      || childPf->getArguments().size() >= 3)
             << "childPf is " << *childPf.get();
         if (childPf->getRule() != PfRule::ASSUME
-            && !childPf->getArguments()[2].isNull())
+            && childPf->getArguments()[3] == d_true)
         {
           continue;
         }
@@ -832,11 +886,17 @@ bool LeanProofPostprocessClConnectCallback::update(
           newChild = nm->mkNode(kind::SEXPR, lits);
           childRule = LeanRule::CL_OR;
         }
-        addLeanStep(newChild, childRule, newChild, {children[i]}, {}, *cdp);
+        addLeanStep(newChild,
+                    childRule,
+                    d_lnc.convert(newChild),
+                    true,
+                    {children[i]},
+                    {},
+                    *cdp);
         newChildren[i] = newChild;
       }
       // regardless of possible changes above, delete the excess arguments
-      cdp->addStep(res, id, newChildren, {args.begin(), args.begin() + 4});
+      cdp->addStep(res, id, newChildren, {args.begin(), args.begin() + 5});
       return true;
     }
     // other rules either do not have premises or are applied on non-singleton
@@ -849,7 +909,7 @@ bool LeanProofPostprocessClConnectCallback::update(
           << "childPf is " << *childPf.get();
       // child is already clausal
       if (childPf->getRule() != PfRule::ASSUME
-          && !childPf->getArguments()[2].isNull())
+          && childPf->getArguments()[3] == d_true)
       {
         continue;
       }
@@ -859,7 +919,8 @@ bool LeanProofPostprocessClConnectCallback::update(
       newChildren[i] = nm->mkNode(kind::SEXPR, lits);
       addLeanStep(newChildren[i],
                   LeanRule::CL_OR,
-                  newChildren[i],
+                  d_lnc.convert(newChildren[i]),
+                  true,
                   {children[i]},
                   {},
                   *cdp);
@@ -881,13 +942,13 @@ bool LeanProofPostprocessClConnectCallback::update(
                    || argsOfChild.size() >= 3)
           << "childPf is " << *childPf.get();
       // child is already not clausal
-      if (childPf->getRule() == PfRule::ASSUME || argsOfChild[2].isNull())
+      if (childPf->getRule() == PfRule::ASSUME || argsOfChild[3] == d_false)
       {
         continue;
       }
       Trace("test-lean-pf")
           << "..child " << i << " is clausal: " << *childPf.get() << "\n";
-      AlwaysAssert(argsOfChild[2].getKind() == kind::SEXPR);
+      // AlwaysAssert(argsOfChild[2].getKind() == kind::SEXPR);
       // #if CVC5_ASSERTIONS
       // if singleton, must be the same. Otherwise either children[i] must be an
       // or and the arguments must be the same or it's the empty clause, false
@@ -895,7 +956,7 @@ bool LeanProofPostprocessClConnectCallback::update(
       {
         if (children[i].getKind() == kind::OR)
         {
-          std::vector<Node> lits{argsOfChild[2].begin(), argsOfChild[2].end()};
+          std::vector<Node> lits{argsOfChild[2].begin() + 1, argsOfChild[2].end()};
           AlwaysAssert(children[i] == nm->mkNode(kind::OR, lits));
         }
         else
@@ -926,7 +987,8 @@ bool LeanProofPostprocessClConnectCallback::update(
       std::vector<Node> replaceArgs{
           nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::TH_ASSUME)),
           children[i],
-          Node::null()};
+          d_lnc.convert(children[i]),
+          false};
       Trace("test-lean") << "..adding step for " << children[i] << " from "
                          << argsOfChild[2] << " with args " << replaceArgs
                          << "\n";
