@@ -844,25 +844,49 @@ bool LeanProofPostprocessClConnectCallback::update(
                      << "\nid: " << rule << "\nchildren: " << children
                      << "\nargs: " << args << "\n";
   bool updated = false;
+  // Check if every child of clausal rule is itself clausal. Otherwise add
+  // "clausal glue", i.e., the rule the converts terms to clauses. For example
+  //
+  //  t1   C2  t3
+  // ------------ R
+  //       C
+  //
+  // in which R is a clausal rule, C and C2 are clausal, t1 and t2 are terms,
+  // one would make it
+  //
+  //  t1         t3
+  //  --- G     --- G
+  //  C1    C2  C3
+  // --------------- R
+  //       C
+  //
+  // in which C1 and C3 are the clausal forms of t1 and t3.
+  //
+  // Note that the update of cdp is relatively simple, as it suffices to add
+  // steps to derive C1/C3 from t1/t3 with the suitable clausal conversion.,
+  // afterwards redefining the derivation of C with R.
   if (d_clausalRules.find(rule) != d_clausalRules.end())
   {
     std::vector<Node> newChildren{children.begin(), children.end()};
-    // rule id, original conclusion, clause conclusion
-    AlwaysAssert(args.size() >= 3);
-    // resolution rule need further to determine whether each premise is a
-    // singleton. This is information was computed in the previous pass and just
-    // needs to be checked now
+    // Resolution rules need further processing to determine whether each
+    // premise is a singleton. This information was computed in the previous
+    // pass and just needs to be checked now. Premises that are not singletons
+    // need to be turned into clauses via the conversion rules.
     if (d_resRules.find(rule) != d_resRules.end())
     {
+      // rule, original conclusion, converted conclusion, whether clausal,
       // pivot, prem1singleton, prem2singleton
-      AlwaysAssert(args.size() == 6);
+      AlwaysAssert(args.size() == 7);
+      // all binary
       AlwaysAssert(children.size() == 2);
       for (size_t i = 0; i < 2; ++i)
       {
-        // check if conclusion is clausal, in which case nothing to do
+        // check if child's conclusion is clausal, in which case nothing to
+        // do. Assumptions are never clausal, but since they're not converted
+        // during the previous processing we need to special case.
         std::shared_ptr<ProofNode> childPf = cdp->getProofFor(children[i]);
         AlwaysAssert(childPf->getRule() == PfRule::ASSUME
-                     || childPf->getArguments().size() >= 3)
+                     || childPf->getArguments().size() > 3)
             << "childPf is " << *childPf.get();
         if (childPf->getRule() != PfRule::ASSUME
             && childPf->getArguments()[3] == d_true)
@@ -870,29 +894,24 @@ bool LeanProofPostprocessClConnectCallback::update(
           continue;
         }
         // turn into clause. Check if it's used as a singleton or not
-        bool isSingleton = args[4 + i] == d_true;
+        bool isSingleton = args[5 + i] == d_true;
         Node newChild;
         LeanRule childRule;
         if (isSingleton)
         {
           // add clAssume step
-          newChild = nm->mkNode(kind::SEXPR, children[i]);
+          newChild = d_lnc.convert(nm->mkNode(kind::SEXPR, children[i]));
           childRule = LeanRule::CL_ASSUME;
         }
         else
         {
           // Add clOr step
           std::vector<Node> lits{children[i].begin(), children[i].end()};
-          newChild = nm->mkNode(kind::SEXPR, lits);
+          newChild = d_lnc.convert(nm->mkNode(kind::SEXPR, lits));
           childRule = LeanRule::CL_OR;
         }
-        addLeanStep(newChild,
-                    childRule,
-                    d_lnc.convert(newChild),
-                    true,
-                    {children[i]},
-                    {},
-                    *cdp);
+        addLeanStep(
+            newChild, childRule, newChild, true, {children[i]}, {}, *cdp);
         newChildren[i] = newChild;
       }
       // regardless of possible changes above, delete the excess arguments
@@ -905,7 +924,7 @@ bool LeanProofPostprocessClConnectCallback::update(
     {
       std::shared_ptr<ProofNode> childPf = cdp->getProofFor(children[i]);
       AlwaysAssert(childPf->getRule() == PfRule::ASSUME
-                   || childPf->getArguments().size() >= 3)
+                   || childPf->getArguments().size() > 3)
           << "childPf is " << *childPf.get();
       // child is already clausal
       if (childPf->getRule() != PfRule::ASSUME
@@ -916,10 +935,10 @@ bool LeanProofPostprocessClConnectCallback::update(
       // Add clOr step
       Assert(children[i].getKind() == kind::OR);
       std::vector<Node> lits{children[i].begin(), children[i].end()};
-      newChildren[i] = nm->mkNode(kind::SEXPR, lits);
+      newChildren[i] = d_lnc.convert(nm->mkNode(kind::SEXPR, lits));
       addLeanStep(newChildren[i],
                   LeanRule::CL_OR,
-                  d_lnc.convert(newChildren[i]),
+                  newChildren[i],
                   true,
                   {children[i]},
                   {},
@@ -930,81 +949,87 @@ bool LeanProofPostprocessClConnectCallback::update(
     {
       cdp->addStep(res, id, newChildren, args);
     }
+    return updated;
   }
-  else
+  Trace("test-lean") << "..not a clausal rule\n";
+  // Check if every child of term rule is itself a term. Otherwise add
+  // "term glue", i.e., the rule the converts clauses to terms. For example
+  //
+  //  t1|C1   t2  t3|C3
+  // ------------------- R
+  //          t
+  //
+  // in which R is a term rule, t, t1, t2 and t3 are terms, C1 and C3
+  // are the clausal converted forms of t1 and t3, one would make it
+  //
+  //  C1         C3
+  //  --- G     --- G
+  //  t1    C2  t3
+  // --------------- R
+  //       C
+  //
+  // Note that the update of cdp is not simple, since it requires changing the
+  // justifications for t1 and t3 and have the steps to derive C1 and C3 in
+  // between the original premises of t1 and t3.
+  for (size_t i = 0, size = children.size(); i < size; ++i)
   {
-    Trace("test-lean") << "..not a clausal rule\n";
-    for (size_t i = 0, size = children.size(); i < size; ++i)
+    std::shared_ptr<ProofNode> childPf = cdp->getProofFor(children[i]);
+    const std::vector<Node>& argsOfChild = childPf->getArguments();
+    AlwaysAssert(childPf->getRule() == PfRule::ASSUME || argsOfChild.size() > 3)
+        << "childPf is " << *childPf.get();
+    // child not clausal. Note this is the exact opposite of the tests we were
+    // doing with the clausal rules above
+    if (childPf->getRule() == PfRule::ASSUME || argsOfChild[3] == d_false)
     {
-      std::shared_ptr<ProofNode> childPf = cdp->getProofFor(children[i]);
-      const std::vector<Node>& argsOfChild = childPf->getArguments();
-      AlwaysAssert(childPf->getRule() == PfRule::ASSUME
-                   || argsOfChild.size() >= 3)
-          << "childPf is " << *childPf.get();
-      // child is already not clausal
-      if (childPf->getRule() == PfRule::ASSUME || argsOfChild[3] == d_false)
-      {
-        continue;
-      }
-      Trace("test-lean-pf")
-          << "..child " << i << " is clausal: " << *childPf.get() << "\n";
-      // AlwaysAssert(argsOfChild[2].getKind() == kind::SEXPR);
-      // #if CVC5_ASSERTIONS
-      // if singleton, must be the same. Otherwise either children[i] must be an
-      // or and the arguments must be the same or it's the empty clause, false
-      if (argsOfChild[2][0] != children[i])
-      {
-        if (children[i].getKind() == kind::OR)
-        {
-          std::vector<Node> lits{argsOfChild[2].begin() + 1, argsOfChild[2].end()};
-          AlwaysAssert(children[i] == nm->mkNode(kind::OR, lits));
-        }
-        else
-        {
-          AlwaysAssert(children[i] == d_false);
-        }
-      }
-      // #endif
-      // I have to update the child proof, since newChildren[i] is actually
-      // equal to the children proof result. So this is step has no effect.
-      // need to pass proof of children to cdp
-      std::vector<Node> childrenOfChild;
-      const std::vector<std::shared_ptr<ProofNode>>& childrenPfsOfChild =
-          childPf->getChildren();
-      for (const std::shared_ptr<ProofNode>& cpoc : childrenPfsOfChild)
-      {
-        childrenOfChild.push_back(cpoc->getResult());
-        // store in the proof
-        cdp->addProof(cpoc);
-      }
-      std::vector<Node> newArgs{argsOfChild[0], argsOfChild[2], argsOfChild[2]};
-      newArgs.insert(newArgs.end(), argsOfChild.begin() + 3, argsOfChild.end());
-      Trace("test-lean") << "..adding step for " << argsOfChild[2] << " from "
-                         << childrenOfChild << " with args " << newArgs << "\n";
-      cdp->addStep(argsOfChild[2], PfRule::LEAN_RULE, childrenOfChild, newArgs);
-      // avoid trying to update this step
-      // processed.insert(cdp->getProofFor(argsOfChild[2]).get());
-      std::vector<Node> replaceArgs{
-          nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::TH_ASSUME)),
-          children[i],
-          d_lnc.convert(children[i]),
-          false};
-      Trace("test-lean") << "..adding step for " << children[i] << " from "
-                         << argsOfChild[2] << " with args " << replaceArgs
-                         << "\n";
-      cdp->addStep(children[i],
-                   PfRule::LEAN_RULE,
-                   {argsOfChild[2]},
-                   replaceArgs,
-                   true,
-                   CDPOverwrite::ALWAYS);
-      // Add thAssume step
-      updated = true;
+      continue;
     }
-    if (updated)
+    Trace("test-lean-pf") << "..child " << i
+                          << " is clausal: " << *childPf.get() << "\n";
+    // Since the child is clausal, a step retrieving the OR term corresponding
+    // to the clause will be added. A step is also needed to conclude the clause
+    // from the original premises of the child. To build this step in the cdp we
+    // need to add to it the proof nodes for these premises.
+    std::vector<Node> childrenOfChild;
+    const std::vector<std::shared_ptr<ProofNode>>& childrenPfsOfChild =
+        childPf->getChildren();
+    for (const std::shared_ptr<ProofNode>& cpoc : childrenPfsOfChild)
     {
-      cdp->addStep(res, id, children, args);
+      childrenOfChild.push_back(cpoc->getResult());
+      // store in the proof
+      cdp->addProof(cpoc);
     }
+    // The new step has the same rule, concludes the clause, whose converted
+    // form is the clause, and is clausal
+    std::vector<Node> newArgs{
+        argsOfChild[0], argsOfChild[2], argsOfChild[2], d_true};
+    // Whatever other arguments the child proof had are incorporated
+    newArgs.insert(newArgs.end(), argsOfChild.begin() + 4, argsOfChild.end());
+    Trace("test-lean") << "..adding step for " << argsOfChild[2] << " from "
+                       << childrenOfChild << " with args " << newArgs << "\n";
+    cdp->addStep(argsOfChild[2], PfRule::LEAN_RULE, childrenOfChild, newArgs);
+    // Now add the glue step to derive the term in a non-clausal rule
+    std::vector<Node> replaceArgs{
+        nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::TH_ASSUME)),
+        children[i],
+        d_lnc.convert(children[i]),
+        false};
+    Trace("test-lean") << "..adding step for " << children[i] << " from "
+                       << argsOfChild[2] << " with args " << replaceArgs
+                       << "\n";
+    // Note it's necessary to overwrite because the cdp contains a step for
+    // children[i]
+    cdp->addStep(children[i],
+                 PfRule::LEAN_RULE,
+                 {argsOfChild[2]},
+                 replaceArgs,
+                 true,
+                 CDPOverwrite::ALWAYS);
+    // Add thAssume step
+    updated = true;
+  }
+  if (updated)
+  {
+    cdp->addStep(res, id, children, args);
   }
   return updated;
 }
