@@ -45,14 +45,17 @@ class LeanNodeConverter : public NodeConverter
 
   /** Type as node */
   Node typeAsNode(TypeNode tn);
-private:
+
+ private:
   /** the set of all internally generated symbols */
   std::unordered_set<Node> d_symbols;
   std::unordered_map<std::string, Node> d_symbolsMap;
 
-
   /** Cache for typeAsNode */
   std::map<TypeNode, Node> d_typeAsNode;
+
+  Node d_brack[2];
+  Node d_comma;
 };
 
 }  // namespace proof

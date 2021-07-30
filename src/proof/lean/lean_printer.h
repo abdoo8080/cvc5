@@ -23,11 +23,11 @@
 
 #include "expr/node_algorithm.h"
 #include "printer/let_binding.h"
-#include "proof/lean/lean_rules.h"
 #include "proof/lean/lean_node_converter.h"
-#include "proof/proof_node_updater.h"
+#include "proof/lean/lean_rules.h"
 #include "proof/proof_checker.h"
 #include "proof/proof_node.h"
+#include "proof/proof_node_updater.h"
 
 namespace cvc5 {
 
@@ -80,13 +80,6 @@ class LeanPrinter
 
  private:
   void printSort(std::ostream& out, TypeNode tn);
-
-  void printConstant(std::ostream& out, TNode n);
-
-  void printTermList(std::ostream& out, TNode n);
-
-  void printTermList(std::ostream& out, const std::vector<Node>& children);
-
   void printTerm(std::ostream& out, TNode n, bool letTop = true);
 
   void printLetList(std::ostream& out);
@@ -114,6 +107,8 @@ class LeanPrinter
                    const std::map<const ProofNode*, size_t>& pfMap,
                    const std::map<Node, size_t>& pfAssumpMap);
 
+  void cleanSymbols(std::string& s);
+
   Node d_false;
 
   std::set<LeanRule> d_letRules;
@@ -125,8 +120,6 @@ class LeanPrinter
   LeanNodeConverter& d_lnc;
 
   std::unique_ptr<LetUpdaterPfCallback> d_cb;
-
-
 };
 
 }  // namespace proof

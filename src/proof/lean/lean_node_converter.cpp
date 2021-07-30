@@ -24,7 +24,12 @@ namespace cvc5 {
 namespace proof {
 
 // have underlying node converter *not* force type preservation
-LeanNodeConverter::LeanNodeConverter() : NodeConverter(true, false) {}
+LeanNodeConverter::LeanNodeConverter() : NodeConverter(true, false)
+{
+  d_brack[0] = mkInternalSymbol("__LEAN_TMP[");
+  d_brack[1] = mkInternalSymbol("__LEAN_TMP]");
+  d_comma = mkInternalSymbol("__LEAN_TMP,");
+}
 LeanNodeConverter::~LeanNodeConverter() {}
 
 Node LeanNodeConverter::postConvert(Node n)
@@ -62,7 +67,7 @@ Node LeanNodeConverter::postConvert(Node n)
     // case kind::CONST_STRING:
     // {
     //   resChildren.push_back(mkInternalSymbol("mkVarChars"));
-    //   resChildren.push_back(mkInternalSymbol("["));
+    //   resChildren.push_back(d_brack[0]);
     //   cvc5::String str = n.getConst<String>();
     //   for (size_t i = 0, size = str.size(); i < size; ++i)
     //   {
@@ -88,13 +93,16 @@ Node LeanNodeConverter::postConvert(Node n)
       {
         resChildren.push_back(mkInternalSymbol("appN"));
         resChildren.push_back(convert(op));
-        resChildren.push_back(mkInternalSymbol("["));
+        resChildren.push_back(d_brack[0]);
         for (size_t i = 0; i < nChildren; ++i)
         {
           resChildren.push_back(convert(n[i]));
-          resChildren.push_back(
-              mkInternalSymbol(i < nChildren - 1 ? ", " : "]"));
+          if (i < nChildren - 1)
+          {
+            resChildren.push_back(d_comma);
+          }
         }
+        resChildren.push_back(d_brack[1]);
       }
       else
       {
@@ -123,14 +131,16 @@ Node LeanNodeConverter::postConvert(Node n)
       if (nChildren > 2)
       {
         resChildren.push_back(mkInternalSymbol("orN"));
-        resChildren.push_back(mkInternalSymbol("["));
+        resChildren.push_back(d_brack[0]);
         for (size_t i = 0; i < nChildren; ++i)
         {
           resChildren.push_back(convert(n[i]));
-          resChildren.push_back(
-              mkInternalSymbol(i < nChildren - 1 ? ", " : "]"));
+          if (i < nChildren - 1)
+          {
+            resChildren.push_back(d_comma);
+          }
         }
-        resChildren.push_back(mkInternalSymbol("]"));
+        resChildren.push_back(d_brack[1]);
       }
       else
       {
@@ -145,14 +155,16 @@ Node LeanNodeConverter::postConvert(Node n)
       if (nChildren > 2)
       {
         resChildren.push_back(mkInternalSymbol("andN"));
-        resChildren.push_back(mkInternalSymbol("["));
+        resChildren.push_back(d_brack[0]);
         for (size_t i = 0; i < nChildren; ++i)
         {
           resChildren.push_back(convert(n[i]));
-          resChildren.push_back(
-              mkInternalSymbol(i < nChildren - 1 ? ", " : "]"));
+          if (i < nChildren - 1)
+          {
+            resChildren.push_back(d_comma);
+          }
         }
-        resChildren.push_back(mkInternalSymbol("]"));
+        resChildren.push_back(d_brack[1]);
       }
       else
       {
@@ -213,12 +225,16 @@ Node LeanNodeConverter::postConvert(Node n)
     }
     case kind::SEXPR:
     {
-      resChildren.push_back(mkInternalSymbol("["));
+      resChildren.push_back(d_brack[0]);
       for (size_t i = 0; i < nChildren; ++i)
       {
         resChildren.push_back(convert(n[i]));
-        resChildren.push_back(mkInternalSymbol(i < nChildren - 1 ? ", " : "]"));
+        if (i < nChildren - 1)
+        {
+          resChildren.push_back(d_comma);
+        }
       }
+      resChildren.push_back(d_brack[1]);
       return nm->mkNode(kind::SEXPR, resChildren);
     }
     default:
@@ -305,17 +321,17 @@ Node LeanNodeConverter::typeAsNode(TypeNode tn)
   if (tn.isFunction())
   {
     resChildren.push_back(mkInternalSymbol("arrowN"));
-    resChildren.push_back(mkInternalSymbol("["));
+    resChildren.push_back(d_brack[0]);
     // convert each argument
     size_t size = tn.getNumChildren();
     for (size_t i = 0; i < size - 1; ++i)
     {
       resChildren.push_back(typeAsNode(tn[i]));
-      resChildren.push_back(mkInternalSymbol(","));
+      resChildren.push_back(d_comma);
     }
     // return sort
     resChildren.push_back(typeAsNode(tn[size - 1]));
-    resChildren.push_back(mkInternalSymbol("]"));
+    resChildren.push_back(d_brack[1]);
     res = nm->mkNode(kind::SEXPR, resChildren);
   }
   else if (tn.isArray())

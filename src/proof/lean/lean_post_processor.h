@@ -20,8 +20,8 @@
 #include <map>
 #include <unordered_set>
 
-#include "proof/lean/lean_rules.h"
 #include "proof/lean/lean_node_converter.h"
+#include "proof/lean/lean_rules.h"
 #include "proof/proof_node_updater.h"
 
 namespace cvc5 {
@@ -94,8 +94,8 @@ class LeanProofPostprocessClConnectCallback
     : public LeanProofPostprocessCallback
 {
  public:
-  LeanProofPostprocessClConnectCallback(
-      ProofNodeManager* pnm, LeanNodeConverter& lnc);
+  LeanProofPostprocessClConnectCallback(ProofNodeManager* pnm,
+                                        LeanNodeConverter& lnc);
   ~LeanProofPostprocessClConnectCallback();
 
   /** Update the proof node iff has the LEAN_RULE id. */

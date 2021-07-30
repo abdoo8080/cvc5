@@ -85,6 +85,36 @@ LeanPrinter::LeanPrinter(LeanNodeConverter& lnc)
 }
 LeanPrinter::~LeanPrinter() {}
 
+void LeanPrinter::cleanSymbols(std::string& s)
+{
+  size_t startPos = 0;
+  while ((startPos = s.find("|__LEAN_TMP", startPos)) != std::string::npos)
+  {
+    // stuff is "|__LEAN_TMP$WHATICARE|", so it's needed to kill one after
+    // this prefix as well, which after the first replacement is just one after
+    // startPos
+    s.replace(startPos, 11, "");
+    s.replace(startPos + 1, 1, "");
+  }
+  // also kill trailing spaces after "[" and before "," or "]"
+  startPos = 0;
+  while ((startPos = s.find("[ ", startPos)) != std::string::npos)
+  {
+    s.replace(startPos + 1, 1, "");
+  }
+  startPos = 0;
+  while ((startPos = s.find(" ]", startPos)) != std::string::npos
+         || (startPos = s.find(" ,", startPos)) != std::string::npos)
+  {
+    s.replace(startPos, 1, "");
+  }
+  startPos = 0;
+  while ((startPos = s.find(" ,", startPos)) != std::string::npos)
+  {
+    s.replace(startPos, 1, "");
+  }
+}
+
 void LeanPrinter::printOffset(std::ostream& out, uint64_t offset) const
 {
   for (uint64_t i = 0; i < offset; ++i)
@@ -93,9 +123,25 @@ void LeanPrinter::printOffset(std::ostream& out, uint64_t offset) const
   }
 }
 
+void LeanPrinter::printSort(std::ostream& out, TypeNode tn)
+{
+  // must clean indexed symbols
+  std::stringstream ss;
+  d_lnc.typeAsNode(tn).toStream(ss, -1, 0, language::output::LANG_SMTLIB_V2_6);
+  std::string s = ss.str();
+  cleanSymbols(s);
+  out << s;
+}
+
 void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
 {
-  out << d_lbind.convert(n, "let", letTop) << (letTop ? "" : "\n");
+  // must clean indexed symbols
+  std::stringstream ss;
+  Node nc = d_lbind.convert(n, "let", letTop);
+  nc.toStream(ss, -1, 0, language::output::LANG_SMTLIB_V2_6);
+  std::string s = ss.str();
+  cleanSymbols(s);
+  out << s << (letTop ? "" : "\n");
 }
 
 void LeanPrinter::printLetList(std::ostream& out)
@@ -105,7 +151,8 @@ void LeanPrinter::printLetList(std::ostream& out)
   for (TNode n : letList)
   {
     size_t id = d_lbind.getId(n);
-    Trace("test-lean") << "printLetList, guy with id " << id << ": " << n << "\n";
+    Trace("test-lean") << "printLetList, guy with id " << id << ": " << n
+                       << "\n";
     Assert(id != 0);
     out << "def let" << id << " := ";
     printTerm(out, n, false);
@@ -210,7 +257,7 @@ void LeanPrinter::printProof(std::ostream& out,
     out << "\n";
     // now close. We have assumptions*2 parens
     std::stringstream cparens;
-    for (size_t i =  4, size = args.size(); i < size; ++i)
+    for (size_t i = 4, size = args.size(); i < size; ++i)
     {
       offset--;
       cparens << "))";
@@ -244,9 +291,9 @@ void LeanPrinter::printProof(std::ostream& out,
   }
   else
   {
-    if (res == d_false)
+    if (pfn->getResult() == d_false)
     {
-      out << "show " << (hasClausalResult ? "holds [] " : "thHolds bot");
+      out << "show " << (hasClausalResult ? "holds []" : "thHolds bot");
     }
     else
     {
@@ -319,8 +366,8 @@ void LeanPrinter::print(std::ostream& out,
   // uninterpreted functions
   for (const Node& s : syms)
   {
-    out << "def " << s << " := const " << symCount++ << " "
-        << d_lnc.typeAsNode(s.getType());
+    out << "def " << s << " := const " << symCount++ << " ";
+    printSort(out, s.getType());
     out << "\n";
   }
   // actual proof is under the processed scope and possibly spurious thAssume

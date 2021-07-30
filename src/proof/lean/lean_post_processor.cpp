@@ -15,9 +15,9 @@
 #include "proof/lean/lean_post_processor.h"
 
 #include "expr/skolem_manager.h"
-#include "proof/proof_checker.h"
 #include "proof/lazy_proof.h"
 #include "proof/lean/lean_rules.h"
+#include "proof/proof_checker.h"
 #include "proof/proof_node_algorithm.h"
 #include "proof/proof_node_manager.h"
 #include "util/rational.h"
@@ -77,10 +77,7 @@ LeanProofPostprocessCallback::LeanProofPostprocessCallback(
     : d_pnm(pnm), d_lnc(lnc)
 {
   NodeManager* nm = NodeManager::currentNM();
-  d_empty =
-      nm->mkNode(kind::SEXPR,
-                 nm->getSkolemManager()->mkDummySkolem(
-                     "", nm->sExprType(), "", NodeManager::SKOLEM_EXACT_NAME));
+  d_empty = d_lnc.convert(nm->mkNode(kind::SEXPR));
   d_true = nm->mkConst(true);
   d_false = nm->mkConst(false);
 }
@@ -177,14 +174,14 @@ bool LeanProofPostprocessCallback::update(Node res,
           d_lnc.convert(res),
           false,
           {newRes},
-          {nm->mkConst<Rational>(args.size()), newResChildren.back()},
+          {nm->mkConst<Rational>(args.size()),
+           d_lnc.convert(newResChildren.back())},
           *cdp);
       break;
     }
     // only the rule changes and can be described with a pure mapping
     case PfRule::EQ_RESOLVE:
     case PfRule::NOT_OR_ELIM:
-    case PfRule::REFL:
     case PfRule::NOT_IMPLIES_ELIM1:
     case PfRule::NOT_IMPLIES_ELIM2:
     case PfRule::TRUE_INTRO:
@@ -200,6 +197,17 @@ bool LeanProofPostprocessCallback::update(Node res,
                   false,
                   children,
                   {},
+                  *cdp);
+      break;
+    }
+    case PfRule::REFL:
+    {
+      addLeanStep(res,
+                  s_pfRuleToLeanRule.at(id),
+                  d_lnc.convert(res),
+                  false,
+                  children,
+                  {d_lnc.convert(args[0])},
                   *cdp);
       break;
     }
@@ -521,15 +529,14 @@ bool LeanProofPostprocessCallback::update(Node res,
           Trace("test-lean")
               << "..res [internal] " << i << " has singleton premises "
               << arePremisesSingletons << "\n";
-          addLeanStep(
-              newCur,
-              pol.getConst<bool>() ? LeanRule::R0_PARTIAL
-                                   : LeanRule::R1_PARTIAL,
-              Node::null(),
-              true,
-              {cur, children[i]},
-              curArgs,
-              *cdp);
+          addLeanStep(newCur,
+                      pol.getConst<bool>() ? LeanRule::R0_PARTIAL
+                                           : LeanRule::R1_PARTIAL,
+                      Node::null(),
+                      true,
+                      {cur, children[i]},
+                      curArgs,
+                      *cdp);
           cur = newCur;
           // all the other resolutions in the chain are with the placeholder
           // clause as the first argument
@@ -772,7 +779,8 @@ bool LeanProofPostprocessCallback::update(Node res,
     default:
     {
       Trace("test-lean") << "Unhandled rule " << id << "\n";
-      addLeanStep(res, LeanRule::UNKNOWN, Node::null(), false, children, args, *cdp);
+      addLeanStep(
+          res, LeanRule::UNKNOWN, Node::null(), false, children, args, *cdp);
     }
   };
   return true;
