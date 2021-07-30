@@ -134,7 +134,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(res),
                   false,
                   children,
-                  args,
+                  {},
                   *cdp);
       break;
     }
@@ -145,9 +145,11 @@ bool LeanProofPostprocessCallback::update(Node res,
       // new result is an or with all assumptions negated and the original
       // conclusion
       std::vector<Node> newResChildren;
+      std::vector<Node> newArgs;
       for (const Node& n : args)
       {
         newResChildren.push_back(n.notNode());
+        newArgs.push_back(d_lnc.convert(n));
       }
       if (res.getKind() == kind::NOT)
       {
@@ -165,7 +167,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(newRes),
                   false,
                   children,
-                  args,
+                  newArgs,
                   *cdp);
       // add a lifting step from the OR above to the original conclusion. It
       // takes as arguments the number of assumptions and subproof conclusion
@@ -181,7 +183,6 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     // only the rule changes and can be described with a pure mapping
     case PfRule::EQ_RESOLVE:
-    case PfRule::AND_ELIM:
     case PfRule::NOT_OR_ELIM:
     case PfRule::REFL:
     case PfRule::NOT_IMPLIES_ELIM1:
@@ -198,6 +199,17 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(res),
                   false,
                   children,
+                  {},
+                  *cdp);
+      break;
+    }
+    case PfRule::AND_ELIM:
+    {
+      addLeanStep(res,
+                  s_pfRuleToLeanRule.at(id),
+                  d_lnc.convert(res),
+                  false,
+                  children,
                   args,
                   *cdp);
       break;
@@ -205,7 +217,7 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::CONTRA:
     {
       addLeanStep(
-          res, LeanRule::CONTRADICTION, d_empty, true, children, args, *cdp);
+          res, LeanRule::CONTRADICTION, d_empty, true, children, {}, *cdp);
       break;
     }
     // minor reasoning to clean args
@@ -423,7 +435,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(res),
                   false,
                   {cur, children.back()},
-                  args,
+                  {},
                   *cdp);
       break;
     }
@@ -500,7 +512,7 @@ bool LeanProofPostprocessCallback::update(Node res,
           // resolution. The placeholder is [res, i, pol, pivot], where pol and
           // pivot are relative to this part of the chain resolution
           Node pol = args[(i - 1) * 2];
-          std::vector<Node> curArgs{args[(i - 1) * 2 + 1],
+          std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1]),
                                     arePremisesSingletons[0],
                                     arePremisesSingletons[1]};
           std::vector<Node> curChildren{
@@ -621,7 +633,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       size_t i = children.size() - 1;
       Trace("test-lean") << "..res [final] " << i << " has singleton premises "
                          << arePremisesSingletons << "\n";
-      std::vector<Node> curArgs{args[(i - 1) * 2 + 1],
+      std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1]),
                                 arePremisesSingletons[0],
                                 arePremisesSingletons[1]};
       if (!isSingletonClause)
@@ -677,7 +689,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
                   true,
                   children,
-                  {nm->mkNode(kind::SEXPR, pos)},
+                  {d_lnc.convert(nm->mkNode(kind::SEXPR, pos))},
                   *cdp);
       break;
     }
@@ -701,7 +713,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(conclusion),
                   true,
                   children,
-                  args,
+                  {},
                   *cdp);
       break;
     }
@@ -713,7 +725,8 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(nm->mkNode(kind::SEXPR, res[0], res[1])),
                   true,
                   children,
-                  {nm->mkNode(kind::SEXPR, resArgs), args[1]},
+                  {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs)),
+                   d_lnc.convert(args[1])},
                   *cdp);
       break;
     }
@@ -726,7 +739,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
                   true,
                   children,
-                  {nm->mkNode(kind::SEXPR, resArgs)},
+                  {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs))},
                   *cdp);
       break;
     }
@@ -739,7 +752,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
                   true,
                   children,
-                  {nm->mkNode(kind::SEXPR, resArgs)},
+                  {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs))},
                   *cdp);
       break;
     }
@@ -751,7 +764,8 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(nm->mkNode(kind::SEXPR, res[0], res[1])),
                   true,
                   children,
-                  {nm->mkNode(kind::SEXPR, resArgs), args[1]},
+                  {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs)),
+                   d_lnc.convert(args[1])},
                   *cdp);
       break;
     }
@@ -1012,7 +1026,7 @@ bool LeanProofPostprocessClConnectCallback::update(
         nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::TH_ASSUME)),
         children[i],
         d_lnc.convert(children[i]),
-        false};
+        d_false};
     Trace("test-lean") << "..adding step for " << children[i] << " from "
                        << argsOfChild[2] << " with args " << replaceArgs
                        << "\n";

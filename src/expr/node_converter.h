@@ -36,7 +36,7 @@ namespace cvc5 {
 class NodeConverter
 {
  public:
-  NodeConverter(bool forceIdem = true);
+  NodeConverter(bool forceIdem = true, bool preserveType = true);
   virtual ~NodeConverter() {}
   /**
    * This converts node n based on the runConvert method that can be overriden
@@ -90,6 +90,8 @@ class NodeConverter
   std::unordered_map<TypeNode, TypeNode> d_tcache;
   /** Whether this node converter is idempotent. */
   bool d_forceIdem;
+  /** Whether this node converter preserves typing of converted nodes. */
+  bool d_preserveType;
 };
 
 }  // namespace cvc5

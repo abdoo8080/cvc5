@@ -40,9 +40,10 @@ bool LetUpdaterPfCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
                                         const std::vector<Node>& fa,
                                         bool& continueUpdate)
 {
-  // only process non-let rules
-  return d_letRules.find(getLeanRule(pn->getArguments()[0]))
-         == d_letRules.end();
+  // only process non-let, non-assume rules
+  return pn->getRule() != PfRule::ASSUME
+         && d_letRules.find(getLeanRule(pn->getArguments()[0]))
+                == d_letRules.end();
 }
 
 bool LetUpdaterPfCallback::update(Node res,
@@ -52,7 +53,9 @@ bool LetUpdaterPfCallback::update(Node res,
                                   CDProof* cdp,
                                   bool& continueUpdate)
 {
-  d_lbind.process(res);
+  // Letification done on the converted terms
+  AlwaysAssert(args.size() > 2) << "res: " << res << "\nid: " << id;
+  d_lbind.process(args[2]);
   // Skolem rules
   // if (id == PfRule::ARRAYS_EXT)
   // {
@@ -90,288 +93,9 @@ void LeanPrinter::printOffset(std::ostream& out, uint64_t offset) const
   }
 }
 
-void LeanPrinter::printSort(std::ostream& out, TypeNode sort)
-{
-  // functional sort
-  if (sort.isFunction())
-  {
-    out << "(arrowN [";
-    // print each arg sort
-    size_t size = sort.getNumChildren();
-    for (size_t i = 0; i < size - 1; ++i)
-    {
-      printSort(out, sort[i]);
-      out << ", ";
-    }
-    // print return sort
-    printSort(out, sort[size - 1]);
-    out << "])";
-    return;
-  }
-  if (sort.isArray())
-  {
-    out << "(array ";
-    printSort(out, sort.getArrayIndexType());
-    out << " ";
-    printSort(out, sort.getArrayConstituentType());
-    out << ")";
-    return;
-  }
-  // boolean sort
-  if (sort.isBoolean())
-  {
-    out << "boolSort";
-    return;
-  }
-  if (sort.isInteger())
-  {
-    out << "intSort";
-    return;
-  }
-  // TODO HB will need to add cases for other theories
-
-  // uninterpreted sort
-  AlwaysAssert(sort.isSort()) << sort << "\n";
-  out << sort;
-}
-
-void LeanPrinter::printConstant(std::ostream& out, TNode n)
-{
-  Kind k = n.getKind();
-  if (k == kind::CONST_BOOLEAN)
-  {
-    out << (n.getConst<bool>() ? "top" : "bot");
-    return;
-  }
-  else if (k == kind::CONST_STRING)
-  {
-    std::string str = n.getConst<String>().toString();
-    out << "(mkVarChars [";
-    for (size_t i = 0; i < str.length(); ++i)
-    {
-      out << "\'" << str.at(i) << "\'";
-      if (i != str.length() - 1) out << ", ";
-    }
-    out << "])";
-  }
-  // only print bound variables as actual variables if they are not auxiliary
-  // internal symbols created during processing
-  // else if (k == kind::BOUND_VARIABLE
-  //          && d_internalSymbols.find(n) == d_internalSymbols.end())
-  // {
-  //   out << "(const " << n.getId() << " " << n.getType() << ")";
-  // }
-  else
-  {
-    out << n;
-  }
-}
-
-void LeanPrinter::printTermList(std::ostream& out, TNode n)
-{
-  out << "[";
-  for (size_t i = 0, size = n.getNumChildren(); i < size; ++i)
-  {
-    printTerm(out, n[i]);
-    out << (i < size - 1 ? ", " : "]");
-  }
-}
-
 void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
 {
-  if (n.getKind() == kind::SKOLEM)
-  {
-    Node wi = SkolemManager::getWitnessForm(n);
-    AlwaysAssert(!wi.isNull());
-    printTerm(out, wi);
-    return;
-  }
-  if (n.getNumChildren() == 0)
-  {
-    printConstant(out, n);
-    return;
-  }
-  Node nc = d_lbind.convert(n, "let", letTop);
-  size_t nChildren = nc.getNumChildren();
-  // printing constant symbol
-  if (nChildren == 0)
-  {
-    out << nc << (letTop ? "" : "\n");
-    return;
-  }
-  // printing applications / formulas
-  out << "(";
-  Kind k = nc.getKind();
-  TypeNode tn = nc.getType();
-  switch (k)
-  {
-    case kind::WITNESS:
-    {
-      Node var = n[0][0];
-      out << "choice " << var.getId() << " ";
-      printTerm(out, n[1]);
-      break;
-    }
-    case kind::APPLY_UF:
-    {
-      Node op = nc.getOperator();
-      Assert(nChildren >= 1);
-      if (nChildren > 1)
-      {
-        out << "appN ";
-        printTerm(out, op);
-        out << " ";
-        printTermList(out, nc);
-      }
-      else
-      {
-        // out << "mkApp ";
-        out << "app ";
-        printTerm(out, op);
-        out << " ";
-        printTerm(out, nc[0]);
-      }
-      break;
-    }
-    case kind::EQUAL:
-    {
-      // out << "mkEq ";
-      out << "eq ";
-      printTerm(out, nc[0]);
-      out << " ";
-      printTerm(out, nc[1]);
-      break;
-    }
-    case kind::XOR:
-    {
-      // out << "mkXor ";
-      out << "xor ";
-      printTerm(out, nc[0]);
-      out << " ";
-      printTerm(out, nc[1]);
-      break;
-    }
-    case kind::OR:
-    {
-      Assert(nChildren >= 2);
-      if (nChildren > 2)
-      {
-        out << "orN ";
-        printTermList(out, nc);
-      }
-      else
-      {
-        // out << "mkOr ";
-        out << "term.or ";
-        printTerm(out, nc[0]);
-        out << " ";
-        printTerm(out, nc[1]);
-      }
-      break;
-    }
-    case kind::AND:
-    {
-      Assert(nChildren >= 2);
-      if (nChildren > 2)
-      {
-        out << "andN ";
-        printTermList(out, nc);
-      }
-      else
-      {
-        // out << "mkAnd ";
-        out << "term.and ";
-        printTerm(out, nc[0]);
-        out << " ";
-        printTerm(out, nc[1]);
-      }
-      break;
-    }
-    case kind::IMPLIES:
-    {
-      // out << "mkImplies ";
-      out << "implies ";
-      printTerm(out, nc[0]);
-      out << " ";
-      printTerm(out, nc[1]);
-      break;
-    }
-    case kind::NOT:
-    {
-      // out << "mkNot ";
-      out << "term.not ";
-      printTerm(out, nc[0]);
-      break;
-    }
-    case kind::ITE:
-    {
-      // out << "mkIte ";
-      out << "fIte ";
-      printTerm(out, nc[0]);
-      out << " ";
-      printTerm(out, nc[1]);
-      out << " ";
-      printTerm(out, nc[2]);
-      break;
-    }
-    case kind::DISTINCT:
-    {
-      out << "distinct ";
-      printTerm(out, nc[0]);
-      out << " ";
-      printTerm(out, nc[1]);
-      break;
-    }
-    case kind::SELECT:
-    {
-      out << "select ";
-      printTerm(out, nc[0]);
-      out << " ";
-      printTerm(out, nc[1]);
-      break;
-    }
-    case kind::STORE:
-    {
-      out << "store ";
-      printTerm(out, nc[0]);
-      out << " ";
-      printTerm(out, nc[1]);
-      out << " ";
-      printTerm(out, nc[2]);
-      break;
-    }
-    case kind::SEXPR:
-    {
-      out << "[";
-      printTerm(out, nc[0]);
-      for (size_t i = 1, size = nc.getNumChildren(); i < size; ++i)
-      {
-        out << ", ";
-        printTerm(out, nc[i]);
-      }
-      out << "]";
-      break;
-    }
-    case kind::STRING_LENGTH:
-    {
-      out << "mkLength ";
-      printTerm(out, nc[0]);
-      break;
-    }
-    default: Unhandled() << " " << k;
-  }
-  out << ")" << (letTop ? "" : "\n");
-}
-
-void LeanPrinter::printTermList(std::ostream& out,
-                                const std::vector<Node>& children)
-{
-  out << "[";
-  for (size_t i = 0, size = children.size(); i < size; ++i)
-  {
-    printTerm(out, children[i]);
-    out << (i < size - 1 ? ", " : "]");
-  }
+  out << d_lbind.convert(n, "let", letTop) << (letTop ? "" : "\n");
 }
 
 void LeanPrinter::printLetList(std::ostream& out)
@@ -395,8 +119,11 @@ void LeanPrinter::printStepId(std::ostream& out,
 {
   if (pfn->getRule() == PfRule::ASSUME)
   {
-    AlwaysAssert(pfAssumpMap.find(pfn->getResult()) != pfAssumpMap.end()) << pfn->getResult();
-    out << "lean_a" << pfAssumpMap.find(pfn->getResult())->second;
+    // converted assumption
+    Node conv = d_lnc.convert(pfn->getResult());
+    AlwaysAssert(pfAssumpMap.find(conv) != pfAssumpMap.end())
+        << "Original: " << pfn->getResult() << "\nConverted: " << conv;
+    out << "lean_a" << pfAssumpMap.find(conv)->second;
   }
   else
   {
@@ -422,15 +149,13 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     return;
   }
-  // The result to be printer is the third argument of the LEAN_RULE
-  TNode res = pfn->getResult();
-  // print rule specific lean syntax, traversing children before parents in
-  // ProofNode tree
   const std::vector<Node>& args = pfn->getArguments();
   const std::vector<std::shared_ptr<ProofNode>>& children = pfn->getChildren();
+  // The result to be printed is the third argument of the LEAN_RULE
+  TNode res = pfn->getArguments()[2];
+  LeanRule rule = getLeanRule(args[0]);
   Trace("test-lean") << "printProof: offset " << offset << "\n";
   Trace("test-lean") << "printProof: args " << args << "\n";
-  LeanRule rule = getLeanRule(args[0]);
   Trace("test-lean") << "printProof: rule " << rule << "\n";
   Trace("test-lean") << "printProof: result " << res << "\n";
   if (rule == LeanRule::UNKNOWN)
@@ -453,17 +178,17 @@ void LeanPrinter::printProof(std::ostream& out,
     // current pfAssumpMap' size
     size_t assumptionsShift = pfAssumpMap.size();
     std::map<Node, size_t> backupMap;
-    for (size_t i = 3, size = args.size(); i < size; ++i)
+    for (size_t i = 4, size = args.size(); i < size; ++i)
     {
       auto it = pfAssumpMap.find(args[i]);
       if (it != pfAssumpMap.end())
       {
         backupMap[args[i]] = it->second;
       }
-      pfAssumpMap[args[i]] = assumptionsShift + i - 3;
+      pfAssumpMap[args[i]] = assumptionsShift + i - 4;
       // push and print offset
       printOffset(out, ++offset);
-      out << "(scope (fun lean_a" << assumptionsShift + i - 3 << " : thHolds ";
+      out << "(scope (fun lean_a" << assumptionsShift + i - 4 << " : thHolds ";
       printTerm(out, args[i]);
       out << " =>\n";
     }
@@ -479,13 +204,13 @@ void LeanPrinter::printProof(std::ostream& out,
     // because the proof can't end with "have" but rather with "show"
     printOffset(out, offset);
     out << "show thHolds ";
-    printTerm(out, children[0]->getResult());
+    printTerm(out, children[0]->getArguments()[2]);
     out << " from ";
     printStepId(out, children[0].get(), pfMap, pfAssumpMap);
     out << "\n";
     // now close. We have assumptions*2 parens
     std::stringstream cparens;
-    for (size_t i = 3, size = args.size(); i < size; ++i)
+    for (size_t i =  4, size = args.size(); i < size; ++i)
     {
       offset--;
       cparens << "))";
@@ -508,11 +233,11 @@ void LeanPrinter::printProof(std::ostream& out,
   }
   Trace("test-lean") << pop;
   printOffset(out, offset);
-  AlwaysAssert(args.size() >= 3);
+  AlwaysAssert(args.size() >= 4);
   // print conclusion: proof node concludes `false`, print as show ... rather
-  // than have s.... If the proof has a clausal conclusion (as argument), print
+  // than have s.... If the proof has a clausal conclusion, print
   // holds, otherwise thHolds and the result.
-  bool hasClausalResult = args[2] != d_false;
+  bool hasClausalResult = args[3] != d_false;
   if (d_letRules.find(rule) != d_letRules.end())
   {
     out << "let lean_s" << id << " := " << rule;
@@ -525,17 +250,9 @@ void LeanPrinter::printProof(std::ostream& out,
     }
     else
     {
-      out << "have lean_s" << id << " : ";
-      if (hasClausalResult)
-      {
-        out << "holds ";
-        printTerm(out, args[2]);
-      }
-      else
-      {
-        out << "thHolds ";
-        printTerm(out, res);
-      }
+      out << "have lean_s" << id << " : "
+          << (hasClausalResult ? "holds " : "thHolds ");
+      printTerm(out, res);
     }
     out << " from " << rule;
   }
@@ -544,7 +261,7 @@ void LeanPrinter::printProof(std::ostream& out,
     out << " ";
     printStepId(out, child.get(), pfMap, pfAssumpMap);
   }
-  for (size_t i = 3, size = args.size(); i < size; ++i)
+  for (size_t i = 4, size = args.size(); i < size; ++i)
   {
     out << " ";
     printTerm(out, args[i]);
@@ -586,7 +303,7 @@ void LeanPrinter::print(std::ostream& out,
     expr::getComponentTypes(st, ctypes);
     for (const TypeNode& stc : ctypes)
     {
-      // only collect for declaration non predefined sorts
+      // only collect non-predefined sorts for declaration
       if (stc.isSort() && stc.getKind() != kind::TYPE_CONSTANT)
       {
         Trace("test-lean") << "collecting sort " << stc << " with kind "
@@ -602,62 +319,65 @@ void LeanPrinter::print(std::ostream& out,
   // uninterpreted functions
   for (const Node& s : syms)
   {
-    out << "def " << s << " := const " << symCount++ << " ";
-    printSort(out, s.getType());
+    out << "def " << s << " := const " << symCount++ << " "
+        << d_lnc.typeAsNode(s.getType());
     out << "\n";
   }
-  // actual proof is below processed scope and possibly spurious thAssume
+  // actual proof is under the processed scope and possibly spurious thAssume
+  // steps
   AlwaysAssert(pfn->getChildren().size() == 1
                && pfn->getChildren()[0]->getChildren().size() == 1);
   std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0]->getChildren()[0];
-  Trace("test-lean") << "innerPf rule: " << getLeanRule(innerPf->getArguments()[0]) << "\n";
-  // compute the term lets. For this consider the assertions
+  Trace("test-lean") << "innerPf rule: "
+                     << getLeanRule(innerPf->getArguments()[0]) << "\n";
+  // compute the term lets. For this consider the converted assertions
   for (const Node& a : assertions)
   {
-    d_lbind.process(a);
+    d_lbind.process(d_lnc.convert(a));
   }
-  // Traverse the proof node to letify the conclusions of explicit proof steps.
-  // This traversal will collect the skolems to de defined.
+  // Traverse the proof node to letify the (converted) conclusions of explicit
+  // proof steps. This traversal will collect the skolems to de defined.
   ProofNodeUpdater updater(nullptr, *(d_cb.get()), false, false);
   updater.process(innerPf);
 
   const std::vector<Node>& assumptions = pfn->getChildren()[0]->getArguments();
-  for (size_t i = 3, size = assumptions.size(); i < size; ++i)
+  std::vector<Node> convertedAssumptions;
+  for (size_t i = 4, size = assumptions.size(); i < size; ++i)
   {
-    d_lbind.process(assumptions[i]);
+    convertedAssumptions.push_back(d_lnc.convert(assumptions[i]));
+    d_lbind.process(convertedAssumptions.back());
   }
   printLetList(out);
 
   // print theorem header, which is to get proofs of all the assumptions and
   // conclude a proof of []. The assumptions are args[2..]
   out << "\ntheorem th0 : ";
-  Assert(assumptions.size() > 2);
-  for (size_t i = 3, size = assumptions.size(); i < size; ++i)
+  for (const Node& a : convertedAssumptions)
   {
     out << "thHolds ";
-    printTerm(out, assumptions[i]);
+    printTerm(out, a);
     out << " -> ";
   }
   // whether conclusion is "thHolds bot" or "holds []" depends on what the inner
   // proof term is concluding. So we check here:
   AlwaysAssert(innerPf->getArguments().size() >= 3);
-  if (!innerPf->getArguments()[2].isNull())
+  if (innerPf->getArguments()[3] != d_false)
   {
     out << "holds [] :=\n";
   }
   else
   {
     AlwaysAssert(innerPf->getResult() == d_false)
-      << "conclusion with rule " << getLeanRule(innerPf->getArguments()[0])
+        << "conclusion with rule " << getLeanRule(innerPf->getArguments()[0])
         << " is actually " << innerPf->getResult();
     out << "thHolds bot :=\n";
   }
   // print initial assumptions
   std::map<Node, size_t> pfAssumpMap;
-  for (size_t i = 3, size = assumptions.size(); i < size; ++i)
+  for (size_t i = 0, size = convertedAssumptions.size(); i < size; ++i)
   {
-    pfAssumpMap[assumptions[i]] = i - 3;
-    out << "fun lean_a" << i - 3 << " : thHolds ";
+    pfAssumpMap[convertedAssumptions[i]] = i;
+    out << "fun lean_a" << i << " : thHolds ";
     printTerm(out, assumptions[i]);
     out << " =>\n";
   }

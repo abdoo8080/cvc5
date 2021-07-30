@@ -21,7 +21,10 @@ using namespace cvc5::kind;
 
 namespace cvc5 {
 
-NodeConverter::NodeConverter(bool forceIdem) : d_forceIdem(forceIdem) {}
+NodeConverter::NodeConverter(bool forceIdem, bool preserveType)
+    : d_forceIdem(forceIdem), d_preserveType(preserveType)
+{
+}
 
 Node NodeConverter::convert(Node n)
 {
@@ -111,7 +114,8 @@ Node NodeConverter::convert(Node n)
         Node cret = postConvert(ret);
         if (!cret.isNull() && ret != cret)
         {
-          AlwaysAssert(cret.getType().isComparableTo(ret.getType()))
+          AlwaysAssert(!d_preserveType
+                       || cret.getType().isComparableTo(ret.getType()))
               << "Converting " << ret << " to " << cret << " changes type";
           ret = cret;
         }

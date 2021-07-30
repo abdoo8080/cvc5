@@ -34,28 +34,25 @@ class LeanNodeConverter : public NodeConverter
   ~LeanNodeConverter();
   /** convert to internal */
   Node postConvert(Node n) override;
-  /** convert to internal */
-  // TypeNode postConvertType(TypeNode tn) override;
 
   Node mkPrintableOp(Node n);
 
   /**
-   * Make an internal symbol with custom name. This is a BOUND_VARIABLE that
-   * has a distinguished status so that it is *not* printed as (bvar ...). The
-   * returned variable is always fresh.
+   * Make or get an internal symbol with custom name. This is a BOUND_VARIABLE
+   * that has a distinguished status so that it is *not* printed as (bvar ...).
    */
-  Node mkInternalSymbol(const std::string& name, TypeNode tn);
-
-  /** As above but uses SEXPR type */
   Node mkInternalSymbol(const std::string& name);
 
- private:
+  /** Type as node */
+  Node typeAsNode(TypeNode tn);
+private:
   /** the set of all internally generated symbols */
   std::unordered_set<Node> d_symbols;
+  std::unordered_map<std::string, Node> d_symbolsMap;
 
-  Node d_lbrack;
-  Node d_rbrack;
-  Node d_choice;
+
+  /** Cache for typeAsNode */
+  std::map<TypeNode, Node> d_typeAsNode;
 };
 
 }  // namespace proof

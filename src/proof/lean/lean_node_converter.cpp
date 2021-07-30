@@ -14,44 +14,71 @@
  */
 #include "proof/lean/lean_node_converter.h"
 
+#include <sstream>
+
 #include "expr/skolem_manager.h"
 #include "proof/proof_checker.h"
-
-#include <sstream>
+#include "util/string.h"
 
 namespace cvc5 {
 namespace proof {
 
-LeanNodeConverter::LeanNodeConverter() {
-  NodeManager* nm = NodeManager::currentNM();
-  d_lbrack =
-      nm->mkNode(kind::SEXPR,
-                 nm->getSkolemManager()->mkDummySkolem(
-                     "[", nm->sExprType(), "", NodeManager::SKOLEM_EXACT_NAME));
-  d_rbrack =
-      nm->mkNode(kind::SEXPR,
-                 nm->getSkolemManager()->mkDummySkolem(
-                     "]", nm->sExprType(), "", NodeManager::SKOLEM_EXACT_NAME));
-  d_choice =
-      nm->mkNode(kind::SEXPR,
-                 nm->getSkolemManager()->mkDummySkolem(
-                     "choice", nm->sExprType(), "", NodeManager::SKOLEM_EXACT_NAME));
-}
+// have underlying node converter *not* force type preservation
+LeanNodeConverter::LeanNodeConverter() : NodeConverter(true, false) {}
 LeanNodeConverter::~LeanNodeConverter() {}
 
 Node LeanNodeConverter::postConvert(Node n)
 {
   Kind k = n.getKind();
-  TypeNode tn = n.getType();
+  if (k == kind::SKOLEM)
+  {
+    Node wi = SkolemManager::getWitnessForm(n);
+    AlwaysAssert(!wi.isNull());
+    return convert(wi);
+  }
+  NodeManager* nm = NodeManager::currentNM();
   size_t nChildren = n.getNumChildren();
+  std::vector<Node> resChildren;
   switch (k)
   {
+    case kind::BOUND_VARIABLE:
+    {
+      // ignore internally generated symbols
+      if (d_symbols.find(n) != d_symbols.end())
+      {
+        return n;
+      }
+      // variables are (const id type)
+      resChildren.push_back(mkInternalSymbol("const"));
+      resChildren.push_back(nm->mkConst<Rational>(static_cast<int>(n.getId())));
+      resChildren.push_back(typeAsNode(n.getType()));
+      return nm->mkNode(kind::SEXPR, resChildren);
+    }
+    case kind::CONST_BOOLEAN:
+    {
+      return n.getConst<bool>() ? mkInternalSymbol("top")
+                                : mkInternalSymbol("bot");
+    }
+    // case kind::CONST_STRING:
+    // {
+    //   resChildren.push_back(mkInternalSymbol("mkVarChars"));
+    //   resChildren.push_back(mkInternalSymbol("["));
+    //   cvc5::String str = n.getConst<String>();
+    //   for (size_t i = 0, size = str.size(); i < size; ++i)
+    //   {
+    //     resChildren.push_back(str[i]);
+    //     resChildren.push_back(mkInternalSymbol(i < size - 1 ? ", " : "]"));
+    //   }
+    //   return nm->mkNode(kind::SEXPR, resChildren);
+    // }
     case kind::WITNESS:
     {
-      Node var = n[0][0];
-      out << "choice " << var.getId() << " ";
-      printTerm(out, n[1]);
-      break;
+      resChildren.push_back(mkInternalSymbol("choice"));
+      // the variable id
+      resChildren.push_back(nm->mkConst<Rational>(n[0][0].getId()));
+      // convert the body
+      resChildren.push_back(convert(n[1]));
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::APPLY_UF:
     {
@@ -59,150 +86,147 @@ Node LeanNodeConverter::postConvert(Node n)
       Assert(nChildren >= 1);
       if (nChildren > 1)
       {
-        out << "appN ";
-        printTerm(out, op);
-        out << " ";
-        printTermList(out, n);
+        resChildren.push_back(mkInternalSymbol("appN"));
+        resChildren.push_back(convert(op));
+        resChildren.push_back(mkInternalSymbol("["));
+        for (size_t i = 0; i < nChildren; ++i)
+        {
+          resChildren.push_back(convert(n[i]));
+          resChildren.push_back(
+              mkInternalSymbol(i < nChildren - 1 ? ", " : "]"));
+        }
       }
       else
       {
-        // out << "mkApp ";
-        out << "app ";
-        printTerm(out, op);
-        out << " ";
-        printTerm(out, n[0]);
+        resChildren.push_back(mkInternalSymbol("app"));
+        resChildren.push_back(convert(op));
+        resChildren.push_back(convert(n[0]));
       }
-      break;
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::EQUAL:
     {
-      // out << "mkEq ";
-      out << "eq ";
-      printTerm(out, n[0]);
-      out << " ";
-      printTerm(out, n[1]);
-      break;
+      resChildren.push_back(mkInternalSymbol("eq"));
+      resChildren.push_back(convert(n[0]));
+      resChildren.push_back(convert(n[1]));
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::XOR:
     {
-      // out << "mkXor ";
-      out << "xor ";
-      printTerm(out, n[0]);
-      out << " ";
-      printTerm(out, n[1]);
-      break;
+      resChildren.push_back(mkInternalSymbol("xor"));
+      resChildren.push_back(convert(n[0]));
+      resChildren.push_back(convert(n[1]));
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::OR:
     {
-      Assert(nChildren >= 2);
       if (nChildren > 2)
       {
-        out << "orN ";
-        printTermList(out, n);
+        resChildren.push_back(mkInternalSymbol("orN"));
+        resChildren.push_back(mkInternalSymbol("["));
+        for (size_t i = 0; i < nChildren; ++i)
+        {
+          resChildren.push_back(convert(n[i]));
+          resChildren.push_back(
+              mkInternalSymbol(i < nChildren - 1 ? ", " : "]"));
+        }
+        resChildren.push_back(mkInternalSymbol("]"));
       }
       else
       {
-        // out << "mkOr ";
-        out << "term.or ";
-        printTerm(out, n[0]);
-        out << " ";
-        printTerm(out, n[1]);
+        resChildren.push_back(mkInternalSymbol("term.or"));
+        resChildren.push_back(convert(n[0]));
+        resChildren.push_back(convert(n[1]));
       }
-      break;
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::AND:
     {
-      Assert(nChildren >= 2);
       if (nChildren > 2)
       {
-        out << "andN ";
-        printTermList(out, n);
+        resChildren.push_back(mkInternalSymbol("andN"));
+        resChildren.push_back(mkInternalSymbol("["));
+        for (size_t i = 0; i < nChildren; ++i)
+        {
+          resChildren.push_back(convert(n[i]));
+          resChildren.push_back(
+              mkInternalSymbol(i < nChildren - 1 ? ", " : "]"));
+        }
+        resChildren.push_back(mkInternalSymbol("]"));
       }
       else
       {
-        // out << "mkAnd ";
-        out << "term.and ";
-        printTerm(out, n[0]);
-        out << " ";
-        printTerm(out, n[1]);
+        resChildren.push_back(mkInternalSymbol("term.and"));
+        resChildren.push_back(convert(n[0]));
+        resChildren.push_back(convert(n[1]));
       }
-      break;
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::IMPLIES:
     {
-      // out << "mkImplies ";
-      out << "implies ";
-      printTerm(out, n[0]);
-      out << " ";
-      printTerm(out, n[1]);
-      break;
+      resChildren.push_back(mkInternalSymbol("implies"));
+      resChildren.push_back(convert(n[0]));
+      resChildren.push_back(convert(n[1]));
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::NOT:
     {
-      // out << "mkNot ";
-      out << "term.not ";
-      printTerm(out, n[0]);
-      break;
+      resChildren.push_back(mkInternalSymbol("term.not"));
+      resChildren.push_back(convert(n[0]));
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::ITE:
     {
-      // out << "mkIte ";
-      out << "fIte ";
-      printTerm(out, n[0]);
-      out << " ";
-      printTerm(out, n[1]);
-      out << " ";
-      printTerm(out, n[2]);
-      break;
+      resChildren.push_back(mkInternalSymbol("fIte"));
+      resChildren.push_back(convert(n[0]));
+      resChildren.push_back(convert(n[1]));
+      resChildren.push_back(convert(n[2]));
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::DISTINCT:
     {
-      out << "distinct ";
-      printTerm(out, n[0]);
-      out << " ";
-      printTerm(out, n[1]);
-      break;
+      resChildren.push_back(mkInternalSymbol("distinct"));
+      resChildren.push_back(convert(n[0]));
+      resChildren.push_back(convert(n[1]));
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::SELECT:
     {
-      out << "select ";
-      printTerm(out, n[0]);
-      out << " ";
-      printTerm(out, n[1]);
-      break;
+      resChildren.push_back(mkInternalSymbol("select"));
+      resChildren.push_back(convert(n[0]));
+      resChildren.push_back(convert(n[1]));
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::STORE:
     {
-      out << "store ";
-      printTerm(out, n[0]);
-      out << " ";
-      printTerm(out, n[1]);
-      out << " ";
-      printTerm(out, n[2]);
-      break;
-    }
-    case kind::SEXPR:
-    {
-      out << "[";
-      printTerm(out, nc[0]);
-      for (size_t i = 1, size = n.getNumChildren(); i < size; ++i)
-      {
-        out << ", ";
-        printTerm(out, n[i]);
-      }
-      out << "]";
-      break;
+      resChildren.push_back(mkInternalSymbol("store"));
+      resChildren.push_back(convert(n[0]));
+      resChildren.push_back(convert(n[1]));
+      resChildren.push_back(convert(n[2]));
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
     case kind::STRING_LENGTH:
     {
-      out << "mkLength ";
-      printTerm(out, n[0]);
-      break;
+      resChildren.push_back(mkInternalSymbol("mkLength"));
+      resChildren.push_back(convert(n[0]));
+      return nm->mkNode(kind::SEXPR, resChildren);
     }
-    default: Unreachable() << " Unhandled kind: " << k << "\n";
+    case kind::SEXPR:
+    {
+      resChildren.push_back(mkInternalSymbol("["));
+      for (size_t i = 0; i < nChildren; ++i)
+      {
+        resChildren.push_back(convert(n[i]));
+        resChildren.push_back(mkInternalSymbol(i < nChildren - 1 ? ", " : "]"));
+      }
+      return nm->mkNode(kind::SEXPR, resChildren);
+    }
+    default:
+    {
+    }
   }
-
-  return Node::null();
+  // everything else is to be printed as itself
+  return n;
 }
 
 Node LeanNodeConverter::mkPrintableOp(Node n)
@@ -266,18 +290,70 @@ Node LeanNodeConverter::mkPrintableOp(Node n)
   return n;
 }
 
+Node LeanNodeConverter::typeAsNode(TypeNode tn)
+{
+  std::map<TypeNode, Node>::const_iterator it = d_typeAsNode.find(tn);
+  if (it != d_typeAsNode.end())
+  {
+    return it->second;
+  }
+  NodeManager* nm = NodeManager::currentNM();
+  // convert
+  Node res;
+  std::vector<Node> resChildren;
+  // functional sort
+  if (tn.isFunction())
+  {
+    resChildren.push_back(mkInternalSymbol("arrowN"));
+    resChildren.push_back(mkInternalSymbol("["));
+    // convert each argument
+    size_t size = tn.getNumChildren();
+    for (size_t i = 0; i < size - 1; ++i)
+    {
+      resChildren.push_back(typeAsNode(tn[i]));
+      resChildren.push_back(mkInternalSymbol(","));
+    }
+    // return sort
+    resChildren.push_back(typeAsNode(tn[size - 1]));
+    resChildren.push_back(mkInternalSymbol("]"));
+    res = nm->mkNode(kind::SEXPR, resChildren);
+  }
+  else if (tn.isArray())
+  {
+    resChildren.push_back(mkInternalSymbol("array"));
+    resChildren.push_back(typeAsNode(tn.getArrayIndexType()));
+    resChildren.push_back(typeAsNode(tn.getArrayConstituentType()));
+    res = nm->mkNode(kind::SEXPR, resChildren);
+  }
+  else if (tn.isBoolean())
+  {
+    res = mkInternalSymbol("boolSort");
+  }
+  else if (tn.isInteger())
+  {
+    res = mkInternalSymbol("intSort");
+  }
+  else
+  {
+    std::stringstream ss;
+    tn.toStream(ss, language::output::LANG_SMTLIB_V2_6);
+    res = mkInternalSymbol(ss.str());
+  }
+  d_typeAsNode[tn] = res;
+  return res;
+}
+
 Node LeanNodeConverter::mkInternalSymbol(const std::string& name)
 {
+  std::unordered_map<std::string, Node>::iterator it = d_symbolsMap.find(name);
+  if (it != d_symbolsMap.end())
+  {
+    return it->second;
+  }
   NodeManager* nm = NodeManager::currentNM();
   Node sym = nm->mkBoundVar(name, nm->sExprType());
   d_symbols.insert(sym);
-  return sym;
-}
-
-Node LeanNodeConverter::mkInternalSymbol(const std::string& name, TypeNode tn)
-{
-  Node sym = NodeManager::currentNM()->mkBoundVar(name, tn);
-  d_symbols.insert(sym);
+  d_symbolsMap[name] = sym;
   return sym;
 }
 
