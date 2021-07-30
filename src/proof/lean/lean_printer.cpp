@@ -378,7 +378,7 @@ void LeanPrinter::print(std::ostream& out,
   {
     pfAssumpMap[convertedAssumptions[i]] = i;
     out << "fun lean_a" << i << " : thHolds ";
-    printTerm(out, assumptions[i]);
+    printTerm(out, convertedAssumptions[i]);
     out << " =>\n";
   }
   std::stringstream ss;
