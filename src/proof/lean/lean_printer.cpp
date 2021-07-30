@@ -242,10 +242,10 @@ void LeanPrinter::printProof(std::ostream& out,
     // similarly, we shift step ids by the number of current steps
     size_t newId = pfMap.size();
     // use a new proof map for subproof
-    // std::map<const ProofNode*, size_t> subpfMap{pfMap};
+    std::map<const ProofNode*, size_t> subpfMap{pfMap};
     Trace("test-lean") << pop;
     AlwaysAssert(children.size() == 1);
-    printProof(out, newId, ++offset, children[0], pfMap, pfAssumpMap);
+    printProof(out, newId, ++offset, children[0], subpfMap, pfAssumpMap);
     Trace("test-lean") << pop;
     // print conclusion of scope's child if result is not "false". For now this
     // is a redundant step because the proof can't end with "have" but rather
@@ -257,7 +257,7 @@ void LeanPrinter::printProof(std::ostream& out,
       out << "show thHolds ";
       printTerm(out, children[0]->getArguments()[2]);
       out << " from ";
-      printStepId(out, children[0].get(), pfMap, pfAssumpMap);
+      printStepId(out, children[0].get(), subpfMap, pfAssumpMap);
       out << "\n";
     }
     // now close. We have assumptions*2 parens
