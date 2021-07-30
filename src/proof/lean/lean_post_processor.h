@@ -113,8 +113,8 @@ class LeanProofPostprocessClConnectCallback
  private:
   /** rules that take terms and yield clauses */
   std::set<Node> d_conversionRules;
-  /** rules that take clauses and yield clauses */
-  std::set<LeanRule> d_clausalRules;
+  /** rules that take clauses */
+  std::set<LeanRule> d_clausalPremisesRules;
   std::set<LeanRule> d_resRules;
   std::unordered_set<const ProofNode*> processed;
 };

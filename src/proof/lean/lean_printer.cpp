@@ -247,14 +247,19 @@ void LeanPrinter::printProof(std::ostream& out,
     AlwaysAssert(children.size() == 1);
     printProof(out, newId, ++offset, children[0], pfMap, pfAssumpMap);
     Trace("test-lean") << pop;
-    // print conclusion of scope's child. For now this is a redundant step
-    // because the proof can't end with "have" but rather with "show"
-    printOffset(out, offset);
-    out << "show thHolds ";
-    printTerm(out, children[0]->getArguments()[2]);
-    out << " from ";
-    printStepId(out, children[0].get(), pfMap, pfAssumpMap);
-    out << "\n";
+    // print conclusion of scope's child if result is not "false". For now this
+    // is a redundant step because the proof can't end with "have" but rather
+    // with "show", and unless the conclusion of the scope is "false" the
+    // keyword used would have been "false".
+    if (children[0]->getResult() != d_false)
+    {
+      printOffset(out, offset);
+      out << "show thHolds ";
+      printTerm(out, children[0]->getArguments()[2]);
+      out << " from ";
+      printStepId(out, children[0].get(), pfMap, pfAssumpMap);
+      out << "\n";
+    }
     // now close. We have assumptions*2 parens
     std::stringstream cparens;
     for (size_t i = 4, size = args.size(); i < size; ++i)

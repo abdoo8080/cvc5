@@ -35,6 +35,8 @@ class LeanNodeConverter : public NodeConverter
   /** convert to internal */
   Node postConvert(Node n) override;
 
+  Node mkPrintableOp(Kind k);
+
   Node mkPrintableOp(Node n);
 
   /**

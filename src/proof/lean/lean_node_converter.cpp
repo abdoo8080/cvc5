@@ -35,13 +35,22 @@ LeanNodeConverter::~LeanNodeConverter() {}
 Node LeanNodeConverter::postConvert(Node n)
 {
   Kind k = n.getKind();
-  if (k == kind::SKOLEM)
+  NodeManager* nm = NodeManager::currentNM();
+  if (k == kind::SKOLEM || k == kind::BOOLEAN_TERM_VARIABLE)
   {
     Node wi = SkolemManager::getWitnessForm(n);
-    AlwaysAssert(!wi.isNull());
+    // true skolem with witness form, just convert that
+    if (!wi.isNull())
+    {
     return convert(wi);
+    }
+    // purification skolem, thus we need to build the fake choice term
+    AlwaysAssert(!SkolemManager::getOriginalForm(n).isNull());
+    return nm->mkNode(kind::SEXPR,
+                    mkInternalSymbol("choice"),
+                    nm->mkConst<Rational>(0),
+                    convert(SkolemManager::getOriginalForm(n)));
   }
-  NodeManager* nm = NodeManager::currentNM();
   size_t nChildren = n.getNumChildren();
   std::vector<Node> resChildren;
   switch (k)
@@ -252,6 +261,11 @@ Node LeanNodeConverter::mkPrintableOp(Node n)
   {
     return n;
   }
+  return mkPrintableOp(k);
+}
+
+Node LeanNodeConverter::mkPrintableOp(Kind k)
+{
   switch (k)
   {
     case kind::NOT:
@@ -280,7 +294,7 @@ Node LeanNodeConverter::mkPrintableOp(Node n)
     }
     case kind::ITE:
     {
-      return mkInternalSymbol("fteConst");
+      return mkInternalSymbol("fIteConst");
     }
     case kind::PLUS:
     {
@@ -298,12 +312,16 @@ Node LeanNodeConverter::mkPrintableOp(Node n)
     {
       return mkInternalSymbol("storeConst");
     }
+    case kind::WITNESS:
+    {
+      return mkInternalSymbol("choice");
+    }
     default:
     {
       Trace("test-lean") << "non-handled kind " << k << "\n";
     }
   }
-  return n;
+  return Node::null();
 }
 
 Node LeanNodeConverter::typeAsNode(TypeNode tn)

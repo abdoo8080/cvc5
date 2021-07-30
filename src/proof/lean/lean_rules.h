@@ -100,6 +100,8 @@ enum class LeanRule : uint32_t
   TRUE_ELIM,
   FALSE_INTRO,
   FALSE_ELIM,
+  // skolems
+  SKOLEM_INTRO,
   // arrays
   READ_OVER_WRITE,
   READ_OVER_WRITE_CONTRA,

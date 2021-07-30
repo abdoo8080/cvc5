@@ -62,6 +62,7 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::ARRAYS_READ_OVER_WRITE_CONTRA, LeanRule::READ_OVER_WRITE_CONTRA},
     {PfRule::ARRAYS_READ_OVER_WRITE_1, LeanRule::READ_OVER_WRITE_ID},
     {PfRule::ARRAYS_EXT, LeanRule::ARRAY_EXT},
+    {PfRule::SKOLEM_INTRO, LeanRule::SKOLEM_INTRO},
 };
 
 LeanProofPostprocess::LeanProofPostprocess(ProofNodeManager* pnm,
@@ -168,20 +169,25 @@ bool LeanProofPostprocessCallback::update(Node res,
                   *cdp);
       // add a lifting step from the OR above to the original conclusion. It
       // takes as arguments the number of assumptions and subproof conclusion
+      newArgs.clear();
+      newArgs.push_back(nm->mkConst<Rational>(args.size()));
+      if (!negation)
+      {
+        // only implication version takes tail
+        newArgs.push_back(d_lnc.convert(newResChildren.back()));
+      }
       addLeanStep(
           res,
           negation ? LeanRule::LIFT_N_OR_TO_NEG : LeanRule::LIFT_N_OR_TO_IMP,
           d_lnc.convert(res),
           false,
           {newRes},
-          {nm->mkConst<Rational>(args.size()),
-           d_lnc.convert(newResChildren.back())},
+          newArgs,
           *cdp);
       break;
     }
     // only the rule changes and can be described with a pure mapping
     case PfRule::EQ_RESOLVE:
-    case PfRule::NOT_OR_ELIM:
     case PfRule::NOT_IMPLIES_ELIM1:
     case PfRule::NOT_IMPLIES_ELIM2:
     case PfRule::TRUE_INTRO:
@@ -211,6 +217,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   *cdp);
       break;
     }
+    case PfRule::NOT_OR_ELIM:
     case PfRule::AND_ELIM:
     {
       addLeanStep(res,
@@ -263,6 +270,30 @@ bool LeanProofPostprocessCallback::update(Node res,
                   *cdp);
       break;
     }
+    // retrieve witness
+    case PfRule::SKOLEM_INTRO:
+    {
+      // The skolem is res[0], its original form is res[1]. Create a "fake"
+      // choice term with spurious variable with id 0
+      AlwaysAssert(res[1] == SkolemManager::getOriginalForm(res[0]));
+      Trace("test-lean") << "skolem " << res[0] << ", kind " << res[0].getKind()
+                         << ", has original form "
+                         << SkolemManager::getOriginalForm(res[1]) << "\n";
+      Node original = d_lnc.convert(res[1]);
+      Node witness = nm->mkNode(kind::SEXPR,
+                                d_lnc.mkPrintableOp(kind::WITNESS),
+                                nm->mkConst<Rational>(0),
+                                original);
+      // arguments will be the id of the variable and its sort
+      addLeanStep(res,
+                  s_pfRuleToLeanRule.at(id),
+                  d_lnc.convert(res),
+                  false,
+                  {},
+                  {},
+                  *cdp);
+      break;
+    }
     // create clausal conclusion and remove arguments
     case PfRule::CNF_EQUIV_POS1:
     case PfRule::CNF_EQUIV_POS2:
@@ -287,7 +318,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   s_pfRuleToLeanRule.at(id),
                   // TODO make a "convert clause" which takes the vector?
                   d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
-                  false,
+                  true,
                   children,
                   {},
                   *cdp);
@@ -797,32 +828,14 @@ LeanProofPostprocessClConnectCallback::LeanProofPostprocessClConnectCallback(
       nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::CL_ASSUME)),
       nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::TH_ASSUME)),
   };
-  // init clausal rules
-  d_clausalRules = {LeanRule::R0,
-                    LeanRule::R0_PARTIAL,
-                    LeanRule::R1,
-                    LeanRule::R1_PARTIAL,
-                    LeanRule::FACTORING,
-                    LeanRule::REORDER,
-                    LeanRule::CNF_AND_POS,
-                    LeanRule::CNF_AND_NEG,
-                    LeanRule::CNF_IMPLIES_POS,
-                    LeanRule::CNF_IMPLIES_NEG1,
-                    LeanRule::CNF_IMPLIES_NEG2,
-                    LeanRule::CNF_EQUIV_POS1,
-                    LeanRule::CNF_EQUIV_POS2,
-                    LeanRule::CNF_EQUIV_NEG1,
-                    LeanRule::CNF_EQUIV_NEG2,
-                    LeanRule::CNF_XOR_POS1,
-                    LeanRule::CNF_XOR_POS2,
-                    LeanRule::CNF_XOR_NEG1,
-                    LeanRule::CNF_XOR_NEG2,
-                    LeanRule::CNF_ITE_POS1,
-                    LeanRule::CNF_ITE_POS2,
-                    LeanRule::CNF_ITE_POS3,
-                    LeanRule::CNF_ITE_NEG1,
-                    LeanRule::CNF_ITE_NEG2,
-                    LeanRule::CNF_ITE_NEG3};
+  // Rules that take clauses
+  d_clausalPremisesRules = {LeanRule::R0,
+                            LeanRule::R0_PARTIAL,
+                            LeanRule::R1,
+                            LeanRule::R1_PARTIAL,
+                            LeanRule::FACTORING,
+                            LeanRule::REORDER,
+                            LeanRule::TRUST};
   d_resRules = {
       LeanRule::R0, LeanRule::R0_PARTIAL, LeanRule::R1, LeanRule::R1_PARTIAL};
 }
@@ -887,7 +900,7 @@ bool LeanProofPostprocessClConnectCallback::update(
   // Note that the update of cdp is relatively simple, as it suffices to add
   // steps to derive C1/C3 from t1/t3 with the suitable clausal conversion.,
   // afterwards redefining the derivation of C with R.
-  if (d_clausalRules.find(rule) != d_clausalRules.end())
+  if (d_clausalPremisesRules.find(rule) != d_clausalPremisesRules.end())
   {
     std::vector<Node> newChildren{children.begin(), children.end()};
     // Resolution rules need further processing to determine whether each
