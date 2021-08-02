@@ -75,6 +75,16 @@ Node LeanNodeConverter::postConvert(Node n)
       return n.getConst<bool>() ? mkInternalSymbol("top")
                                 : mkInternalSymbol("bot");
     }
+    case kind::CONST_RATIONAL:
+    {
+      TypeNode tn = n.getType();
+      AlwaysAssert(tn.isInteger()) << "Only support integer rationals\n";
+      resChildren.push_back(mkInternalSymbol("val"));
+      resChildren.push_back(
+          nm->mkNode(kind::SEXPR, mkInternalSymbol("value.integer"), n));
+      resChildren.push_back(typeAsNode(tn));
+      return nm->mkNode(kind::SEXPR, resChildren);
+    }
     // case kind::CONST_STRING:
     // {
     //   resChildren.push_back(mkInternalSymbol("mkVarChars"));
