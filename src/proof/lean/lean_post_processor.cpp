@@ -43,6 +43,8 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::FALSE_ELIM, LeanRule::FALSE_ELIM},
     {PfRule::EQUIV_ELIM1, LeanRule::EQUIV_ELIM1},
     {PfRule::EQUIV_ELIM2, LeanRule::EQUIV_ELIM2},
+    {PfRule::NOT_EQUIV_ELIM1, LeanRule::NOT_EQUIV_ELIM1},
+    {PfRule::NOT_EQUIV_ELIM2, LeanRule::NOT_EQUIV_ELIM2},
     {PfRule::CNF_EQUIV_POS1, LeanRule::CNF_EQUIV_POS1},
     {PfRule::CNF_EQUIV_POS2, LeanRule::CNF_EQUIV_POS2},
     {PfRule::CNF_EQUIV_NEG1, LeanRule::CNF_EQUIV_NEG1},
@@ -313,6 +315,8 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::NOT_AND:
     case PfRule::EQUIV_ELIM1:
     case PfRule::EQUIV_ELIM2:
+    case PfRule::NOT_EQUIV_ELIM1:
+    case PfRule::NOT_EQUIV_ELIM2:
     {
       std::vector<Node> resLits{res.begin(), res.end()};
       addLeanStep(res,
