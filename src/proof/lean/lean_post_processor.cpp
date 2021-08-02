@@ -45,6 +45,17 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::EQUIV_ELIM2, LeanRule::EQUIV_ELIM2},
     {PfRule::NOT_EQUIV_ELIM1, LeanRule::NOT_EQUIV_ELIM1},
     {PfRule::NOT_EQUIV_ELIM2, LeanRule::NOT_EQUIV_ELIM2},
+    {PfRule::XOR_ELIM1, LeanRule::XOR_ELIM1},
+    {PfRule::XOR_ELIM2, LeanRule::XOR_ELIM2},
+    {PfRule::NOT_XOR_ELIM1, LeanRule::NOT_XOR_ELIM1},
+    {PfRule::NOT_XOR_ELIM2, LeanRule::NOT_XOR_ELIM2},
+    {PfRule::ITE_ELIM1, LeanRule::ITE_ELIM1},
+    {PfRule::ITE_ELIM2, LeanRule::ITE_ELIM2},
+    {PfRule::NOT_ITE_ELIM1, LeanRule::NOT_ITE_ELIM1},
+    {PfRule::NOT_ITE_ELIM2, LeanRule::NOT_ITE_ELIM2},
+    {PfRule::CNF_IMPLIES_POS, LeanRule::CNF_IMPLIES_POS},
+    {PfRule::CNF_IMPLIES_NEG1, LeanRule::CNF_IMPLIES_NEG1},
+    {PfRule::CNF_IMPLIES_NEG2, LeanRule::CNF_IMPLIES_NEG2},
     {PfRule::CNF_EQUIV_POS1, LeanRule::CNF_EQUIV_POS1},
     {PfRule::CNF_EQUIV_POS2, LeanRule::CNF_EQUIV_POS2},
     {PfRule::CNF_EQUIV_NEG1, LeanRule::CNF_EQUIV_NEG1},
@@ -297,7 +308,18 @@ bool LeanProofPostprocessCallback::update(Node res,
                   *cdp);
       break;
     }
+    case PfRule::REMOVE_TERM_FORMULA_AXIOM:
+    {
+      AlwaysAssert(res.getKind() == kind::ITE)
+          << "Only support removal of ITEs\n";
+      addLeanStep(
+          res, LeanRule::ITE_INTRO, d_lnc.convert(res), false, {}, {}, *cdp);
+      break;
+    }
     // create clausal conclusion and remove arguments
+    case PfRule::CNF_IMPLIES_POS:
+    case PfRule::CNF_IMPLIES_NEG1:
+    case PfRule::CNF_IMPLIES_NEG2:
     case PfRule::CNF_EQUIV_POS1:
     case PfRule::CNF_EQUIV_POS2:
     case PfRule::CNF_EQUIV_NEG1:
@@ -317,6 +339,14 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::EQUIV_ELIM2:
     case PfRule::NOT_EQUIV_ELIM1:
     case PfRule::NOT_EQUIV_ELIM2:
+    case PfRule::XOR_ELIM1:
+    case PfRule::XOR_ELIM2:
+    case PfRule::NOT_XOR_ELIM1:
+    case PfRule::NOT_XOR_ELIM2:
+    case PfRule::ITE_ELIM1:
+    case PfRule::ITE_ELIM2:
+    case PfRule::NOT_ITE_ELIM1:
+    case PfRule::NOT_ITE_ELIM2:
     {
       std::vector<Node> resLits{res.begin(), res.end()};
       addLeanStep(res,
@@ -721,8 +751,9 @@ bool LeanProofPostprocessCallback::update(Node res,
         {
           if (children[0][i] == resLit)
           {
-            pos.push_back(nm->mkConst<Rational>(i));
-            break;
+            // we force the naturals to be internal symbols so that they are not
+            // converted when we build the final sexpression
+            pos.push_back(d_lnc.mkInternalSymbol(nm->mkConst<Rational>(i)));
           }
         }
       }
@@ -768,8 +799,9 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(nm->mkNode(kind::SEXPR, res[0], res[1])),
                   true,
                   children,
-                  {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs)),
-                   d_lnc.convert(args[1])},
+                  // don't convert second argument since naturals should be
+                  // printed as is
+                  {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs)), args[1]},
                   *cdp);
       break;
     }
@@ -795,6 +827,8 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
                   true,
                   children,
+                  // don't convert second argument since naturals should be
+                  // printed as is
                   {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs))},
                   *cdp);
       break;
@@ -808,7 +842,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   true,
                   children,
                   {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs)),
-                   d_lnc.convert(args[1])},
+                   args[1]},
                   *cdp);
       break;
     }

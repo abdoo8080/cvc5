@@ -96,6 +96,13 @@ void LeanPrinter::cleanSymbols(std::string& s)
     s.replace(startPos, 11, "");
     s.replace(startPos + 1, 1, "");
   }
+  // also account for cases of like numbers which do not get wrapped if the prefix was used
+  startPos = 0;
+  while ((startPos = s.find("__LEAN_TMP", startPos)) != std::string::npos)
+  {
+    // stuff is "__LEAN_TMP$WHATICARE", so just kill prefix
+    s.replace(startPos, 10, "");
+  }
   // also kill trailing spaces after "[" and before "," or "]"
   startPos = 0;
   while ((startPos = s.find("[ ", startPos)) != std::string::npos)

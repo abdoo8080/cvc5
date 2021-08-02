@@ -104,6 +104,7 @@ const char* toString(LeanRule id)
     case LeanRule::FALSE_ELIM: return "falseElim";
 
     case LeanRule::SKOLEM_INTRO: return "skolemIntro";
+    case LeanRule::ITE_INTRO: return "iteIntro";
 
     case LeanRule::READ_OVER_WRITE: return "readOverWrite";
     case LeanRule::READ_OVER_WRITE_CONTRA: return "readOverWriteContra";

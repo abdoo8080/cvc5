@@ -409,5 +409,17 @@ Node LeanNodeConverter::mkInternalSymbol(const std::string& name)
   return sym;
 }
 
+Node LeanNodeConverter::mkInternalSymbol(TNode n)
+{
+  std::stringstream ss;
+  if (n.getKind() == kind::CONST_RATIONAL)
+  {
+    ss << "__LEAN_TMP";
+  }
+  n.toStream(ss, -1, 0, language::output::LANG_SMTLIB_V2_6);
+  return mkInternalSymbol(ss.str());
+}
+
+
 }  // namespace proof
 }  // namespace cvc5

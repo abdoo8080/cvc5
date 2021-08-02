@@ -44,6 +44,8 @@ class LeanNodeConverter : public NodeConverter
    * that has a distinguished status so that it is *not* printed as (bvar ...).
    */
   Node mkInternalSymbol(const std::string& name);
+  /** As above but uses the stream of n to make the symbol. */
+  Node mkInternalSymbol(TNode n);
 
   /** Type as node */
   Node typeAsNode(TypeNode tn);
