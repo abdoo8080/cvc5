@@ -42,14 +42,16 @@ Node LeanNodeConverter::postConvert(Node n)
     // true skolem with witness form, just convert that
     if (!wi.isNull())
     {
-    return convert(wi);
+      Trace("test-lean") << "LeanNodeConverter::postConvert: skolem " << n
+                         << " has witness form " << wi << "\n";
+      return convert(wi);
     }
     // purification skolem, thus we need to build the fake choice term
     AlwaysAssert(!SkolemManager::getOriginalForm(n).isNull());
     return nm->mkNode(kind::SEXPR,
-                    mkInternalSymbol("choice"),
-                    nm->mkConst<Rational>(0),
-                    convert(SkolemManager::getOriginalForm(n)));
+                      mkInternalSymbol("choice"),
+                      nm->mkConst<Rational>(0),
+                      convert(SkolemManager::getOriginalForm(n)));
   }
   size_t nChildren = n.getNumChildren();
   std::vector<Node> resChildren;
@@ -88,8 +90,14 @@ Node LeanNodeConverter::postConvert(Node n)
     case kind::WITNESS:
     {
       resChildren.push_back(mkInternalSymbol("choice"));
-      // the variable id
-      resChildren.push_back(nm->mkConst<Rational>(n[0][0].getId()));
+      // the variables in the bound variable list will have been converted
+      // already, since this is a post-visit, to (SEXPR "const" id _), so to get
+      // the id we need to go to n[0][0][1], i.e. the id in the first "variable"
+      // of the variable list
+      AlwaysAssert(n[0].getKind() == kind::BOUND_VAR_LIST
+                   && n[0][0].getKind() == kind::SEXPR
+                   && n[0][0].getNumChildren() == 3);
+      resChildren.push_back(n[0][0][1]);
       // convert the body
       resChildren.push_back(convert(n[1]));
       return nm->mkNode(kind::SEXPR, resChildren);

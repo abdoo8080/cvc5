@@ -256,9 +256,10 @@ bool LeanProofPostprocessCallback::update(Node res,
     {
       // The skolem is res[0][0][1]
       Node k = res[0][0][1];
-      Trace("test-lean") << "skolem " << k << " has witness form "
-                         << SkolemManager::getWitnessForm(k) << "\n";
       Node var = SkolemManager::getWitnessForm(k)[0][0];
+      Trace("test-lean") << "skolem " << k << " has witness form "
+                         << SkolemManager::getWitnessForm(k) << ", its ID is "
+                         << var.getId() << "\n";
       // arguments will be the id of the variable and its sort
       addLeanStep(res,
                   s_pfRuleToLeanRule.at(id),
