@@ -23,6 +23,7 @@
 #include "smt/smt_statistics_registry.h"
 #include "theory/arith/arith_utilities.h"
 #include "theory/builtin/proof_checker.h"
+#include "theory/bv/bitblast/proof_bitblaster.h"
 #include "theory/rewriter.h"
 #include "theory/theory.h"
 #include "util/rational.h"
@@ -36,8 +37,7 @@ namespace smt {
 ProofPostprocessCallback::ProofPostprocessCallback(ProofNodeManager* pnm,
                                                    SmtEngine* smte,
                                                    ProofGenerator* pppg,
-
-                                                   theory::RewriteDb* rdb,
+                                                   rewriter::RewriteDb* rdb,
                                                    bool updateScopedAssumptions)
     : d_pnm(pnm),
       d_smte(smte),
@@ -951,6 +951,7 @@ Node ProofPostprocessCallback::expandMacros(PfRule id,
   {
     // get the kind of rewrite
     MethodId idr = MethodId::RW_REWRITE;
+    TheoryId theoryId = Theory::theoryOf(args[0]);
     if (args.size() >= 2)
     {
       getMethodId(args[1], idr);
@@ -977,7 +978,6 @@ Node ProofPostprocessCallback::expandMacros(PfRule id,
         {
           // update to THEORY_REWRITE with idr
           Assert(args.size() >= 1);
-          TheoryId theoryId = Theory::theoryOf(args[0].getType());
           Node tid = builtin::BuiltinProofRuleChecker::mkTheoryIdNode(theoryId);
           cdp->addStep(eq, PfRule::THEORY_REWRITE, {}, {eq, tid, args[1]});
         }
@@ -1003,8 +1003,20 @@ Node ProofPostprocessCallback::expandMacros(PfRule id,
     }
     else
     {
-      // don't know how to eliminate
-      return Node::null();
+      // try to reconstruct as a standalone rewrite
+      std::vector<Node> targs;
+      targs.push_back(eq);
+      targs.push_back(
+          builtin::BuiltinProofRuleChecker::mkTheoryIdNode(theoryId));
+      // in this case, must be a non-standard rewrite kind
+      Assert(args.size() >= 2);
+      targs.push_back(args[1]);
+      Node eqp = expandMacros(PfRule::THEORY_REWRITE, {}, targs, cdp);
+      if (eqp.isNull())
+      {
+        // don't know how to eliminate
+        return Node::null();
+      }
     }
     if (args[0] == ret)
     {
@@ -1083,6 +1095,16 @@ Node ProofPostprocessCallback::expandMacros(PfRule id,
     Debug("macro::arith") << "Expansion done. Proved: " << sumBounds
                           << std::endl;
     return sumBounds;
+  }
+  else if (id == PfRule::BV_BITBLAST)
+  {
+    bv::BBProof bb(nullptr, d_pnm, true);
+    Node eq = args[0];
+    Assert(eq.getKind() == EQUAL);
+    bb.bbAtom(eq[0]);
+    Node bbAtom = bb.getStoredBBAtom(eq[0]);
+    bb.getProofGenerator()->addProofTo(eq[0].eqNode(bbAtom), cdp);
+    return eq;
   }
 
   // TRUST, PREPROCESS, THEORY_LEMMA, THEORY_PREPROCESS?
@@ -1175,9 +1197,10 @@ bool ProofPostprocessCallback::addToTransChildren(Node eq,
 ProofPostprocessFinalCallback::ProofPostprocessFinalCallback(
     ProofNodeManager* pnm)
     : d_ruleCount(smtStatisticsRegistry().registerHistogram<PfRule>(
-        "finalProof::ruleCount")),
-     d_dslRuleCount(smtStatisticsRegistry().registerHistogram<rewriter::DslPfRule>(
-        "finalProof::dslRuleCount")),
+          "finalProof::ruleCount")),
+      d_dslRuleCount(
+          smtStatisticsRegistry().registerHistogram<rewriter::DslPfRule>(
+              "finalProof::dslRuleCount")),
       d_totalRuleCount(
           smtStatisticsRegistry().registerInt("finalProof::totalRuleCount")),
       d_minPedanticLevel(
@@ -1222,11 +1245,11 @@ bool ProofPostprocessFinalCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
   // record stats for the rule
   d_ruleCount << r;
   // if a DSL rewrite, take DSL stat
-  if (r==PfRule::DSL_REWRITE)
+  if (r == PfRule::DSL_REWRITE)
   {
     const std::vector<Node>& args = pn->getArguments();
     rewriter::DslPfRule di;
-    if (theory::getDslPfRule(args[0], di))
+    if (rewriter::getDslPfRule(args[0], di))
     {
       d_dslRuleCount << di;
     }
@@ -1242,8 +1265,8 @@ bool ProofPostprocessFinalCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
       Node eq = args[0];
       TheoryId tid = THEORY_BUILTIN;
       builtin::BuiltinProofRuleChecker::getTheoryId(args[1], tid);
-      Trace("final-pf-hole")
-          << "hole " << r << " " << tid << " : " << eq << std::endl;
+      Trace("final-pf-hole") << "hole " << r << " " << tid << " : " << eq[0]
+                             << " ---> " << eq[1] << std::endl;
     }
   }
   return false;
@@ -1262,12 +1285,12 @@ bool ProofPostprocessFinalCallback::wasPedanticFailure(std::ostream& out) const
 ProofPostproccess::ProofPostproccess(ProofNodeManager* pnm,
                                      SmtEngine* smte,
                                      ProofGenerator* pppg,
-                                     theory::RewriteDb* rdb,
+                                     rewriter::RewriteDb* rdb,
                                      bool updateScopedAssumptions)
     : d_pnm(pnm),
       d_cb(pnm, smte, pppg, rdb, updateScopedAssumptions),
       // the update merges subproofs
-      d_updater(d_pnm, d_cb, true),
+      d_updater(d_pnm, d_cb, options::proofPpMerge()),
       d_finalCb(pnm),
       d_finalizer(d_pnm, d_finalCb)
 {

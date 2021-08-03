@@ -33,6 +33,8 @@ void QuantifiersProofRuleChecker::registerTo(ProofChecker* pc)
   pc->registerChecker(PfRule::SKOLEMIZE, this);
   pc->registerChecker(PfRule::INSTANTIATE, this);
   pc->registerChecker(PfRule::ALPHA_EQUIV, this);
+  // trusted rules
+  pc->registerTrustedChecker(PfRule::QUANTIFIERS_PREPROCESS, this, 3);
 }
 
 Node QuantifiersProofRuleChecker::checkInternal(
@@ -101,15 +103,16 @@ Node QuantifiersProofRuleChecker::checkInternal(
   else if (id == PfRule::INSTANTIATE)
   {
     Assert(children.size() == 1);
+    // note we may have more arguments than just the term vector
     if (children[0].getKind() != FORALL
-        || args.size() != children[0][0].getNumChildren())
+        || args.size() < children[0][0].getNumChildren())
     {
       return Node::null();
     }
     Node body = children[0][1];
     std::vector<Node> vars;
     std::vector<Node> subs;
-    for (unsigned i = 0, nargs = args.size(); i < nargs; i++)
+    for (size_t i = 0, nc = children[0][0].getNumChildren(); i < nc; i++)
     {
       vars.push_back(children[0][0][i]);
       subs.push_back(args[i]);
@@ -118,7 +121,7 @@ Node QuantifiersProofRuleChecker::checkInternal(
         body.substitute(vars.begin(), vars.end(), subs.begin(), subs.end());
     return inst;
   }
-  if (id == PfRule::ALPHA_EQUIV)
+  else if (id == PfRule::ALPHA_EQUIV)
   {
     Assert(children.empty());
     if (args[0].getKind() != kind::FORALL
@@ -133,6 +136,12 @@ Node QuantifiersProofRuleChecker::checkInternal(
         vars.begin(), vars.end(), newVars.begin(), newVars.end());
     return args[0].eqNode(nm->mkNode(
         kind::FORALL, nm->mkNode(kind::BOUND_VAR_LIST, newVars), renamedBody));
+  }
+  else if (id == PfRule::QUANTIFIERS_PREPROCESS)
+  {
+    Assert(!args.empty());
+    Assert(args[0].getType().isBoolean());
+    return args[0];
   }
 
   // no rule

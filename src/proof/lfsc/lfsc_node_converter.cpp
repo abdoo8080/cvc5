@@ -352,6 +352,21 @@ Node LfscNodeConverter::postConvert(Node n)
     // FIXME
     return n;
   }
+  else if (k == BITVECTOR_BB_TERM)
+  {
+    TypeNode btn = nm->booleanType();
+    // (bbT t1 ... tn) is (bbT t1 (bbT t2 ... (bbT tn emptybv)))
+    // where notice that each bbT has a different type
+    Node curr = getNullTerminator(k, tn);
+    for (size_t i = 0, nchild = n.getNumChildren(); i < nchild; ++i)
+    {
+      TypeNode bvt = nm->mkBitVectorType(i + 1);
+      TypeNode ftype = nm->mkFunctionType({btn, curr.getType()}, bvt);
+      Node bbt = getSymbolInternal(k, ftype, "bbT");
+      curr = nm->mkNode(APPLY_UF, bbt, n[nchild - (i + 1)], curr);
+    }
+    return curr;
+  }
   else if (k == SEP_NIL)
   {
     Node tnn = typeAsNode(convertType(tn));
@@ -688,6 +703,7 @@ Node LfscNodeConverter::getSymbolInternal(Kind k,
     return it->second;
   }
   Node sym = mkInternalSymbol(name, tn);
+  d_symbolToBuiltinKind[sym] = k;
   d_symbolsMap[key] = sym;
   return sym;
 }
@@ -815,6 +831,7 @@ Node LfscNodeConverter::getNullTerminator(Kind k, TypeNode tn)
     case BITVECTOR_MULT:
       nullTerm = theory::bv::utils::mkOne(tn.getBitVectorSize());
       break;
+    case BITVECTOR_BB_TERM:
     case BITVECTOR_CONCAT:
     {
       // the null terminator of bitvector concat is a dummy variable of
@@ -829,6 +846,16 @@ Node LfscNodeConverter::getNullTerminator(Kind k, TypeNode tn)
       break;
   }
   return nullTerm;
+}
+
+Kind LfscNodeConverter::getBuiltinKindForInternalSymbol(Node op) const
+{
+  std::map<Node, Kind>::const_iterator it = d_symbolToBuiltinKind.find(op);
+  if (it != d_symbolToBuiltinKind.end())
+  {
+    return it->second;
+  }
+  return UNDEFINED_KIND;
 }
 
 Node LfscNodeConverter::getOperatorOfTerm(Node n, bool macroApply)
@@ -995,7 +1022,10 @@ Node LfscNodeConverter::getOperatorOfTerm(Node n, bool macroApply)
   {
     opName << "_total";
   }
-  return getSymbolInternal(k, ftype, opName.str());
+  Node ret = getSymbolInternal(k, ftype, opName.str());
+  Trace("lfsc-term-process-debug2")
+      << "...return (simple) " << ret << std::endl;
+  return ret;
 }
 
 Node LfscNodeConverter::getOperatorOfClosure(Node q, bool macroApply)

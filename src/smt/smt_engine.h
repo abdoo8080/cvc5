@@ -1,6 +1,6 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Morgan Deters, Aina Niemetz
+
  *
  * This file is part of the cvc5 project.
  *
@@ -366,6 +366,11 @@ class CVC5_EXPORT SmtEngine
    * @throw TypeCheckingException, LogicException, UnsafeInterruptException
    */
   Result assertFormula(const Node& formula, bool inUnsatCore = true);
+
+  /**
+   * Reduce an unsatisfiable core to make it minimal.
+   */
+  std::vector<Node> reduceUnsatCore(const std::vector<Node>& core);
 
   /**
    * Check if a given (set of) expression(s) is entailed with respect to the
@@ -807,12 +812,6 @@ class CVC5_EXPORT SmtEngine
 
   /**
    * Print statistics from the statistics registry in the env object owned by
-   * this SmtEngine.
-   */
-  void printStatistics(std::ostream& out) const;
-
-  /**
-   * Print statistics from the statistics registry in the env object owned by
    * this SmtEngine. Safe to use in a signal handler.
    */
   void printStatisticsSafe(int fd) const;
@@ -823,7 +822,7 @@ class CVC5_EXPORT SmtEngine
    * time. Internally prints the diff and then stores a snapshot for the next
    * call.
    */
-  void printStatisticsDiff(std::ostream&) const;
+  void printStatisticsDiff() const;
 
   /**
    * Set user attribute.

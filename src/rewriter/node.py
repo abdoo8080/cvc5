@@ -71,15 +71,18 @@ class Op(Enum):
     # Arithmetic
     ###########################################################################
 
+    UMINUS = auto()
     PLUS = auto()
     MINUS = auto()
     MULT = auto()
+    INT_DIV = auto()
+    DIV = auto()
+    MOD = auto()
+    ABS = auto()
     LT = auto()
     GT = auto()
     LEQ = auto()
     GEQ = auto()
-    LEFT_SHIFT = auto()
-    MOD = auto()
 
     ###########################################################################
     # Theory-independent
@@ -94,10 +97,45 @@ class Op(Enum):
 
     CONST_STRING = auto()
     STRING_CONCAT = auto()
+    STRING_IN_REGEXP = auto()
     STRING_LENGTH = auto()
 
     STRING_SUBSTR = auto()
+    STRING_UPDATE = auto()
+    STRING_AT = auto()
+    STRING_CONTAINS = auto()
+    STRING_LT = auto()
+    STRING_LEQ = auto()
+    STRING_INDEXOF = auto()
+    STRING_INDEXOF_RE = auto()
     STRING_REPLACE = auto()
+    STRING_REPLACE_ALL = auto()
+    STRING_REPLACE_RE = auto()
+    STRING_REPLACE_RE_ALL = auto()
+    STRING_PREFIX = auto()
+    STRING_SUFFIX = auto()
+    STRING_IS_DIGIT = auto()
+    STRING_ITOS = auto()
+    STRING_STOI = auto()
+    STRING_TO_CODE = auto()
+    STRING_FROM_CODE = auto()
+    STRING_TOLOWER = auto()
+    STRING_TOUPPER = auto()
+    STRING_REV = auto()
+
+    STRING_TO_REGEXP = auto()
+    REGEXP_CONCAT = auto()
+    REGEXP_UNION = auto()
+    REGEXP_INTER = auto()
+    REGEXP_DIFF = auto()
+    REGEXP_STAR = auto()
+    REGEXP_PLUS = auto()
+    REGEXP_OPT = auto()
+    REGEXP_RANGE = auto()
+    REGEXP_COMPLEMENT = auto()
+
+    REGEXP_EMPTY = auto()
+    REGEXP_SIGMA = auto()
 
 
 class BaseSort(Enum):
@@ -106,6 +144,7 @@ class BaseSort(Enum):
     Int = auto()
     Real = auto()
     String = auto()
+    RegLan = auto()
 
 
 class Node:
@@ -114,6 +153,9 @@ class Node:
         self.children = children
         self.sort = sort
         self.name = None
+
+    def __getitem__(self, i):
+        return self.children[i]
 
     def __eq__(self, other):
         if len(self.children) != len(other.children):
@@ -127,22 +169,32 @@ class Node:
 
 
 class Sort(Node):
-    def __init__(self, base, args):
-        super().__init__(args)
+    def __init__(self, base, args=None, is_list=False, is_const=False):
+        super().__init__(args if args else [])
         self.base = base
+        self.is_list = is_list
+        self.is_const = is_const
 
     def __eq__(self, other):
-        return self.base == other.base and super().__eq__(other)
+        return self.base == other.base and self.is_list == other.is_list and super(
+        ).__eq__(other)
 
     def __hash__(self):
-        return hash((self.base, tupe(self.children)))
+        return hash((self.base, self.is_list, tupe(self.children)))
 
     def __repr__(self):
+        rep = ''
         if len(self.children) == 0:
-            return '{}'.format(self.base)
+            rep = '{}'.format(self.base)
         else:
-            return '({} {})'.format(
+            rep = '({} {})'.format(
                 self.base, ' '.join(str(child) for child in self.children))
+        if self.is_list:
+            rep = rep + ' :list'
+        return rep
+
+    def is_int(self):
+        return self.base == BaseSort.Int
 
 
 class Var(Node):
@@ -182,7 +234,7 @@ class CInt(Node):
         self.val = val
 
     def __eq__(self, other):
-        return self.val == other.val
+        return isinstance(other, CInt) and self.val == other.val
 
     def __hash__(self):
         return hash(self.val)
@@ -212,8 +264,8 @@ class App(Node):
         self.op = op
 
     def __eq__(self, other):
-        return isinstance(other,
-                          Fn) and self.op == other.op and super().__eq__(other)
+        return isinstance(
+            other, App) and self.op == other.op and super().__eq__(other)
 
     def __hash__(self):
         return hash((self.op, tuple(self.children)))

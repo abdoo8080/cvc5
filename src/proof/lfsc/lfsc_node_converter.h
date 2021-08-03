@@ -39,6 +39,8 @@ class LfscNodeConverter : public NodeConverter
   /**
    * Get the null terminator for kind k and type tn. The type tn can be
    * omitted if applications of kind k do not have parametric type.
+   *
+   * The returned null terminator is *not* converted to internal form.
    */
   Node getNullTerminator(Kind k, TypeNode tn = TypeNode::null());
   /**
@@ -60,6 +62,10 @@ class LfscNodeConverter : public NodeConverter
    * returned variable is always fresh.
    */
   Node mkInternalSymbol(const std::string& name, TypeNode tn);
+  /**
+   * Get builtin kind for internal symbol op
+   */
+  Kind getBuiltinKindForInternalSymbol(Node op) const;
 
   /** get name for user name */
   static std::string getNameForUserName(const std::string& name);
@@ -87,6 +93,8 @@ class LfscNodeConverter : public NodeConverter
   std::map<std::tuple<Kind, TypeNode, std::string>, Node> d_symbolsMap;
   /** the set of all internally generated symbols */
   std::unordered_set<Node> d_symbols;
+  /** symbols to builtin kinds*/
+  std::map<Node, Kind> d_symbolToBuiltinKind;
   /** arrow type constructor */
   TypeNode d_arrow;
   /** the type of LFSC sorts, which can appear in terms */

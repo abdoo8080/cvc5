@@ -75,7 +75,7 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
     opts.driver.dumpUnsatCores = true;
   }
   if (options::checkUnsatCores() || options::dumpUnsatCores()
-      || options::unsatAssumptions()
+      || options::unsatAssumptions() || options::minimalUnsatCores()
       || options::unsatCoresMode() != options::UnsatCoresMode::OFF)
   {
     opts.smt.unsatCores = true;
@@ -302,14 +302,11 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
       Trace("smt") << "turning on quantifier logic, for strings-exp"
                    << std::endl;
     }
-    // We require bounded quantifier handling.
-    if (!opts.quantifiers.fmfBoundWasSetByUser)
-    {
-      opts.quantifiers.fmfBound = true;
-      Trace("smt") << "turning on fmf-bound, for strings-exp" << std::endl;
-    }
     // Note we allow E-matching by default to support combinations of sequences
-    // and quantifiers.
+    // and quantifiers. We also do not enable fmfBound here, which would
+    // enable bounded integer instantiation for *all* quantifiers. Instead,
+    // the bounded integers module will always process internally generated
+    // quantifiers (those marked with InternalQuantAttribute).
   }
   // whether we must disable proofs
   bool disableProofs = false;
@@ -421,6 +418,25 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
     opts.smt.produceAssertions = true;
   }
 
+  if (options::bvAssertInput() && options::produceProofs())
+  {
+    Notice() << "Disabling bv-assert-input since it is incompatible with proofs."
+             << std::endl;
+    opts.bv.bvAssertInput = false;
+  }
+
+  // If proofs are required and the user did not specify a specific BV solver,
+  // we make sure to use the proof producing BITBLAST_INTERNAL solver.
+  if (options::produceProofs()
+      && options::bvSolver() != options::BVSolver::BITBLAST_INTERNAL
+      && !opts.bv.bvSolverWasSetByUser
+      && opts.bv.bvSatSolver == options::SatSolverMode::MINISAT)
+  {
+    Notice() << "Forcing internal bit-vector solver due to proof production."
+             << std::endl;
+    opts.bv.bvSolver = options::BVSolver::BITBLAST_INTERNAL;
+  }
+
   // whether we want to force safe unsat cores, i.e., if we are in the default
   // ASSUMPTIONS mode, since other ones are experimental
   bool safeUnsatCores =
@@ -507,15 +523,27 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
       opts.smt.simplificationMode = options::SimplificationMode::NONE;
     }
 
+    if (options::learnedRewrite())
+    {
+      if (opts.smt.learnedRewriteWasSetByUser)
+      {
+        throw OptionException(
+            "learned rewrites not supported with unsat cores");
+      }
+      Notice() << "SmtEngine: turning off learned rewrites to support "
+                  "unsat cores\n";
+      opts.smt.learnedRewrite = false;
+    }
+
     if (options::pbRewrites())
     {
       if (opts.arith.pbRewritesWasSetByUser)
       {
         throw OptionException(
-            "pseudoboolean rewrites not supported with old unsat cores");
+            "pseudoboolean rewrites not supported with unsat cores");
       }
       Notice() << "SmtEngine: turning off pseudoboolean rewrites to support "
-                  "old unsat cores\n";
+                  "unsat cores\n";
       opts.arith.pbRewrites = false;
     }
 
@@ -523,10 +551,9 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
     {
       if (opts.smt.sortInferenceWasSetByUser)
       {
-        throw OptionException(
-            "sort inference not supported with old unsat cores");
+        throw OptionException("sort inference not supported with unsat cores");
       }
-      Notice() << "SmtEngine: turning off sort inference to support old unsat "
+      Notice() << "SmtEngine: turning off sort inference to support unsat "
                   "cores\n";
       opts.smt.sortInference = false;
     }
@@ -536,9 +563,9 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
       if (opts.quantifiers.preSkolemQuantWasSetByUser)
       {
         throw OptionException(
-            "pre-skolemization not supported with old unsat cores");
+            "pre-skolemization not supported with unsat cores");
       }
-      Notice() << "SmtEngine: turning off pre-skolemization to support old "
+      Notice() << "SmtEngine: turning off pre-skolemization to support "
                   "unsat cores\n";
       opts.quantifiers.preSkolemQuant = false;
     }
@@ -547,9 +574,9 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
     {
       if (opts.bv.bitvectorToBoolWasSetByUser)
       {
-        throw OptionException("bv-to-bool not supported with old unsat cores");
+        throw OptionException("bv-to-bool not supported with unsat cores");
       }
-      Notice() << "SmtEngine: turning off bitvector-to-bool to support old "
+      Notice() << "SmtEngine: turning off bitvector-to-bool to support "
                   "unsat cores\n";
       opts.bv.bitvectorToBool = false;
     }
@@ -559,10 +586,9 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
       if (opts.bv.boolToBitvectorWasSetByUser)
       {
         throw OptionException(
-            "bool-to-bv != off not supported with old unsat cores");
+            "bool-to-bv != off not supported with unsat cores");
       }
-      Notice()
-          << "SmtEngine: turning off bool-to-bv to support old unsat cores\n";
+      Notice() << "SmtEngine: turning off bool-to-bv to support unsat cores\n";
       opts.bv.boolToBitvector = options::BoolToBVMode::OFF;
     }
 
@@ -570,11 +596,9 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
     {
       if (opts.bv.bvIntroducePow2WasSetByUser)
       {
-        throw OptionException(
-            "bv-intro-pow2 not supported with old unsat cores");
+        throw OptionException("bv-intro-pow2 not supported with unsat cores");
       }
-      Notice()
-          << "SmtEngine: turning off bv-intro-pow2 to support old unsat cores";
+      Notice() << "SmtEngine: turning off bv-intro-pow2 to support unsat cores";
       opts.bv.bvIntroducePow2 = false;
     }
 
@@ -583,10 +607,9 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
     {
       if (opts.smt.repeatSimpWasSetByUser)
       {
-        throw OptionException("repeat-simp not supported with old unsat cores");
+        throw OptionException("repeat-simp not supported with unsat cores");
       }
-      Notice()
-          << "SmtEngine: turning off repeat-simp to support old unsat cores\n";
+      Notice() << "SmtEngine: turning off repeat-simp to support unsat cores\n";
       opts.smt.repeatSimp = false;
     }
 
@@ -594,22 +617,21 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
     {
       if (opts.quantifiers.globalNegateWasSetByUser)
       {
-        throw OptionException(
-            "global-negate not supported with old unsat cores");
+        throw OptionException("global-negate not supported with unsat cores");
       }
-      Notice() << "SmtEngine: turning off global-negate to support old unsat "
+      Notice() << "SmtEngine: turning off global-negate to support unsat "
                   "cores\n";
       opts.quantifiers.globalNegate = false;
     }
 
     if (options::bitvectorAig())
     {
-      throw OptionException("bitblast-aig not supported with old unsat cores");
+      throw OptionException("bitblast-aig not supported with unsat cores");
     }
 
     if (options::doITESimp())
     {
-      throw OptionException("ITE simp not supported with old unsat cores");
+      throw OptionException("ITE simp not supported with unsat cores");
     }
   }
   else
@@ -963,10 +985,41 @@ void setDefaults(LogicInfo& logic, bool isInternalSubsolver)
                       ? true
                       : false);
 
-    Trace("smt") << "setting decision mode to " << decMode << std::endl;
     opts.decision.decisionMode = decMode;
-    opts.decision.decisionStopOnly = stoponly;
+    if (stoponly)
+    {
+      if (opts.decision.decisionMode == options::DecisionMode::JUSTIFICATION)
+      {
+        opts.decision.decisionMode = options::DecisionMode::STOPONLY;
+      }
+      else
+      {
+        Assert(opts.decision.decisionMode == options::DecisionMode::INTERNAL);
+      }
+    }
+    Trace("smt") << "setting decision mode to " << opts.decision.decisionMode
+                 << std::endl;
   }
+
+  // set up of central equality engine
+  if (opts.theory.eeMode == options::EqEngineMode::CENTRAL)
+  {
+    if (!opts.arith.arithEqSolverWasSetByUser)
+    {
+      // use the arithmetic equality solver by default
+      opts.arith.arithEqSolver = true;
+    }
+  }
+  if (opts.arith.arithEqSolver)
+  {
+    if (!opts.arith.arithCongManWasSetByUser)
+    {
+      // if we are using the arithmetic equality solver, do not use the
+      // arithmetic congruence manager by default
+      opts.arith.arithCongMan = false;
+    }
+  }
+
   if (options::incrementalSolving())
   {
     // disable modes not supported by incremental

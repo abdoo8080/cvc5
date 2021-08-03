@@ -10,22 +10,61 @@ from util import *
 
 def gen_kind(op):
     op_to_kind = {
+        Op.ITE: 'ITE',
         Op.NOT: 'NOT',
         Op.AND: 'AND',
         Op.OR: 'OR',
         Op.IMPLIES: 'IMPLIES',
         Op.EQ: 'EQUAL',
+        Op.UMINUS: 'UMINUS',
         Op.PLUS: 'PLUS',
         Op.MINUS: 'MINUS',
         Op.MULT: 'MULT',
+        Op.INT_DIV: 'INTS_DIVISION',
+        Op.DIV: 'DIVISION',
+        Op.MOD: 'INTS_MODULUS',
+        Op.ABS: 'ABS',
         Op.LT: 'LT',
         Op.GT: 'GT',
         Op.LEQ: 'LEQ',
         Op.GEQ: 'GEQ',
         Op.STRING_CONCAT: 'STRING_CONCAT',
+        Op.STRING_IN_REGEXP: 'STRING_IN_REGEXP',
         Op.STRING_LENGTH: 'STRING_LENGTH',
         Op.STRING_SUBSTR: 'STRING_SUBSTR',
+        Op.STRING_UPDATE: 'STRING_UPDATE',
+        Op.STRING_AT: 'STRING_CHARAT',
+        Op.STRING_CONTAINS: 'STRING_CONTAINS',
+        Op.STRING_LT: 'STRING_LT',
+        Op.STRING_LEQ: 'STRING_LEQ',
+        Op.STRING_INDEXOF: 'STRING_INDEXOF',
+        Op.STRING_INDEXOF_RE: 'STRING_INDEXOF_RE',
         Op.STRING_REPLACE: 'STRING_REPLACE',
+        Op.STRING_REPLACE_ALL: 'STRING_REPLACE_ALL',
+        Op.STRING_REPLACE_RE: 'STRING_REPLACE_RE',
+        Op.STRING_REPLACE_RE_ALL: 'STRING_REPLACE_RE_ALL',
+        Op.STRING_PREFIX: 'STRING_PREFIX',
+        Op.STRING_SUFFIX: 'STRING_SUFFIX',
+        Op.STRING_IS_DIGIT: 'STRING_IS_DIGIT',
+        Op.STRING_ITOS: 'STRING_ITOS',
+        Op.STRING_STOI: 'STRING_STOI',
+        Op.STRING_TO_CODE: 'STRING_TO_CODE',
+        Op.STRING_FROM_CODE: 'STRING_FROM_CODE',
+        Op.STRING_TOLOWER: 'STRING_TOLOWER',
+        Op.STRING_TOUPPER: 'STRING_TOUPPER',
+        Op.STRING_REV: 'STRING_REV',
+        Op.STRING_TO_REGEXP: 'STRING_TO_REGEXP',
+        Op.REGEXP_CONCAT: 'REGEXP_CONCAT',
+        Op.REGEXP_UNION: 'REGEXP_UNION',
+        Op.REGEXP_INTER: 'REGEXP_INTER',
+        Op.REGEXP_DIFF: 'REGEXP_DIFF',
+        Op.REGEXP_STAR: 'REGEXP_STAR',
+        Op.REGEXP_PLUS: 'REGEXP_PLUS',
+        Op.REGEXP_OPT: 'REGEXP_OPT',
+        Op.REGEXP_RANGE: 'REGEXP_RANGE',
+        Op.REGEXP_COMPLEMENT: 'REGEXP_COMPLEMENT',
+        Op.REGEXP_EMPTY: 'REGEXP_EMPTY',
+        Op.REGEXP_SIGMA: 'REGEXP_SIGMA',
     }
     return op_to_kind[op]
 
@@ -40,34 +79,51 @@ def gen_mk_skolem(name, sort):
         sort_code = 'nm->realType()'
     elif sort.base == BaseSort.String:
         sort_code = 'nm->stringType()'
+    elif sort.base == BaseSort.String:
+        sort_code = 'nm->stringType()'
+    elif sort.base == BaseSort.RegLan:
+        sort_code = 'nm->regExpType()'
     else:
         die(f'Cannot generate code for {sort}')
-    return f'Node {name} = nm->mkBoundVar("{name}", {sort_code});'
+    res = f'Node {name} = nm->mkBoundVar("{name}", {sort_code});'
+    if sort.is_list:
+        res += f'expr::markListVar({name});'
+    return res
+
+
+def gen_mk_const(expr):
+    if isinstance(expr, CBool):
+        return 'true' if expr.val else 'false'
+    elif isinstance(expr, CString):
+        return f'String("{expr.val}")'
+    elif isinstance(expr, CInt):
+        return f'Rational({expr.val})'
+    elif isinstance(expr, App):
+        args = [gen_mk_const(child) for child in expr.children]
+        if expr.op == Op.UMINUS:
+            return f'-({args[0]})'
+    die(f'Cannot generate constant for {expr}')
 
 
 def gen_mk_node(defns, expr):
     if defns is not None and expr in defns:
         return defns[expr]
 
-    if isinstance(expr, App):
-        args = ",".join(gen_mk_node(defns, child) for child in expr.children)
-        return f'nm->mkNode({gen_kind(expr.op)}, {args})'
-    elif isinstance(expr, CBool):
-        val_code = 'true' if expr.val else 'false'
-        return f'nm->mkConst({val_code})'
-    elif isinstance(expr, CString):
-        return f'nm->mkConst(String("{expr.val}"))'
-    elif isinstance(expr, CInt):
-        return f'nm->mkConst(Rational({expr.val}))'
+    elif expr.sort and expr.sort.is_const:
+        return f'nm->mkConst({gen_mk_const(expr)})'
     elif isinstance(expr, Var):
         return expr.name
+    elif isinstance(expr, App):
+        args = ",".join(gen_mk_node(defns, child) for child in expr.children)
+        return f'nm->mkNode({gen_kind(expr.op)}, {{ {args} }})'
     else:
         die(f'Cannot generate code for {expr}')
 
 
 def gen_rewrite_db_rule(defns, rule):
     fvs_list = ', '.join(bvar.name for bvar in rule.bvars)
-    return f'db.addRule(DslPfRule::{rule.get_enum()}, {{ {fvs_list} }}, {gen_mk_node(defns, rule.lhs)}, {gen_mk_node(defns, rule.rhs)}, {gen_mk_node(defns, rule.cond)});'
+    fixed_point_arg = 'true' if rule.is_fixed_point else 'false'
+    return f'db.addRule(DslPfRule::{rule.get_enum()}, {{ {fvs_list} }}, {gen_mk_node(defns, rule.lhs)}, {gen_mk_node(defns, rule.rhs)}, {gen_mk_node(defns, rule.cond)}, {fixed_point_arg});'
 
 
 class Rewrites:
@@ -77,9 +133,31 @@ class Rewrites:
         self.rules = rules
 
 
+def type_check(expr):
+    for child in expr.children:
+        type_check(child)
+
+    if isinstance(expr, CBool):
+        expr.sort = Sort(BaseSort.Bool, is_const=True)
+    elif isinstance(expr, CString):
+        expr.sort = Sort(BaseSort.String, is_const=True)
+    elif isinstance(expr, CInt):
+        expr.sort = Sort(BaseSort.Int, is_const=True)
+    elif isinstance(expr, App):
+        sort = None
+        if expr.op == Op.UMINUS:
+            sort = Sort(BaseSort.Int)
+
+        if sort:
+            sort.is_const = all(child.sort and child.sort.is_const
+                                for child in expr.children)
+            expr.sort = sort
+
+
 def validate_rule(rule):
+    # Check that all variables are matched with the left-hand side of the rule
     used_vars = set()
-    to_visit = [rule.cond, rule.lhs, rule.rhs]
+    to_visit = [rule.lhs]
     while to_visit:
         curr = to_visit.pop()
         if isinstance(curr, Var):
@@ -88,7 +166,26 @@ def validate_rule(rule):
 
     unused_vars = set(rule.bvars) - used_vars
     if unused_vars:
-        die(f'Variables {unused_vars} are unused in {rule.name}')
+        die(f'Variables {unused_vars} are not matched in {rule.name}')
+
+    # Check that list variables are always used within the same operators
+    var_to_op = dict()
+    to_visit = [rule.cond, rule.lhs, rule.rhs]
+    while to_visit:
+        curr = to_visit.pop()
+        if isinstance(curr, App):
+            for child in curr.children:
+                if isinstance(child, Var) and child.sort.is_list:
+                    if child in var_to_op and curr.op != var_to_op[child]:
+                        die(f'List variable {child.name} cannot be used in {curr.op} and {var_to_op[child]} simultaneously'
+                            )
+                    var_to_op[child] = curr.op
+        to_visit.extend(curr.children)
+
+    # Perform type checking
+    type_check(rule.lhs)
+    type_check(rule.rhs)
+    type_check(rule.cond)
 
 
 def gen_rewrite_db(args):

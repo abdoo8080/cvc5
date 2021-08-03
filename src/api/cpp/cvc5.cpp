@@ -135,6 +135,7 @@ const static std::unordered_map<Kind, cvc5::Kind> s_kinds{
     {PLUS, cvc5::Kind::PLUS},
     {MULT, cvc5::Kind::MULT},
     {IAND, cvc5::Kind::IAND},
+    {POW2, cvc5::Kind::POW2},
     {MINUS, cvc5::Kind::MINUS},
     {UMINUS, cvc5::Kind::UMINUS},
     {DIVISION, cvc5::Kind::DIVISION},
@@ -315,7 +316,7 @@ const static std::unordered_map<Kind, cvc5::Kind> s_kinds{
     {STRING_INDEXOF, cvc5::Kind::STRING_INDEXOF},
     {STRING_INDEXOF_RE, cvc5::Kind::STRING_INDEXOF_RE},
     {STRING_REPLACE, cvc5::Kind::STRING_REPLACE},
-    {STRING_REPLACE_ALL, cvc5::Kind::STRING_REPLACEALL},
+    {STRING_REPLACE_ALL, cvc5::Kind::STRING_REPLACE_ALL},
     {STRING_REPLACE_RE, cvc5::Kind::STRING_REPLACE_RE},
     {STRING_REPLACE_RE_ALL, cvc5::Kind::STRING_REPLACE_RE_ALL},
     {STRING_TOLOWER, cvc5::Kind::STRING_TOLOWER},
@@ -354,7 +355,7 @@ const static std::unordered_map<Kind, cvc5::Kind> s_kinds{
     {SEQ_CONTAINS, cvc5::Kind::STRING_CONTAINS},
     {SEQ_INDEXOF, cvc5::Kind::STRING_INDEXOF},
     {SEQ_REPLACE, cvc5::Kind::STRING_REPLACE},
-    {SEQ_REPLACE_ALL, cvc5::Kind::STRING_REPLACEALL},
+    {SEQ_REPLACE_ALL, cvc5::Kind::STRING_REPLACE_ALL},
     {SEQ_REV, cvc5::Kind::STRING_REV},
     {SEQ_PREFIX, cvc5::Kind::STRING_PREFIX},
     {SEQ_SUFFIX, cvc5::Kind::STRING_SUFFIX},
@@ -410,6 +411,7 @@ const static std::unordered_map<cvc5::Kind, Kind, cvc5::kind::KindHashFunction>
         {cvc5::Kind::PLUS, PLUS},
         {cvc5::Kind::MULT, MULT},
         {cvc5::Kind::IAND, IAND},
+        {cvc5::Kind::POW2, POW2},
         {cvc5::Kind::MINUS, MINUS},
         {cvc5::Kind::UMINUS, UMINUS},
         {cvc5::Kind::DIVISION, DIVISION},
@@ -568,6 +570,7 @@ const static std::unordered_map<cvc5::Kind, Kind, cvc5::kind::KindHashFunction>
         {cvc5::Kind::APPLY_UPDATER, APPLY_UPDATER},
         {cvc5::Kind::DT_SIZE, DT_SIZE},
         {cvc5::Kind::TUPLE_PROJECT, TUPLE_PROJECT},
+        {cvc5::Kind::TUPLE_PROJECT_OP, TUPLE_PROJECT},
         /* Separation Logic ------------------------------------------------ */
         {cvc5::Kind::SEP_NIL, SEP_NIL},
         {cvc5::Kind::SEP_EMP, SEP_EMP},
@@ -622,7 +625,7 @@ const static std::unordered_map<cvc5::Kind, Kind, cvc5::kind::KindHashFunction>
         {cvc5::Kind::STRING_INDEXOF, STRING_INDEXOF},
         {cvc5::Kind::STRING_INDEXOF_RE, STRING_INDEXOF_RE},
         {cvc5::Kind::STRING_REPLACE, STRING_REPLACE},
-        {cvc5::Kind::STRING_REPLACEALL, STRING_REPLACE_ALL},
+        {cvc5::Kind::STRING_REPLACE_ALL, STRING_REPLACE_ALL},
         {cvc5::Kind::STRING_REPLACE_RE, STRING_REPLACE_RE},
         {cvc5::Kind::STRING_REPLACE_RE_ALL, STRING_REPLACE_RE_ALL},
         {cvc5::Kind::STRING_TOLOWER, STRING_TOLOWER},
@@ -1863,6 +1866,14 @@ size_t Op::getNumIndices() const
 {
   CVC5_API_TRY_CATCH_BEGIN;
   CVC5_API_CHECK_NOT_NULL;
+  //////// all checks before this line
+  return getNumIndicesHelper();
+  ////////
+  CVC5_API_TRY_CATCH_END;
+}
+
+size_t Op::getNumIndicesHelper() const
+{
   if (!isIndexedHelper())
   {
     return 0;
@@ -1896,9 +1907,185 @@ size_t Op::getNumIndices() const
       break;
     default: CVC5_API_CHECK(false) << "Unhandled kind " << kindToString(k);
   }
+  return size;
+}
+
+Term Op::operator[](size_t index) const
+{
+  return getIndexHelper(index);
+}
+
+Term Op::getIndexHelper(size_t index) const
+{
+  CVC5_API_TRY_CATCH_BEGIN;
+  CVC5_API_CHECK_NOT_NULL;
+  CVC5_API_CHECK(!d_node->isNull())
+      << "Expecting a non-null internal expression. This Op is not indexed.";
+  CVC5_API_CHECK(index < getNumIndicesHelper()) << "index out of bound";
+  Kind k = intToExtKind(d_node->getKind());
+  Term t;
+  switch (k)
+  {
+    case DIVISIBLE:
+    {
+      t = d_solver->mkValHelper<Rational>(
+          Rational(d_node->getConst<Divisible>().k));
+      break;
+    }
+    case BITVECTOR_REPEAT:
+    {
+      t = d_solver->mkValHelper<cvc5::Rational>(
+          d_node->getConst<BitVectorRepeat>().d_repeatAmount);
+      break;
+    }
+    case BITVECTOR_ZERO_EXTEND:
+    {
+      t = d_solver->mkValHelper<cvc5::Rational>(
+          d_node->getConst<BitVectorZeroExtend>().d_zeroExtendAmount);
+      break;
+    }
+    case BITVECTOR_SIGN_EXTEND:
+    {
+      t = d_solver->mkValHelper<cvc5::Rational>(
+          d_node->getConst<BitVectorSignExtend>().d_signExtendAmount);
+      break;
+    }
+    case BITVECTOR_ROTATE_LEFT:
+    {
+      t = d_solver->mkValHelper<cvc5::Rational>(
+          d_node->getConst<BitVectorRotateLeft>().d_rotateLeftAmount);
+      break;
+    }
+    case BITVECTOR_ROTATE_RIGHT:
+    {
+      t = d_solver->mkValHelper<cvc5::Rational>(
+          d_node->getConst<BitVectorRotateRight>().d_rotateRightAmount);
+      break;
+    }
+    case INT_TO_BITVECTOR:
+    {
+      t = d_solver->mkValHelper<cvc5::Rational>(
+          d_node->getConst<IntToBitVector>().d_size);
+      break;
+    }
+    case IAND:
+    {
+      t = d_solver->mkValHelper<cvc5::Rational>(
+          d_node->getConst<IntAnd>().d_size);
+      break;
+    }
+    case FLOATINGPOINT_TO_UBV:
+    {
+      t = d_solver->mkValHelper<cvc5::Rational>(
+          d_node->getConst<FloatingPointToUBV>().d_bv_size.d_size);
+      break;
+    }
+    case FLOATINGPOINT_TO_SBV:
+    {
+      t = d_solver->mkValHelper<cvc5::Rational>(
+          d_node->getConst<FloatingPointToSBV>().d_bv_size.d_size);
+      break;
+    }
+    case REGEXP_REPEAT:
+    {
+      t = d_solver->mkValHelper<cvc5::Rational>(
+          d_node->getConst<RegExpRepeat>().d_repeatAmount);
+      break;
+    }
+    case BITVECTOR_EXTRACT:
+    {
+      cvc5::BitVectorExtract ext = d_node->getConst<BitVectorExtract>();
+      t = index == 0 ? d_solver->mkValHelper<cvc5::Rational>(ext.d_high)
+                     : d_solver->mkValHelper<cvc5::Rational>(ext.d_low);
+      break;
+    }
+    case FLOATINGPOINT_TO_FP_IEEE_BITVECTOR:
+    {
+      cvc5::FloatingPointToFPIEEEBitVector ext =
+          d_node->getConst<FloatingPointToFPIEEEBitVector>();
+
+      t = index == 0 ? d_solver->mkValHelper<cvc5::Rational>(
+              ext.getSize().exponentWidth())
+                     : d_solver->mkValHelper<cvc5::Rational>(
+                         ext.getSize().significandWidth());
+      break;
+    }
+    case FLOATINGPOINT_TO_FP_FLOATINGPOINT:
+    {
+      cvc5::FloatingPointToFPFloatingPoint ext =
+          d_node->getConst<FloatingPointToFPFloatingPoint>();
+      t = index == 0 ? d_solver->mkValHelper<cvc5::Rational>(
+              ext.getSize().exponentWidth())
+                     : d_solver->mkValHelper<cvc5::Rational>(
+                         ext.getSize().significandWidth());
+      break;
+    }
+    case FLOATINGPOINT_TO_FP_REAL:
+    {
+      cvc5::FloatingPointToFPReal ext =
+          d_node->getConst<FloatingPointToFPReal>();
+
+      t = index == 0 ? d_solver->mkValHelper<cvc5::Rational>(
+              ext.getSize().exponentWidth())
+                     : d_solver->mkValHelper<cvc5::Rational>(
+                         ext.getSize().significandWidth());
+      break;
+    }
+    case FLOATINGPOINT_TO_FP_SIGNED_BITVECTOR:
+    {
+      cvc5::FloatingPointToFPSignedBitVector ext =
+          d_node->getConst<FloatingPointToFPSignedBitVector>();
+      t = index == 0 ? d_solver->mkValHelper<cvc5::Rational>(
+              ext.getSize().exponentWidth())
+                     : d_solver->mkValHelper<cvc5::Rational>(
+                         ext.getSize().significandWidth());
+      break;
+    }
+    case FLOATINGPOINT_TO_FP_UNSIGNED_BITVECTOR:
+    {
+      cvc5::FloatingPointToFPUnsignedBitVector ext =
+          d_node->getConst<FloatingPointToFPUnsignedBitVector>();
+      t = index == 0 ? d_solver->mkValHelper<cvc5::Rational>(
+              ext.getSize().exponentWidth())
+                     : d_solver->mkValHelper<cvc5::Rational>(
+                         ext.getSize().significandWidth());
+      break;
+    }
+    case FLOATINGPOINT_TO_FP_GENERIC:
+    {
+      cvc5::FloatingPointToFPGeneric ext =
+          d_node->getConst<FloatingPointToFPGeneric>();
+      t = index == 0 ? d_solver->mkValHelper<cvc5::Rational>(
+              ext.getSize().exponentWidth())
+                     : d_solver->mkValHelper<cvc5::Rational>(
+                         ext.getSize().significandWidth());
+      break;
+    }
+    case REGEXP_LOOP:
+    {
+      cvc5::RegExpLoop ext = d_node->getConst<RegExpLoop>();
+      t = index == 0 ? d_solver->mkValHelper<cvc5::Rational>(ext.d_loopMinOcc)
+                     : d_solver->mkValHelper<cvc5::Rational>(ext.d_loopMaxOcc);
+
+      break;
+    }
+
+    case TUPLE_PROJECT:
+    {
+      const std::vector<uint32_t>& projectionIndices =
+          d_node->getConst<TupleProjectOp>().getIndices();
+      t = d_solver->mkValHelper<cvc5::Rational>(projectionIndices[index]);
+      break;
+    }
+    default:
+    {
+      CVC5_API_CHECK(false) << "Unhandled kind " << kindToString(k);
+      break;
+    }
+  }
 
   //////// all checks before this line
-  return size;
+  return t;
   ////////
   CVC5_API_TRY_CATCH_END;
 }
@@ -2037,6 +2224,25 @@ std::pair<uint32_t, uint32_t> Op::getIndices() const
                           << " kind " << kindToString(k);
   }
   return indices;
+  ////////
+  CVC5_API_TRY_CATCH_END;
+}
+
+template <>
+std::vector<api::Term> Op::getIndices() const
+{
+  CVC5_API_TRY_CATCH_BEGIN;
+  CVC5_API_CHECK_NOT_NULL;
+  CVC5_API_CHECK(!d_node->isNull())
+      << "Expecting a non-null internal expression. This Op is not indexed.";
+  size_t size = getNumIndicesHelper();
+  std::vector<Term> terms(getNumIndices());
+  for (size_t i = 0; i < size; i++)
+  {
+    terms[i] = getIndexHelper(i);
+  }
+  //////// all checks before this line
+  return terms;
   ////////
   CVC5_API_TRY_CATCH_END;
 }
@@ -3209,7 +3415,7 @@ Kind Term::getKindHelper() const
       case cvc5::Kind::STRING_CONTAINS: return SEQ_CONTAINS;
       case cvc5::Kind::STRING_INDEXOF: return SEQ_INDEXOF;
       case cvc5::Kind::STRING_REPLACE: return SEQ_REPLACE;
-      case cvc5::Kind::STRING_REPLACEALL: return SEQ_REPLACE_ALL;
+      case cvc5::Kind::STRING_REPLACE_ALL: return SEQ_REPLACE_ALL;
       case cvc5::Kind::STRING_REV: return SEQ_REV;
       case cvc5::Kind::STRING_PREFIX: return SEQ_PREFIX;
       case cvc5::Kind::STRING_SUFFIX: return SEQ_SUFFIX;
@@ -4556,7 +4762,9 @@ struct Stat::StatData
 
 Stat::~Stat() {}
 Stat::Stat(const Stat& s)
-    : d_expert(s.d_expert), d_data(std::make_unique<StatData>(s.d_data->data))
+    : d_expert(s.d_expert),
+      d_default(s.d_default),
+      d_data(std::make_unique<StatData>(s.d_data->data))
 {
 }
 Stat& Stat::operator=(const Stat& s)
@@ -4740,7 +4948,7 @@ std::ostream& operator<<(std::ostream& out, const Statistics& stats)
 /* Solver                                                                     */
 /* -------------------------------------------------------------------------- */
 
-Solver::Solver(Options* opts)
+Solver::Solver(const Options* opts)
 {
   d_nodeMgr.reset(new NodeManager());
   d_originalOptions.reset(new Options());
@@ -5179,6 +5387,11 @@ void Solver::resetStatistics()
             "api::TERM"),
     });
   }
+}
+
+void Solver::printStatisticsSafe(int fd) const
+{
+  d_smtEngine->printStatisticsSafe(fd);
 }
 
 /* Helpers for mkTerm checks.                                                 */
@@ -6434,8 +6647,7 @@ Result Solver::checkEntailed(const Term& term) const
          "(try --incremental)";
   CVC5_API_SOLVER_CHECK_TERM(term);
   //////// all checks before this line
-  cvc5::Result r = d_smtEngine->checkEntailed(*term.d_node);
-  return Result(r);
+  return d_smtEngine->checkEntailed(*term.d_node);
   ////////
   CVC5_API_TRY_CATCH_END;
 }
@@ -6478,8 +6690,7 @@ Result Solver::checkSat(void) const
       << "Cannot make multiple queries unless incremental solving is enabled "
          "(try --incremental)";
   //////// all checks before this line
-  cvc5::Result r = d_smtEngine->checkSat();
-  return Result(r);
+  return d_smtEngine->checkSat();
   ////////
   CVC5_API_TRY_CATCH_END;
 }
@@ -6494,8 +6705,7 @@ Result Solver::checkSatAssuming(const Term& assumption) const
          "(try --incremental)";
   CVC5_API_SOLVER_CHECK_TERM_WITH_SORT(assumption, getBooleanSort());
   //////// all checks before this line
-  cvc5::Result r = d_smtEngine->checkSat(*assumption.d_node);
-  return Result(r);
+  return d_smtEngine->checkSat(*assumption.d_node);
   ////////
   CVC5_API_TRY_CATCH_END;
 }
@@ -6515,8 +6725,7 @@ Result Solver::checkSatAssuming(const std::vector<Term>& assumptions) const
     CVC5_API_SOLVER_CHECK_TERM(term);
   }
   std::vector<Node> eassumptions = Term::termVectorToNodes(assumptions);
-  cvc5::Result r = d_smtEngine->checkSat(eassumptions);
-  return Result(r);
+  return d_smtEngine->checkSat(eassumptions);
   ////////
   CVC5_API_TRY_CATCH_END;
 }
@@ -7233,8 +7442,18 @@ void Solver::setOption(const std::string& option,
                        const std::string& value) const
 {
   CVC5_API_TRY_CATCH_BEGIN;
-  CVC5_API_CHECK(!d_smtEngine->isFullyInited())
-      << "Invalid call to 'setOption', solver is already fully initialized";
+  static constexpr auto mutableOpts = {"diagnostic-output-channel",
+                                       "print-success",
+                                       "regular-output-channel",
+                                       "reproducible-resource-limit",
+                                       "verbosity"};
+  if (std::find(mutableOpts.begin(), mutableOpts.end(), option)
+      == mutableOpts.end())
+  {
+    CVC5_API_CHECK(!d_smtEngine->isFullyInited())
+        << "Invalid call to 'setOption' for option '" << option
+        << "', solver is already fully initialized";
+  }
   //////// all checks before this line
   d_smtEngine->setOption(option, value);
   ////////

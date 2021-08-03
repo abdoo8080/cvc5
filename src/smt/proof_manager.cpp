@@ -28,16 +28,16 @@
 #include "proof/proof_node_manager.h"
 #include "proof/verit/verit_post_processor.h"
 #include "proof/verit/verit_printer.h"
+#include "rewriter/rewrite_db.h"
 #include "smt/assertions.h"
 #include "smt/preprocess_proof_generator.h"
 #include "smt/proof_post_processor.h"
-#include "theory/rewrite_db.h"
 
 namespace cvc5 {
 namespace smt {
 
 PfManager::PfManager(context::UserContext* u, SmtEngine* smte)
-    : d_rewriteDb(new theory::RewriteDb),
+    : d_rewriteDb(new rewriter::RewriteDb),
       d_pchecker(new ProofChecker(options::proofPedantic(), d_rewriteDb.get())),
       d_pnm(new ProofNodeManager(d_pchecker.get())),
       d_pppg(new PreprocessProofGenerator(
@@ -89,6 +89,7 @@ PfManager::PfManager(context::UserContext* u, SmtEngine* smte)
         d_pfpp->setEliminateRule(PfRule::THEORY_REWRITE);
       }
     }
+    d_pfpp->setEliminateRule(PfRule::BV_BITBLAST);
   }
   d_false = NodeManager::currentNM()->mkConst(false);
 }
@@ -159,9 +160,7 @@ void PfManager::printProof(std::ostream& out,
   {
     fp = d_pnm->clone(fp);
   }
-  // TODO (proj #37) according to the proof format, post process the proof node
-  // TODO (proj #37) according to the proof format, print the proof node
-
+  // according to the proof format, post process and print the proof node
   if (options::proofFormatMode() == options::ProofFormatMode::DOT)
   {
     proof::DotPrinter dotPrinter;
@@ -193,7 +192,6 @@ void PfManager::printProof(std::ostream& out,
   {
     std::vector<Node> assertions;
     getAssertions(as, assertions);
-    // NOTE: update permanent to fp, which could be reused in incremental mode
     proof::LfscNodeConverter ltp;
     proof::LfscProofPostprocess lpp(ltp, d_pnm.get());
     lpp.process(fp);
@@ -202,6 +200,7 @@ void PfManager::printProof(std::ostream& out,
   }
   else
   {
+    // otherwise, print using default printer
     out << "(proof\n";
     out << *fp;
     out << "\n)\n";
@@ -219,7 +218,7 @@ ProofChecker* PfManager::getProofChecker() const { return d_pchecker.get(); }
 
 ProofNodeManager* PfManager::getProofNodeManager() const { return d_pnm.get(); }
 
-theory::RewriteDb* PfManager::getRewriteDatabase() const
+rewriter::RewriteDb* PfManager::getRewriteDatabase() const
 {
   return d_rewriteDb.get();
 }

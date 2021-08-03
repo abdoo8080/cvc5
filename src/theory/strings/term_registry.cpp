@@ -99,7 +99,7 @@ Node TermRegistry::eagerReduce(Node t, SkolemCache* sc)
     lemma = nm->mkNode(
         AND,
         nm->mkNode(
-            OR, nm->mkConst(Rational(-1)).eqNode(t), nm->mkNode(GEQ, t, t[2])),
+            OR, t.eqNode(nm->mkConst(Rational(-1))), nm->mkNode(GEQ, t, t[2])),
         nm->mkNode(LEQ, t, l));
   }
   else if (tk == STRING_STOI)
@@ -150,7 +150,7 @@ void TermRegistry::preRegisterTerm(TNode n)
   {
     if (k == STRING_INDEXOF || k == STRING_INDEXOF_RE || k == STRING_ITOS
         || k == STRING_STOI || k == STRING_REPLACE || k == STRING_SUBSTR
-        || k == STRING_REPLACEALL || k == SEQ_NTH || k == STRING_REPLACE_RE
+        || k == STRING_REPLACE_ALL || k == SEQ_NTH || k == STRING_REPLACE_RE
         || k == STRING_REPLACE_RE_ALL || k == STRING_CONTAINS || k == STRING_LEQ
         || k == STRING_TOLOWER || k == STRING_TOUPPER || k == STRING_REV
         || k == STRING_UPDATE)
@@ -230,7 +230,7 @@ void TermRegistry::preRegisterTerm(TNode n)
   else if (tn.isBoolean())
   {
     // All kinds that we do congruence over that may return a Boolean go here
-    if (k==STRING_CONTAINS || k == STRING_LEQ || k == SEQ_NTH)
+    if (k == STRING_CONTAINS || k == STRING_LEQ || k == SEQ_NTH)
     {
       // Get triggered for both equal and dis-equal
       ee->addTriggerPredicate(n);
