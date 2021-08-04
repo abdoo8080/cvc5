@@ -313,7 +313,7 @@ void LeanPrinter::printProof(std::ostream& out,
       out << "have lean_s" << id << " : "
           << (hasClausalResult ? "holds " : "thHolds ");
       printTerm(out, res);
-      out << ":= " << rule;
+      out << " := " << rule;
     }
   }
   for (const std::shared_ptr<ProofNode>& child : children)
