@@ -226,7 +226,7 @@ void LeanPrinter::printProof(std::ostream& out,
     out << "have lean_s" << id << " : thHolds ";
     // print conversion to a clause of the original scope's conclusion
     printTerm(out, res);
-    out << " from\n";
+    out << " :=\n";
     // each argument to the scope proof node corresponds to one scope to close
     // in the Lean proof. To avoid clashes, we shift the assumptions numbers by
     // current pfAssumpMap' size
@@ -305,15 +305,16 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     if (pfn->getResult() == d_false)
     {
-      out << "show " << (hasClausalResult ? "holds []" : "thHolds bot");
+      out << "show " << (hasClausalResult ? "holds []" : "thHolds bot")
+          << " from " << rule;
     }
     else
     {
       out << "have lean_s" << id << " : "
           << (hasClausalResult ? "holds " : "thHolds ");
       printTerm(out, res);
+      out << ":= " << rule;
     }
-    out << " from " << rule;
   }
   for (const std::shared_ptr<ProofNode>& child : children)
   {
