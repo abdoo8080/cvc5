@@ -865,6 +865,7 @@ LeanProofPostprocessClConnectCallback::LeanProofPostprocessClConnectCallback(
   d_conversionRules = {
       nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::CL_OR)),
       nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::CL_ASSUME)),
+      nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::CL_SINGLETON)),
       nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::TH_ASSUME)),
   };
   // Rules that take clauses
@@ -956,26 +957,44 @@ bool LeanProofPostprocessClConnectCallback::update(
       for (size_t i = 0; i < 2; ++i)
       {
         // check if child's conclusion is clausal, in which case nothing to
-        // do. Assumptions are never clausal, but since they're not converted
+        // do*. Assumptions are never clausal, but since they're not converted
         // during the previous processing we need to special case.
+        //
+        // There is actually an extra case: if the child is clausal, must be a
+        // singleton but actually is not it's necessary to convert it into a
+        // singleton
         std::shared_ptr<ProofNode> childPf = cdp->getProofFor(children[i]);
         AlwaysAssert(childPf->getRule() == PfRule::ASSUME
                      || childPf->getArguments().size() > 3)
             << "childPf is " << *childPf.get();
-        if (childPf->getRule() != PfRule::ASSUME
-            && childPf->getArguments()[3] == d_true)
+        bool reqSingleton = args[5 + i] == d_true;
+        bool isChildClausal = childPf->getArguments()[3] == d_true;
+        if (childPf->getRule() != PfRule::ASSUME && isChildClausal
+            && (!reqSingleton || children[i].getKind() != kind::OR))
         {
           continue;
         }
-        // turn into clause. Check if it's used as a singleton or not
-        bool isSingleton = args[5 + i] == d_true;
         Node newChild;
         LeanRule childRule;
-        if (isSingleton)
+        if (reqSingleton)
         {
-          // add clAssume step
+          // add clAssume step if child is not clausal, otherwise add a
+          // clSingleton step if the child is an OR (this may be an spurious
+          // step if the clausal conclusion, which may be unknown, is already a
+          // singleton, but it will not be wrong). If neither case, we continue.
+          if (!isChildClausal)
+          {
+            childRule = LeanRule::CL_ASSUME;
+          }
+          else if (children[i].getKind() == kind::OR)
+          {
+            childRule = LeanRule::CL_SINGLETON;
+          }
+          else
+          {
+            continue;
+          }
           newChild = d_lnc.convert(nm->mkNode(kind::SEXPR, children[i]));
-          childRule = LeanRule::CL_ASSUME;
         }
         else
         {

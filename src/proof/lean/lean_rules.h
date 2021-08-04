@@ -28,6 +28,7 @@ enum class LeanRule : uint32_t
 {
   // base
   SCOPE,
+  CL_SINGLETON,
   CL_ASSUME,
   CL_OR,
   TH_ASSUME,
