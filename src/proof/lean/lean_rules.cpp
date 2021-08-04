@@ -26,6 +26,7 @@ const char* toString(LeanRule id)
   switch (id)
   {
     case LeanRule::SCOPE: return "scope";
+    case LeanRule::CL_SINGLETON: return "clSingleton";
     case LeanRule::CL_ASSUME: return "clAssume";
     case LeanRule::CL_OR: return "clOr";
     case LeanRule::TH_ASSUME: return "thAssume";
