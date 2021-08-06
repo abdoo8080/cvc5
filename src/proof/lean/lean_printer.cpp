@@ -70,6 +70,8 @@ LeanPrinter::LeanPrinter(LeanNodeConverter& lnc)
         LeanRule::R1_PARTIAL,
         LeanRule::REFL_PARTIAL,
         LeanRule::CONG_PARTIAL,
+        LeanRule::BIND_PARTIAL,
+        LeanRule::BIND_LAMBDA_PARTIAL,
         LeanRule::TRANS_PARTIAL,
         LeanRule::AND_INTRO_PARTIAL,
         LeanRule::CL_OR,
@@ -96,7 +98,8 @@ void LeanPrinter::cleanSymbols(std::string& s)
     s.replace(startPos, 11, "");
     s.replace(startPos + 1, 1, "");
   }
-  // also account for cases of like numbers which do not get wrapped if the prefix was used
+  // also account for cases of like numbers which do not get wrapped if the
+  // prefix was used
   startPos = 0;
   while ((startPos = s.find("__LEAN_TMP", startPos)) != std::string::npos)
   {
