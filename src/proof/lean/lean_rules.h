@@ -110,6 +110,11 @@ enum class LeanRule : uint32_t
   READ_OVER_WRITE_ID,
   ARRAY_EXT,
 
+  // quants
+  BIND,
+  BIND_PARTIAL,
+  BIND_LAMBDA,
+  BIND_LAMBDA_PARTIAL,
   // holes
   TRUST,
   TH_TRUST,

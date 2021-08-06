@@ -112,6 +112,11 @@ const char* toString(LeanRule id)
     case LeanRule::READ_OVER_WRITE_ID: return "readOverWriteIdentity";
     case LeanRule::ARRAY_EXT: return "arrayExt";
 
+    case LeanRule::BIND: return "bind";
+    case LeanRule::BIND_PARTIAL: return "bind";
+    case LeanRule::BIND_LAMBDA: return "bindLambda";
+    case LeanRule::BIND_LAMBDA_PARTIAL: return "bindLambda";
+
     case LeanRule::UNKNOWN: return "UNKNOWN";
     default: return "?";
   }
