@@ -32,6 +32,17 @@ LeanNodeConverter::LeanNodeConverter() : NodeConverter(true, false)
 }
 LeanNodeConverter::~LeanNodeConverter() {}
 
+bool LeanNodeConverter::shouldTraverse(Node n)
+{
+  Kind k = n.getKind();
+  // don't convert bound variable list directly
+  if (k == kind::BOUND_VAR_LIST)
+  {
+    return false;
+  }
+  return true;
+}
+
 Node LeanNodeConverter::postConvert(Node n)
 {
   Kind k = n.getKind();
@@ -97,17 +108,21 @@ Node LeanNodeConverter::postConvert(Node n)
     //   }
     //   return nm->mkNode(kind::SEXPR, resChildren);
     // }
+    case kind::FORALL:
+    {
+    }
     case kind::WITNESS:
     {
       resChildren.push_back(mkInternalSymbol("choice"));
-      // the variables in the bound variable list will have been converted
-      // already, since this is a post-visit, to (SEXPR "const" id _), so to get
-      // the id we need to go to n[0][0][1], i.e. the id in the first "variable"
-      // of the variable list
+      // Since variable lists are not converted, we do it here
       AlwaysAssert(n[0].getKind() == kind::BOUND_VAR_LIST
-                   && n[0][0].getKind() == kind::SEXPR
-                   && n[0][0].getNumChildren() == 3);
-      resChildren.push_back(n[0][0][1]);
+                   && n[0].getNumChildren() == 1);
+      Node convertedVar = convert(n[0][0]);
+      // add the id, which should be the second child, since converted var
+      // should be (SEXPR "const" id _)
+      AlwaysAssert(convertedVar.getKind() == kind::SEXPR
+                   && convertedVar.getNumChildren() == 3);
+      resChildren.push_back(convertedVar[1]);
       // convert the body
       resChildren.push_back(convert(n[1]));
       return nm->mkNode(kind::SEXPR, resChildren);
@@ -333,6 +348,14 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     case kind::WITNESS:
     {
       return mkInternalSymbol("choice");
+    }
+    case kind::FORALL:
+    {
+      return mkInternalSymbol("forall");
+    }
+    case kind::LAMBDA:
+    {
+      return mkInternalSymbol("lambda");
     }
     default:
     {

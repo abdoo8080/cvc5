@@ -51,6 +51,9 @@ class LeanNodeConverter : public NodeConverter
   Node typeAsNode(TypeNode tn);
 
  private:
+  /** Should we traverse n? */
+  bool shouldTraverse(Node n) override;
+
   /** the set of all internally generated symbols */
   std::unordered_set<Node> d_symbols;
   std::unordered_map<std::string, Node> d_symbolsMap;
