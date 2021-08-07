@@ -18,10 +18,29 @@
 
 #include "expr/skolem_manager.h"
 #include "proof/proof_checker.h"
+#include "util/bitvector.h"
 #include "util/string.h"
 
 namespace cvc5 {
 namespace proof {
+
+std::unordered_map<Kind, std::string> s_kindToString = {
+  {kind::BITVECTOR_CONCAT, "bvConcat"},
+  {kind::BITVECTOR_AND, "bvAnd"},
+  {kind::BITVECTOR_ADD, "bvAdd"},
+  {kind::BITVECTOR_SUB, "bvSub"},
+  {kind::BITVECTOR_ULT, "bvUlt"},
+  {kind::BITVECTOR_ULE, "bvUle"},
+  {kind::ITE, "fIte"},
+  {kind::SELECT, "select"},
+  {kind::STORE, "store"},
+  {kind::NOT, "term.not"},
+  {kind::STRING_LENGTH, "mkLength"},
+  {kind::EQUAL, "eq"},
+  {kind::XOR, "xor"},
+  {kind::IMPLIES, "implies"},
+  {kind::DISTINCT, "distinct"},
+};
 
 // have underlying node converter *not* force type preservation
 LeanNodeConverter::LeanNodeConverter() : NodeConverter(true, false)
@@ -29,6 +48,9 @@ LeanNodeConverter::LeanNodeConverter() : NodeConverter(true, false)
   d_brack[0] = mkInternalSymbol("__LEAN_TMP[");
   d_brack[1] = mkInternalSymbol("__LEAN_TMP]");
   d_comma = mkInternalSymbol("__LEAN_TMP,");
+  NodeManager* nm = NodeManager::currentNM();
+  d_true = nm->mkConst(true);
+  d_false = nm->mkConst(false);
 }
 LeanNodeConverter::~LeanNodeConverter() {}
 
@@ -43,7 +65,7 @@ bool LeanNodeConverter::shouldTraverse(Node n)
   return true;
 }
 
-Node LeanNodeConverter::postConvert(Node n)
+Node LeanNodeConverter::preConvert(Node n)
 {
   Kind k = n.getKind();
   NodeManager* nm = NodeManager::currentNM();
@@ -70,7 +92,7 @@ Node LeanNodeConverter::postConvert(Node n)
   {
     case kind::BOUND_VARIABLE:
     {
-      // ignore internally generated symbols
+      // don't convert internally generated
       if (d_symbols.find(n) != d_symbols.end())
       {
         return n;
@@ -96,6 +118,24 @@ Node LeanNodeConverter::postConvert(Node n)
       resChildren.push_back(typeAsNode(tn));
       return nm->mkNode(kind::SEXPR, resChildren);
     }
+    case kind::CONST_BITVECTOR:
+    {
+      resChildren.push_back(mkInternalSymbol("val"));
+      // create list of booleans with bits, by checking if each bit is set and
+      // putting top or bottom into the list
+      BitVector bv = n.getConst<BitVector>();
+
+      std::vector<Node> bits;
+      for (size_t i = 0, size = bv.getSize(); i < size; ++i)
+      {
+        bits.push_back(mkInternalSymbol(bv.isBitSet(i) ? "top" : "bot"));
+      }
+      resChildren.push_back(nm->mkNode(kind::SEXPR,
+                                       mkInternalSymbol("value.bitvec"),
+                                       convert(nm->mkNode(kind::SEXPR, bits))));
+      resChildren.push_back(typeAsNode(n.getType()));
+      return nm->mkNode(kind::SEXPR, resChildren);
+    }
     // case kind::CONST_STRING:
     // {
     //   resChildren.push_back(mkInternalSymbol("mkVarChars"));
@@ -111,7 +151,7 @@ Node LeanNodeConverter::postConvert(Node n)
     case kind::FORALL:
     case kind::LAMBDA:
     {
-      Node binderOp = mkPrintableOp(k);
+      Node binderOp = mkInternalSymbol(s_kindToString[k]);
       size_t nVars = n[0].getNumChildren();
       // iterate over variables, from last to second, and build layered binding
       Node curChild = convert(n[1]);
@@ -170,20 +210,43 @@ Node LeanNodeConverter::postConvert(Node n)
       }
       return nm->mkNode(kind::SEXPR, resChildren);
     }
+    // binary operators
+    case kind::BITVECTOR_CONCAT:
+    case kind::BITVECTOR_AND:
+    case kind::BITVECTOR_ADD:
+    case kind::BITVECTOR_SUB:
+    case kind::BITVECTOR_ULT:
+    case kind::BITVECTOR_ULE:
     case kind::EQUAL:
-    {
-      resChildren.push_back(mkInternalSymbol("eq"));
-      resChildren.push_back(convert(n[0]));
-      resChildren.push_back(convert(n[1]));
-      return nm->mkNode(kind::SEXPR, resChildren);
-    }
     case kind::XOR:
+    case kind::IMPLIES:
+    case kind::DISTINCT:
+    case kind::SELECT:
     {
-      resChildren.push_back(mkInternalSymbol("xor"));
+      resChildren.push_back(mkInternalSymbol(s_kindToString[k]));
       resChildren.push_back(convert(n[0]));
       resChildren.push_back(convert(n[1]));
       return nm->mkNode(kind::SEXPR, resChildren);
     }
+    // unary
+    case kind::NOT:
+    case kind::STRING_LENGTH:
+    {
+      resChildren.push_back(mkInternalSymbol("term.not"));
+      resChildren.push_back(convert(n[0]));
+      return nm->mkNode(kind::SEXPR, resChildren);
+    }
+    // ternary
+    case kind::ITE:
+    case kind::STORE:
+    {
+      resChildren.push_back(mkInternalSymbol(s_kindToString[k]));
+      resChildren.push_back(convert(n[0]));
+      resChildren.push_back(convert(n[1]));
+      resChildren.push_back(convert(n[2]));
+      return nm->mkNode(kind::SEXPR, resChildren);
+    }
+    // n-ary ones
     case kind::OR:
     {
       if (nChildren > 2)
@@ -232,55 +295,7 @@ Node LeanNodeConverter::postConvert(Node n)
       }
       return nm->mkNode(kind::SEXPR, resChildren);
     }
-    case kind::IMPLIES:
-    {
-      resChildren.push_back(mkInternalSymbol("implies"));
-      resChildren.push_back(convert(n[0]));
-      resChildren.push_back(convert(n[1]));
-      return nm->mkNode(kind::SEXPR, resChildren);
-    }
-    case kind::NOT:
-    {
-      resChildren.push_back(mkInternalSymbol("term.not"));
-      resChildren.push_back(convert(n[0]));
-      return nm->mkNode(kind::SEXPR, resChildren);
-    }
-    case kind::ITE:
-    {
-      resChildren.push_back(mkInternalSymbol("fIte"));
-      resChildren.push_back(convert(n[0]));
-      resChildren.push_back(convert(n[1]));
-      resChildren.push_back(convert(n[2]));
-      return nm->mkNode(kind::SEXPR, resChildren);
-    }
-    case kind::DISTINCT:
-    {
-      resChildren.push_back(mkInternalSymbol("distinct"));
-      resChildren.push_back(convert(n[0]));
-      resChildren.push_back(convert(n[1]));
-      return nm->mkNode(kind::SEXPR, resChildren);
-    }
-    case kind::SELECT:
-    {
-      resChildren.push_back(mkInternalSymbol("select"));
-      resChildren.push_back(convert(n[0]));
-      resChildren.push_back(convert(n[1]));
-      return nm->mkNode(kind::SEXPR, resChildren);
-    }
-    case kind::STORE:
-    {
-      resChildren.push_back(mkInternalSymbol("store"));
-      resChildren.push_back(convert(n[0]));
-      resChildren.push_back(convert(n[1]));
-      resChildren.push_back(convert(n[2]));
-      return nm->mkNode(kind::SEXPR, resChildren);
-    }
-    case kind::STRING_LENGTH:
-    {
-      resChildren.push_back(mkInternalSymbol("mkLength"));
-      resChildren.push_back(convert(n[0]));
-      return nm->mkNode(kind::SEXPR, resChildren);
-    }
+    // clauses
     case kind::SEXPR:
     {
       resChildren.push_back(d_brack[0]);
@@ -297,9 +312,9 @@ Node LeanNodeConverter::postConvert(Node n)
     }
     default:
     {
+      Unreachable() << "Have to convert everything, but " << n << " escaped\n";
     }
   }
-  // everything else is to be printed as itself
   return n;
 }
 
@@ -361,17 +376,29 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     {
       return mkInternalSymbol("storeConst");
     }
-    case kind::WITNESS:
+    case kind::BITVECTOR_CONCAT:
     {
-      return mkInternalSymbol("choice");
+      return mkInternalSymbol("bvConcatConst");
     }
-    case kind::FORALL:
+    case kind::BITVECTOR_AND:
     {
-      return mkInternalSymbol("forall");
+      return mkInternalSymbol("bvAndConst");
     }
-    case kind::LAMBDA:
+    case kind::BITVECTOR_ADD:
     {
-      return mkInternalSymbol("lambda");
+      return mkInternalSymbol("bvAddConst");
+    }
+    case kind::BITVECTOR_SUB:
+    {
+      return mkInternalSymbol("bvSubConst");
+    }
+    case kind::BITVECTOR_ULT:
+    {
+      return mkInternalSymbol("bvUltConst");
+    }
+    case kind::BITVECTOR_ULE:
+    {
+      return mkInternalSymbol("bvUleConst");
     }
     default:
     {
@@ -423,6 +450,13 @@ Node LeanNodeConverter::typeAsNode(TypeNode tn)
   else if (tn.isInteger())
   {
     res = mkInternalSymbol("intSort");
+  }
+  else if (tn.isBitVector())
+  {
+    res = nm->mkNode(
+        kind::SEXPR,
+        mkInternalSymbol("bv"),
+        mkInternalSymbol(nm->mkConst<Rational>(tn.getBitVectorSize())));
   }
   else
   {

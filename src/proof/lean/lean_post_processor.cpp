@@ -389,7 +389,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                "Found kind "
             << k << "\n";
         // break down n-ary binder into chain of binds. Start with term
-        Node opBinder = d_lnc.mkPrintableOp(k);
+        Node opBinder = args.size() == 2 ? args[1] : args[0];
         Node currEq = children[1];
         // iterate over variable list
         for (size_t i = 1, nVars = children[0][0].getNumChildren(); i < nVars; ++i)

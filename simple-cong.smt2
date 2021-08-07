@@ -8,11 +8,14 @@
 
 (declare-const a U)
 (declare-const b U)
-(declare-fun f (U) U)
+(declare-const c U)
+(declare-const d U)
+(declare-fun f (U U) U)
 
 (assert (= a b))
+(assert (= c d))
 (assert (and p1 true))
 (assert (or (not p1) (and p2 p3)))
-(assert (or (not p3) (not (= (f a) (f b)))))
+(assert (or (not p3) (not (= (f a c) (f b d)))))
 
 (check-sat)

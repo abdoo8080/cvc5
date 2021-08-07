@@ -33,7 +33,7 @@ class LeanNodeConverter : public NodeConverter
   LeanNodeConverter();
   ~LeanNodeConverter();
   /** convert to internal */
-  Node postConvert(Node n) override;
+  Node preConvert(Node n) override;
 
   Node mkPrintableOp(Kind k);
 
@@ -63,6 +63,8 @@ class LeanNodeConverter : public NodeConverter
 
   Node d_brack[2];
   Node d_comma;
+  Node d_true;
+  Node d_false;
 };
 
 }  // namespace proof
