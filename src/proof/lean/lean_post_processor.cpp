@@ -376,13 +376,49 @@ bool LeanProofPostprocessCallback::update(Node res,
     // break down CONG chain
     case PfRule::CONG:
     {
-      // TODO support closures
+      Kind k = res[0].getKind();
       if (res[0].isClosure())
       {
-        Unreachable() << "Lean printing without support for congruence over "
-                         "closures for now\n";
+        // For now we only support the case where the variables are the same.
+        // Renaming will be done afterwards
+        AlwaysAssert(children[0][0] == children[0][1])
+            << "Lean printing without support for congruence over closures "
+               "with renaming\n";
+        AlwaysAssert(k == kind::FORALL || k == kind::LAMBDA)
+            << "Lean printing only supports FORALL/LAMBDA binders for now. "
+               "Found kind "
+            << k << "\n";
+        // break down n-ary binder into chain of binds. Start with term
+        Node opBinder = d_lnc.mkPrintableOp(k);
+        Node currEq = children[1];
+        // iterate over variable list
+        for (size_t i = 1, nVars = children[0][0].getNumChildren(); i < nVars; ++i)
+        {
+          size_t j = nVars - i;
+          AlwaysAssert(j > 0);
+          // build dummy equality of partial apps of var j
+          Node varEq = nm->mkNode(
+              kind::SEXPR,
+              nm->mkNode(kind::SEXPR, opBinder, children[0][0][j], currEq[0]),
+              nm->mkNode(kind::SEXPR, opBinder, children[0][0][j], currEq[1]));
+          // add step that justify equality of partial apps
+          addLeanStep(varEq,
+                      k == kind::FORALL ? LeanRule::BIND_PARTIAL
+                                        : LeanRule::BIND_LAMBDA_PARTIAL,
+                      Node::null(),
+                      false,
+                      {currEq},
+                      {},
+                      *cdp);
+        }
+        addLeanStep(res,
+                    k == kind::FORALL ? LeanRule::BIND : LeanRule::BIND_LAMBDA,
+                    d_lnc.convert(res),
+                    false,
+                    {currEq},
+                    {},
+                    *cdp);
       }
-      Kind k = res[0].getKind();
       size_t nchildren = children.size();
       Node eqNode = ProofRuleChecker::mkKindNode(kind::EQUAL);
       Node op = args.size() == 2 ? args[1] : args[0];
@@ -410,8 +446,8 @@ bool LeanProofPostprocessCallback::update(Node res,
         Node currEq = children[nchildren - 1];
         for (size_t i = 1; i < nchildren; ++i)
         {
-          unsigned j = nchildren - i - 1;
-          // build equality of partial apps of argument j
+          size_t j = nchildren - i - 1;
+          // build equality of partial apps of argument j. We add the index as part of the node to guarantee that there is no ambiguity with applications that have repeated arguments
           std::vector<Node> argAppEqChildren{
               eqNode,
               nm->mkConst<Rational>(i),
@@ -519,7 +555,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       Node cur = children[size - 1], first = children[0];
       for (size_t i = 1; i < size - 1; ++i)
       {
-        unsigned j = size - i - 1;
+        size_t j = size - i - 1;
         Node newCur = nm->mkNode(kind::AND, children[j], cur);
         addLeanStep(newCur,
                     LeanRule::AND_INTRO_PARTIAL,

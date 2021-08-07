@@ -109,7 +109,23 @@ Node LeanNodeConverter::postConvert(Node n)
     //   return nm->mkNode(kind::SEXPR, resChildren);
     // }
     case kind::FORALL:
+    case kind::LAMBDA:
     {
+      Node binderOp = mkPrintableOp(k);
+      size_t nVars = n[0].getNumChildren();
+      // iterate over variables, from last to second, and build layered binding
+      Node curChild = convert(n[1]);
+      Node convertedVar;
+      for (size_t i = 0; i < nVars; ++i)
+      {
+        convertedVar = convert(n[0][nVars - i]);
+        // add the id, which should be the second child, since converted var
+        // should be (SEXPR "const" id _)
+        AlwaysAssert(convertedVar.getKind() == kind::SEXPR
+                     && convertedVar.getNumChildren() == 3);
+        curChild = nm->mkNode(kind::SEXPR, binderOp, convertedVar[1], curChild);
+      }
+      return curChild;
     }
     case kind::WITNESS:
     {
