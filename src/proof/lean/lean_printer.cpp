@@ -341,12 +341,12 @@ void LeanPrinter::print(std::ostream& out,
   // outer method to print valid Lean output from a ProofNode
   Trace("test-lean-pf") << "Post-processed proof " << *pfn.get() << "\n";
   // TODO preamble should be theory dependent
-  out << "import Cdclt.Euf\nimport Cdclt.Array\n";
+  out << "import Cdclt.Euf\nimport Cdclt.Array\nimport Cdclt.Quant\n";
   // increase recursion depth and heartbeats
   out << "set_option maxRecDepth 10000\nset_option maxHeartbeats 500000\n\n";
   // do includes
   out << "open proof\nopen proof.sort proof.term\n";
-  out << "open rules eufRules arrayRules\n\n";
+  out << "open rules eufRules arrayRules quantRules\n\n";
 
   // Print user defined sorts and constants of those sorts
   std::unordered_set<Node> syms;

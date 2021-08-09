@@ -27,13 +27,13 @@
 namespace cvc5 {
 namespace proof {
 
-class LeanNodeConverter : public NodeConverter
+class LeanNodeConverter
 {
  public:
   LeanNodeConverter();
   ~LeanNodeConverter();
   /** convert to internal */
-  Node preConvert(Node n) override;
+  Node convert(Node n);
 
   Node mkPrintableOp(Kind k);
 
@@ -52,11 +52,20 @@ class LeanNodeConverter : public NodeConverter
 
  private:
   /** Should we traverse n? */
-  bool shouldTraverse(Node n) override;
+  bool shouldTraverse(Node n);
+
+  Node mkList(const std::vector<Node>& nodes);
+  Node mkInt(unsigned i);
+  Node mkInt(Node i);
+
+  std::vector<Node> getOperatorIndices(Kind k, Node n);
 
   /** the set of all internally generated symbols */
   std::unordered_set<Node> d_symbols;
   std::unordered_map<std::string, Node> d_symbolsMap;
+
+  /** Node cache for convert */
+  std::unordered_map<Node, Node> d_cache;
 
   /** Cache for typeAsNode */
   std::map<TypeNode, Node> d_typeAsNode;

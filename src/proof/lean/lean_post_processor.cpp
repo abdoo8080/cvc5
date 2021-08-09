@@ -374,6 +374,7 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     //-------------- bigger conversions
     // break down CONG chain
+    case PfRule::HO_CONG:
     case PfRule::CONG:
     {
       Kind k = res[0].getKind();
@@ -392,7 +393,8 @@ bool LeanProofPostprocessCallback::update(Node res,
         Node opBinder = args.size() == 2 ? args[1] : args[0];
         Node currEq = children[1];
         // iterate over variable list
-        for (size_t i = 1, nVars = children[0][0].getNumChildren(); i < nVars; ++i)
+        for (size_t i = 1, nVars = children[0][0].getNumChildren(); i < nVars;
+             ++i)
         {
           size_t j = nVars - i;
           AlwaysAssert(j > 0);
@@ -410,6 +412,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                       {currEq},
                       {},
                       *cdp);
+          currEq = varEq;
         }
         addLeanStep(res,
                     k == kind::FORALL ? LeanRule::BIND : LeanRule::BIND_LAMBDA,
@@ -421,16 +424,34 @@ bool LeanProofPostprocessCallback::update(Node res,
       }
       size_t nchildren = children.size();
       Node eqNode = ProofRuleChecker::mkKindNode(kind::EQUAL);
-      Node op = args.size() == 2 ? args[1] : args[0];
-      // add internal refl step
-      Node opEq = nm->mkNode(kind::SEXPR, eqNode, op, op);
-      addLeanStep(opEq,
-                  LeanRule::REFL_PARTIAL,
-                  Node::null(),
-                  false,
-                  {},
-                  {d_lnc.mkPrintableOp(op)},
-                  *cdp);
+      Node op, opEq;
+      bool isHO = id == PfRule::HO_CONG;
+      // There are two differences for HO_CONG vs the regular one: the operators
+      // differ, so instead of a REFL steps for them we have the first premise.
+      // Also, that first premise is absent in the regular congruence. To keep
+      // things modular below, we just use the first premise as the operator
+      // equality and below when adding the premises we start from the second
+      // premise
+      if (isHO)
+      {
+        // since this is used to identify internal steps, either one of the
+        // operators is fine. We pick the leftmost one
+        op = children[0][0];
+        opEq = children[0];
+      }
+      else
+      {
+        op = args.size() == 2 ? args[1] : args[0];
+        // add internal refl step
+        opEq = nm->mkNode(kind::SEXPR, eqNode, op, op);
+        addLeanStep(opEq,
+                    LeanRule::REFL_PARTIAL,
+                    Node::null(),
+                    false,
+                    {},
+                    {d_lnc.mkPrintableOp(op)},
+                    *cdp);
+      }
       // Are we doing congruence of an n-ary operator with more than two
       // arguments? If so, notice that op is a binary operator and we must apply
       // congruence in a special way.
@@ -442,12 +463,15 @@ bool LeanProofPostprocessCallback::update(Node res,
                     && k != kind::APPLY_TESTER;
       if (isNary && nchildren > 2)
       {
+        AlwaysAssert(!isHO);
         // start with the last argument
         Node currEq = children[nchildren - 1];
         for (size_t i = 1; i < nchildren; ++i)
         {
           size_t j = nchildren - i - 1;
-          // build equality of partial apps of argument j. We add the index as part of the node to guarantee that there is no ambiguity with applications that have repeated arguments
+          // build equality of partial apps of argument j. We add the index as
+          // part of the node to guarantee that there is no ambiguity with
+          // applications that have repeated arguments
           std::vector<Node> argAppEqChildren{
               eqNode,
               nm->mkConst<Rational>(i),
@@ -500,7 +524,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       Node curL = op;
       Node curR = op;
       Node currEq = opEq;
-      for (size_t i = 0; i < nchildren - 1; ++i)
+      for (size_t i = !isHO ? 0 : 1; i < nchildren - 1; ++i)
       {
         curL = nm->mkNode(kind::SEXPR, currEq, children[i][0]);
         curR = nm->mkNode(kind::SEXPR, currEq, children[i][0]);
@@ -877,8 +901,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(nm->mkNode(kind::SEXPR, res[0], res[1])),
                   true,
                   children,
-                  {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs)),
-                   args[1]},
+                  {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs)), args[1]},
                   *cdp);
       break;
     }
