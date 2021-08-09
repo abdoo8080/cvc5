@@ -54,7 +54,7 @@ class LeanNodeConverter
   /** Should we traverse n? */
   bool shouldTraverse(Node n);
 
-  Node mkList(const std::vector<Node>& nodes);
+  Node mkList(const std::vector<Node>& nodes, Node op = Node::null());
   Node mkInt(unsigned i);
   Node mkInt(Node i);
 

@@ -36,6 +36,8 @@ std::unordered_map<Kind, std::string> s_kindToString = {
     {kind::BITVECTOR_REPEAT, "bvRepeat"},
     {kind::BITVECTOR_ZERO_EXTEND, "bvZeroExt"},
     {kind::BITVECTOR_SIGN_EXTEND, "bvSignExt"},
+    {kind::BITVECTOR_BITOF, "bitOf"},
+    {kind::BITVECTOR_BB_TERM, "bbT"},
     {kind::ITE, "fIte"},
     {kind::SELECT, "select"},
     {kind::STORE, "store"},
@@ -62,9 +64,13 @@ LeanNodeConverter::LeanNodeConverter()
 }
 LeanNodeConverter::~LeanNodeConverter() {}
 
-Node LeanNodeConverter::mkList(const std::vector<Node>& nodes)
+Node LeanNodeConverter::mkList(const std::vector<Node>& nodes, Node op)
 {
   std::vector<Node> listNodes;
+  if (!op.isNull())
+  {
+    listNodes.push_back(op);
+  }
   listNodes.push_back(d_brack[0]);
   for (size_t i = 0, size = nodes.size(); i < size; ++i)
   {
@@ -120,6 +126,12 @@ std::vector<Node> LeanNodeConverter::getOperatorIndices(Kind k, Node n)
     {
       indices.push_back(
           mkInt(n.getConst<BitVectorSignExtend>().d_signExtendAmount));
+      break;
+    }
+    case kind::BITVECTOR_BITOF:
+    {
+      indices.push_back(
+          mkInt(n.getConst<BitVectorBitOf>().d_bitIndex));
       break;
     }
       // case kind::BITVECTOR_ROTATE_LEFT:
@@ -342,32 +354,25 @@ Node LeanNodeConverter::convert(Node n)
           Assert(nChildren >= 1);
           if (nChildren > 1)
           {
-            resChildren.push_back(mkInternalSymbol("appN"));
-            resChildren.push_back(op);
-            resChildren.push_back(d_brack[0]);
-            for (size_t i = 0; i < nChildren; ++i)
-            {
-              resChildren.push_back(children[i + 1]);
-              if (i < nChildren - 1)
-              {
-                resChildren.push_back(d_comma);
-              }
-            }
-            resChildren.push_back(d_brack[1]);
+            res = mkList(children, mkInternalSymbol("appN"));
+            break;
           }
-          else
-          {
-            resChildren.push_back(mkInternalSymbol("app"));
-            resChildren.push_back(op);
-            resChildren.push_back(children[1]);
-          }
+          resChildren.push_back(mkInternalSymbol("app"));
+          resChildren.push_back(op);
+          resChildren.push_back(children[1]);
           res = nm->mkNode(kind::SEXPR, resChildren);
+          break;
+        }
+        case kind::BITVECTOR_BB_TERM:
+        {
+          res = mkList(children, mkInternalSymbol("bbT"));
           break;
         }
         case kind::BITVECTOR_EXTRACT:
         case kind::BITVECTOR_REPEAT:
         case kind::BITVECTOR_ZERO_EXTEND:
         case kind::BITVECTOR_SIGN_EXTEND:
+        case kind::BITVECTOR_BITOF:
         {
           resChildren.push_back(mkInternalSymbol(s_kindToString[k]));
           std::vector<Node> indices = getOperatorIndices(k, children[0]);
@@ -425,42 +430,20 @@ Node LeanNodeConverter::convert(Node n)
           bool isOr = k == kind::OR;
           if (nChildren > 2)
           {
-            resChildren.push_back(mkInternalSymbol(isOr ? "orN" : "andN"));
-            resChildren.push_back(d_brack[0]);
-            for (size_t i = 0; i < nChildren; ++i)
-            {
-              resChildren.push_back(children[i]);
-              if (i < nChildren - 1)
-              {
-                resChildren.push_back(d_comma);
-              }
-            }
-            resChildren.push_back(d_brack[1]);
+            res = mkList(children, mkInternalSymbol(isOr ? "orN" : "andN"));
+            break;
           }
-          else
-          {
             resChildren.push_back(
                 mkInternalSymbol(isOr ? "term.or" : "term.and"));
             resChildren.push_back(children[0]);
             resChildren.push_back(children[1]);
-          }
           res = nm->mkNode(kind::SEXPR, resChildren);
           break;
         }
         // clauses
         case kind::SEXPR:
         {
-          resChildren.push_back(d_brack[0]);
-          for (size_t i = 0; i < nChildren; ++i)
-          {
-            resChildren.push_back(children[i]);
-            if (i < nChildren - 1)
-            {
-              resChildren.push_back(d_comma);
-            }
-          }
-          resChildren.push_back(d_brack[1]);
-          res = nm->mkNode(kind::SEXPR, resChildren);
+          res = mkList(children);
           break;
         }
         default:
@@ -587,7 +570,14 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     {
       return mkInternalSymbol("bvSignExtConst");
     }
-
+    case kind::BITVECTOR_BITOF:
+    {
+      return mkInternalSymbol("bitOfConst");
+    }
+    case kind::BITVECTOR_BB_TERM:
+    {
+      return mkInternalSymbol("bbTConst");
+    }
     default:
     {
       Trace("test-lean") << "non-handled kind " << k << "\n";
