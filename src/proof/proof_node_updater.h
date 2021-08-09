@@ -137,11 +137,14 @@ class ProofNodeUpdater
   /**
    * Finalize the node cur. This is called at the moment that it is established
    * that cur will appear in the final proof. We do any final debug checking
-   * and add it to the results cache resCache if we are merging subproofs.
+   * and add it to resCache/resCacheNcWaiting if we are merging subproofs, where
+   * these map result formulas to proof nodes with/without assumptions.
    */
   void runFinalize(std::shared_ptr<ProofNode> cur,
                    const std::vector<Node>& fa,
                    std::map<Node, std::shared_ptr<ProofNode>>& resCache,
+                   std::map<Node, std::vector<std::shared_ptr<ProofNode>>>&
+                       resCacheNcWaiting,
                    std::unordered_map<const ProofNode*, bool>& cfaMap);
   /** Are we debugging free assumptions? */
   bool d_debugFreeAssumps;

@@ -3288,7 +3288,8 @@ class CVC5_EXPORT Solver
    * - base 16: the max. size required to represent the hexadecimal as a
    *            bit-vector (4 * size of the given value string)
    *
-   * @param s the string representation of the constant
+   * @param s The string representation of the constant.
+   *          This cannot be negative.
    * @param base the base of the string representation (2, 10, or 16)
    * @return the bit-vector constant
    */
@@ -3719,6 +3720,13 @@ class CVC5_EXPORT Solver
   std::string getOption(const std::string& option) const;
 
   /**
+   * Get all option names that can be used with `setOption`, `getOption` and
+   * `getOptionInfo`.
+   * @return all option names
+   */
+  std::vector<std::string> getOptionNames() const;
+
+  /**
    * Get the set of unsat ("failed") assumptions.
    * SMT-LIB:
    * \verbatim
@@ -3742,8 +3750,11 @@ class CVC5_EXPORT Solver
 
   /**
    * Get the refutation proof
-   * SMT-LIB: ( get-proof )
-   * Requires to enable option 'proof'.
+   * SMT-LIB:
+   * \verbatim
+   * ( get-proof )
+   * \endverbatim
+   * Requires to enable option 'produce-proofs'.
    * @return a string representing the proof, according to the the value of
    * proof-format-mode.
    */
@@ -4171,7 +4182,8 @@ class CVC5_EXPORT Solver
   void resetStatistics();
 
   /**
-   * Print the statistics to the given file descriptor, suitable for usage in signal handlers.
+   * Print the statistics to the given file descriptor, suitable for usage in
+   * signal handlers.
    */
   void printStatisticsSafe(int fd) const;
 

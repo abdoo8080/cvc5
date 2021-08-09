@@ -142,6 +142,8 @@ libcvc5_add_sources(
   printer/smt2/smt2_printer.h
   printer/tptp/tptp_printer.cpp
   printer/tptp/tptp_printer.h
+  proof/annotation_proof_generator.cpp
+  proof/annotation_proof_generator.h
   proof/buffered_proof_generator.cpp
   proof/buffered_proof_generator.h
   proof/conv_proof_generator.cpp
@@ -308,8 +310,6 @@ libcvc5_add_sources(
   smt/logic_exception.h
   smt/interpolation_solver.cpp
   smt/interpolation_solver.h
-  smt/managed_ostreams.cpp
-  smt/managed_ostreams.h
   smt/model.cpp
   smt/model.h
   smt/model_core_builder.cpp
@@ -332,6 +332,8 @@ libcvc5_add_sources(
   smt/preprocess_proof_generator.h
   smt/process_assertions.cpp
   smt/process_assertions.h
+  smt/proof_final_callback.cpp
+  smt/proof_final_callback.h
   smt/proof_manager.cpp
   smt/proof_manager.h
   smt/proof_post_processor.cpp
@@ -358,7 +360,6 @@ libcvc5_add_sources(
   smt/term_formula_removal.h
   smt/unsat_core_manager.cpp
   smt/unsat_core_manager.h
-  smt/update_ostream.h
   smt/witness_form.cpp
   smt/witness_form.h
   smt_util/boolean_simplification.cpp
@@ -719,6 +720,8 @@ libcvc5_add_sources(
   theory/incomplete_id.h
   theory/inference_id.cpp
   theory/inference_id.h
+  theory/inference_id_proof_annotator.cpp
+  theory/inference_id_proof_annotator.h
   theory/inference_manager_buffered.cpp
   theory/inference_manager_buffered.h
   theory/logic_info.cpp
