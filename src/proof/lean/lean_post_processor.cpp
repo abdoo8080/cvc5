@@ -316,6 +316,74 @@ bool LeanProofPostprocessCallback::update(Node res,
           res, LeanRule::ITE_INTRO, d_lnc.convert(res), false, {}, {}, *cdp);
       break;
     }
+    // BV
+    case PfRule::BV_BITBLAST_STEP:
+    {
+      Kind k = res[0].getKind();
+      switch (k)
+      {
+        case kind::CONST_BITVECTOR:
+        {
+          addLeanStep(res,
+                      LeanRule::BITBLAST_VAL,
+                      d_lnc.convert(res),
+                      false,
+                      {},
+                      {},
+                      *cdp);
+          break;
+        }
+        case kind::VARIABLE:
+        {
+          addLeanStep(res,
+                      LeanRule::BITBLAST_VAR,
+                      d_lnc.convert(res),
+                      false,
+                      {},
+                      // the size of the bv is the number of children of the
+                      // bitblasted term
+                      {nm->mkConst<Rational>(res[1].getNumChildren())},
+                      *cdp);
+          break;
+        }
+        case kind::BITVECTOR_ULT:
+        {
+          // both arguments must be bitblasted terms
+          AlwaysAssert(res[0][0].getKind() == kind::BITVECTOR_BB_TERM
+                       && res[0][1].getKind() == kind::BITVECTOR_BB_TERM);
+          // if one of the bitblasted terms is the resulting of bitblasting a
+          // constant, the rule is different. This is because cvc5 hardcodes
+          // simplifications during the bitblasting (like conjunction with
+          // Boolean constants, equalities with Boolean constants being
+          // eliminated etc). A bitblasted term is the result of bitblasting a
+          // constant if its children are Boolean constants.
+          bool hasValue = res[0][0][0].getKind() == kind::CONST_BOOLEAN
+                          || res[0][1][0].getKind() == kind::CONST_BOOLEAN;
+          addLeanStep(res,
+                      hasValue? LeanRule::BITBLAST_ULT_VAL : LeanRule::BITBLAST_ULT,
+                      d_lnc.convert(res),
+                      false,
+                      {},
+                      // the size of the bv is the number of children of the
+                      // bitblasted term
+                      {nm->mkConst<Rational>(res[0][0].getNumChildren())},
+                      *cdp);
+          break;
+        }
+        default:
+        {
+          Trace("test-lean") << "unhandled bitblasting kind " << k << "\n";
+          addLeanStep(res,
+                      LeanRule::UNKNOWN,
+                      Node::null(),
+                      false,
+                      children,
+                      args,
+                      *cdp);
+        }
+      }
+      break;
+    }
     // create clausal conclusion and remove arguments
     case PfRule::CNF_IMPLIES_POS:
     case PfRule::CNF_IMPLIES_NEG1:

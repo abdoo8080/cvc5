@@ -109,6 +109,11 @@ enum class LeanRule : uint32_t
   READ_OVER_WRITE_CONTRA,
   READ_OVER_WRITE_ID,
   ARRAY_EXT,
+  // bv
+  BITBLAST_VAL,
+  BITBLAST_VAR,
+  BITBLAST_ULT,
+  BITBLAST_ULT_VAL,
 
   // quants
   BIND,

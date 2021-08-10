@@ -112,6 +112,11 @@ const char* toString(LeanRule id)
     case LeanRule::READ_OVER_WRITE_ID: return "readOverWriteIdentity";
     case LeanRule::ARRAY_EXT: return "arrayExt";
 
+    case LeanRule::BITBLAST_VAL: return "bbBvVal";
+    case LeanRule::BITBLAST_VAR: return "bbBvVar";
+    case LeanRule::BITBLAST_ULT: return "bbBvUlt";
+    case LeanRule::BITBLAST_ULT_VAL: return "bbBvUltVal";
+
     case LeanRule::BIND: return "bind";
     case LeanRule::BIND_PARTIAL: return "bind";
     case LeanRule::BIND_LAMBDA: return "bindLambda";

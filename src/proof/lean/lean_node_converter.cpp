@@ -365,7 +365,7 @@ Node LeanNodeConverter::convert(Node n)
         }
         case kind::BITVECTOR_BB_TERM:
         {
-          res = mkList(children, mkInternalSymbol("bbT"));
+          res = mkList(children, mkInternalSymbol("mkBbT"));
           break;
         }
         case kind::BITVECTOR_EXTRACT:
