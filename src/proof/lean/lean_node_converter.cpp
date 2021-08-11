@@ -64,13 +64,10 @@ LeanNodeConverter::LeanNodeConverter()
 }
 LeanNodeConverter::~LeanNodeConverter() {}
 
-Node LeanNodeConverter::mkList(const std::vector<Node>& nodes, Node op)
+Node LeanNodeConverter::mkList(const std::vector<Node>& nodes,
+                               const std::vector<Node>& prefix)
 {
-  std::vector<Node> listNodes;
-  if (!op.isNull())
-  {
-    listNodes.push_back(op);
-  }
+  std::vector<Node> listNodes{prefix};
   listNodes.push_back(d_brack[0]);
   for (size_t i = 0, size = nodes.size(); i < size; ++i)
   {
@@ -354,7 +351,8 @@ Node LeanNodeConverter::convert(Node n)
           Assert(nChildren >= 1);
           if (nChildren > 1)
           {
-            res = mkList(children, mkInternalSymbol("appN"));
+            res = mkList({children.begin() + 1, children.end()},
+                         {mkInternalSymbol("appN"), op});
             break;
           }
           resChildren.push_back(mkInternalSymbol("app"));
@@ -365,7 +363,7 @@ Node LeanNodeConverter::convert(Node n)
         }
         case kind::BITVECTOR_BB_TERM:
         {
-          res = mkList(children, mkInternalSymbol("mkBbT"));
+          res = mkList(children, {mkInternalSymbol("mkBbT")});
           break;
         }
         case kind::BITVECTOR_EXTRACT:
@@ -430,7 +428,7 @@ Node LeanNodeConverter::convert(Node n)
           bool isOr = k == kind::OR;
           if (nChildren > 2)
           {
-            res = mkList(children, mkInternalSymbol(isOr ? "orN" : "andN"));
+            res = mkList(children, {mkInternalSymbol(isOr ? "orN" : "andN")});
             break;
           }
             resChildren.push_back(

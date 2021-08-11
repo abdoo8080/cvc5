@@ -114,8 +114,15 @@ const char* toString(LeanRule id)
 
     case LeanRule::BITBLAST_VAL: return "bbBvVal";
     case LeanRule::BITBLAST_VAR: return "bbBvVar";
+    case LeanRule::BITBLAST_EQ: return "bbBvEq";
+    case LeanRule::BITBLAST_EQ_VAL: return "bbBvEqVal";
+    case LeanRule::BITBLAST_AND: return "bbBvAnd";
+    case LeanRule::BITBLAST_AND_VAL: return "bbBvAndVal";
+    case LeanRule::BITBLAST_ADD: return "bbBvAdd";
     case LeanRule::BITBLAST_ULT: return "bbBvUlt";
     case LeanRule::BITBLAST_ULT_VAL: return "bbBvUltVal";
+    case LeanRule::BITBLAST_CONCAT: return "bbBvConcat";
+    case LeanRule::BITBLAST_EXTRACT: return "bbBvExtract";
 
     case LeanRule::BIND: return "bind";
     case LeanRule::BIND_PARTIAL: return "bind";

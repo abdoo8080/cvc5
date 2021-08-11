@@ -20,6 +20,7 @@
 #include "proof/proof_checker.h"
 #include "proof/proof_node_algorithm.h"
 #include "proof/proof_node_manager.h"
+#include "util/bitvector.h"
 #include "util/rational.h"
 
 namespace cvc5 {
@@ -334,6 +335,7 @@ bool LeanProofPostprocessCallback::update(Node res,
           break;
         }
         case kind::VARIABLE:
+        case kind::SKOLEM:
         {
           addLeanStep(res,
                       LeanRule::BITBLAST_VAR,
@@ -367,6 +369,85 @@ bool LeanProofPostprocessCallback::update(Node res,
                       // the size of the bv is the number of children of the
                       // bitblasted term
                       {nm->mkConst<Rational>(res[0][0].getNumChildren())},
+                      *cdp);
+          break;
+        }
+        case kind::EQUAL:
+        {
+          // both arguments must be bitblasted terms
+          AlwaysAssert(res[0][0].getKind() == kind::BITVECTOR_BB_TERM
+                       && res[0][1].getKind() == kind::BITVECTOR_BB_TERM);
+          bool hasValue = res[0][0][0].getKind() == kind::CONST_BOOLEAN
+                          || res[0][1][0].getKind() == kind::CONST_BOOLEAN;
+          addLeanStep(res,
+                      hasValue? LeanRule::BITBLAST_EQ_VAL : LeanRule::BITBLAST_EQ,
+                      d_lnc.convert(res),
+                      false,
+                      {},
+                      {nm->mkConst<Rational>(res[0][0].getNumChildren())},
+                      *cdp);
+          break;
+        }
+        case kind::BITVECTOR_AND:
+        {
+          // both arguments must be bitblasted terms
+          AlwaysAssert(res[0][0].getKind() == kind::BITVECTOR_BB_TERM
+                       && res[0][1].getKind() == kind::BITVECTOR_BB_TERM);
+          bool hasValue = res[0][0][0].getKind() == kind::CONST_BOOLEAN
+                          || res[0][1][0].getKind() == kind::CONST_BOOLEAN;
+          addLeanStep(res,
+                      hasValue? LeanRule::BITBLAST_AND_VAL : LeanRule::BITBLAST_AND,
+                      d_lnc.convert(res),
+                      false,
+                      {},
+                      {nm->mkConst<Rational>(res[0][0].getNumChildren())},
+                      *cdp);
+          break;
+        }
+        case kind::BITVECTOR_ADD:
+        {
+          // both arguments must be bitblasted terms
+          AlwaysAssert(res[0][0].getKind() == kind::BITVECTOR_BB_TERM
+                       && res[0][1].getKind() == kind::BITVECTOR_BB_TERM);
+          addLeanStep(res,
+                      LeanRule::BITBLAST_ADD,
+                      d_lnc.convert(res),
+                      false,
+                      {},
+                      {nm->mkConst<Rational>(res[0][0].getNumChildren())},
+                      *cdp);
+          break;
+        }
+        case kind::BITVECTOR_CONCAT:
+        {
+          // both arguments must be bitblasted terms
+          AlwaysAssert(res[0][0].getKind() == kind::BITVECTOR_BB_TERM
+                       && res[0][1].getKind() == kind::BITVECTOR_BB_TERM);
+          addLeanStep(res,
+                      LeanRule::BITBLAST_CONCAT,
+                      d_lnc.convert(res),
+                      false,
+                      {},
+                      {nm->mkConst<Rational>(res[0][0].getNumChildren()),
+                       nm->mkConst<Rational>(res[0][1].getNumChildren())},
+                      *cdp);
+          break;
+        }
+        case kind::BITVECTOR_EXTRACT:
+        {
+          // argument must be a bitblasted term
+          AlwaysAssert(res[0][0].getKind() == kind::BITVECTOR_BB_TERM);
+          std::vector<Node> newArgs{nm->mkConst<Rational>(res[0][0].getNumChildren())};
+          // BitVectorExtract p =
+          //     res[0].getOperator().getConst<BitVectorExtract>();
+          // newArgs.push_back(nm->mkConst<Rational>(p.d_high));
+          // newArgs.push_back(nm->mkConst<Rational>(p.d_low));
+          addLeanStep(res,
+                      LeanRule::BITBLAST_EXTRACT,
+                      d_lnc.convert(res),
+                      false,
+                      {},
+                      newArgs,
                       *cdp);
           break;
         }
