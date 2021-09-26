@@ -4,13 +4,15 @@ datenow=$(date +"%Y%m%d%H%M")
 solver=../prod/bin/cvc5
 # options="--arrays-exp"
 # options="--arrays-exp --bv-solver=simple"
-options="--arrays-exp --check-proofs"
+options="--arrays-exp --check-proofs --stats-expert"
 # options="--produce-proofs --finite-model-find --fmf-type-completion-thresh=1000000 --lang=smt2 -q"
 traces=""
 time=""
 ulimit="ulimit -S -t 5"
 # file="all.txt"
-file="add.txt"
+file="fib-simple.txt"
+# file="add.txt"
+# file="add-simple.txt"
 # file="test.txt"
 path="./"
 

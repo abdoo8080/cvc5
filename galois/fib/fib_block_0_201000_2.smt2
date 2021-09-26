@@ -153,7 +153,7 @@
 (assert (bvult fnstart_rsp (bvsub stack_max #x0000000000000008)))
 (assert (= (bvand (bvadd fnstart_rsp #x0000000000000008) #x000000000000000f) #x0000000000000000))
 (define-fun is_in_mc_only_stack_range ((arg25 (_ BitVec 64)) (arg26 (_ BitVec 64))) Bool (let ((e1 (bvadd arg25 arg26))) (on_stack arg25 arg26)))
-(define-fun %arg0 () (_ BitVec 64) fnstart_rdi)
+(define-fun _arg0 () (_ BitVec 64) fnstart_rdi)
 (assert (= fnstart_rbx fnstart_rbx))
 (assert (= fnstart_rsp fnstart_rsp))
 (assert (= fnstart_rbp fnstart_rbp))
@@ -161,15 +161,15 @@
 (assert (= fnstart_r13 fnstart_r13))
 (assert (= fnstart_r14 fnstart_r14))
 (assert (= fnstart_r15 fnstart_r15))
-; LLVM:     %t0 = icmp eq i64 %arg0, 1
-(define-fun %t0 () (_ BitVec 1) (ite (= %arg0 #x0000000000000001) #b1 #b0))
-; LLVM:     %t1 = icmp ule i64 1, %arg0
-(define-fun %t1 () (_ BitVec 1) (ite (bvule #x0000000000000001 %arg0) #b1 #b0))
-; LLVM:     %t2 = icmp eq i1 %t0, 0
-(define-fun %t2 () (_ BitVec 1) (ite (= %t0 #b0) #b1 #b0))
-; LLVM:     %t3 = and i1 %t1, %t2
-(define-fun %t3 () (_ BitVec 1) (bvand %t1 %t2))
-; LLVM:     br i1 %t3, label %block_0_201024, label %block_0_201017
+; LLVM:     _t0 = icmp eq i64 _arg0, 1
+(define-fun _t0 () (_ BitVec 1) (ite (= _arg0 #x0000000000000001) #b1 #b0))
+; LLVM:     _t1 = icmp ule i64 1, _arg0
+(define-fun _t1 () (_ BitVec 1) (ite (bvule #x0000000000000001 _arg0) #b1 #b0))
+; LLVM:     _t2 = icmp eq i1 _t0, 0
+(define-fun _t2 () (_ BitVec 1) (ite (= _t0 #b0) #b1 #b0))
+; LLVM:     _t3 = and i1 _t1, _t2
+(define-fun _t3 () (_ BitVec 1) (bvand _t1 _t2))
+; LLVM:     br i1 _t3, label _block_0_201024, label _block_0_201017
 (define-fun rsp () (_ BitVec 64) (bvsub fnstart_rsp #x0000000000000008))
 (assert (is_in_mc_only_stack_range rsp #x0000000000000008))
 (define-fun mem () (Array (_ BitVec 64) (_ BitVec 8)) (mem_writebv64 init_mem rsp fnstart_rbp))
