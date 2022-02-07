@@ -163,13 +163,11 @@ G randomize(const Solver& slv, const std::vector<Term>& sygusVars, G& g)
 }
 
 /** Converts a mapping from production to rules to a Sygus grammar. */
-Grammar mapToGrammar(const Solver& slv, std::vector<Term> vars, G& map)
+Grammar mapToGrammar(const Solver& slv,
+                     std::vector<Term> vars,
+                     std::vector<Term> nonterminals,
+                     G& map)
 {
-  std::vector<Term> nonterminals;
-  for (const std::pair<const Term, std::vector<Term>>& production : map)
-  {
-    nonterminals.push_back(production.first);
-  }
   Grammar g = slv.mkSygusGrammar(vars, nonterminals);
   for (Term nonterminal : nonterminals)
   {
@@ -354,7 +352,7 @@ int main(int argc, char* argv[])
   }
 
   G ng = randomize(slv, sygusVars, g);
-  std::cout << mapToGrammar(slv, sygusVars, ng) << std::endl;
+  std::cout << mapToGrammar(slv, sygusVars, nonterminals, ng) << std::endl;
 
   return 0;
 }
