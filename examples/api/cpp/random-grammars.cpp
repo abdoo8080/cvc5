@@ -1,4 +1,5 @@
 #include <cvc5/cvc5.h>
+#include <string.h>
 
 #include <iostream>
 #include <random>
@@ -177,10 +178,94 @@ Grammar mapToGrammar(const Solver& slv, std::vector<Term> vars, G& map)
   return g;
 }
 
-int main()
+std::tuple<std::vector<Term>, std::vector<Term>, G> bvGrammar(const Solver& slv)
 {
-  Solver slv;
+  Sort boolean = slv.getBooleanSort();
+  Sort bitVec8 = slv.mkBitVectorSort(8);
 
+  Term x = slv.mkVar(bitVec8, "x");
+  Term y = slv.mkVar(bitVec8, "y");
+
+  Term start = slv.mkVar(bitVec8, "Start");
+  Term startBool = slv.mkVar(boolean, "StartBool");
+  Term constBV = slv.mkVar(bitVec8, "ConstBV");
+
+  G g;
+
+  g[start] = {constBV,
+              x,
+              y,
+              slv.mkTerm(BITVECTOR_NOT, start),
+              slv.mkTerm(BITVECTOR_NEG, start),
+              slv.mkTerm(BITVECTOR_AND, start, start),
+              slv.mkTerm(BITVECTOR_OR, start, start),
+              slv.mkTerm(BITVECTOR_ADD, start, start),
+              slv.mkTerm(BITVECTOR_MULT, start, start),
+              slv.mkTerm(BITVECTOR_UDIV, start, start),
+              slv.mkTerm(BITVECTOR_UREM, start, start),
+              slv.mkTerm(BITVECTOR_SHL, start, start),
+              slv.mkTerm(BITVECTOR_LSHR, start, start)};
+
+  g[startBool] = {slv.mkTerm(NOT, startBool),
+                  slv.mkTerm(AND, startBool, startBool),
+                  slv.mkTerm(BITVECTOR_ULT, start, start)};
+
+  g[constBV] = {slv.mkBitVector(8, "00", 16),
+                slv.mkBitVector(8, "01", 16),
+                slv.mkBitVector(8, "a5", 16)};
+
+  return {{x, y}, {start, startBool, constBV}, g};
+}
+
+std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
+    const Solver& slv)
+{
+  Sort boolean = slv.getBooleanSort();
+  Sort integer = slv.getIntegerSort();
+
+  Term x = slv.mkVar(integer, "x");
+  Term y = slv.mkVar(integer, "y");
+
+  Term start = slv.mkVar(integer, "Start");
+  Term startBool = slv.mkVar(boolean, "StartBool");
+  Term constInt = slv.mkVar(integer, "ConstInt");
+
+  G g;
+
+  g[start] = {constInt,
+              x,
+              y,
+              slv.mkTerm(UMINUS, start),
+              slv.mkTerm(MINUS, start, start),
+              slv.mkTerm(PLUS, start, start),
+              slv.mkTerm(MULT, start, start),
+              slv.mkTerm(INTS_DIVISION, start, start),
+              slv.mkTerm(INTS_MODULUS, start, start),
+              slv.mkTerm(ABS, start),
+              slv.mkTerm(ITE, startBool, start, start)};
+
+  g[startBool] = {slv.mkFalse(),
+                  slv.mkTrue(),
+                  slv.mkTerm(NOT, startBool),
+                  slv.mkTerm(AND, startBool, startBool),
+                  slv.mkTerm(LEQ, start, start),
+                  slv.mkTerm(EQUAL, start, start),
+                  slv.mkTerm(GEQ, start, start),
+                  slv.mkTerm(GT, start, start)};
+
+  g[constInt] = {slv.mkInteger(0),
+                 slv.mkInteger(1),
+                 slv.mkInteger(2),
+                 slv.mkInteger(3),
+                 slv.mkInteger(4),
+                 slv.mkInteger(5)};
+
+  return {{x, y}, {start, startBool, constInt}, g};
+}
+
+std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
+    const Solver& slv)
+{
   Sort boolean = slv.getBooleanSort();
   Sort integer = slv.getIntegerSort();
   Sort string = slv.getStringSort();
@@ -193,71 +278,83 @@ int main()
   Term startBool = slv.mkVar(boolean, "StartBool");
   Term constString = slv.mkVar(string, "ConstString");
 
-  Term strAppend = slv.mkTerm(STRING_CONCAT, start, start);
-  Term strAt = slv.mkTerm(STRING_CHARAT, start, startInt);
-  Term strSubstr = slv.mkTerm(STRING_SUBSTR, start, startInt, startInt);
-  Term strReplace = slv.mkTerm(STRING_REPLACE, start, start, start);
-  Term strReplaceAll = slv.mkTerm(STRING_REPLACE_ALL, start, start, start);
-  Term strFromCode = slv.mkTerm(STRING_FROM_CODE, startInt);
-  Term strFromInt = slv.mkTerm(STRING_FROM_INT, startInt);
-  Term ite = slv.mkTerm(ITE, startBool, start, start);
-
-  Term zero = slv.mkInteger(0);
-  Term one = slv.mkInteger(1);
-  Term strIndexof = slv.mkTerm(STRING_INDEXOF, start, start, startInt);
-  Term strToCode = slv.mkTerm(STRING_TO_CODE, start);
-  Term strToInt = slv.mkTerm(STRING_TO_INT, start);
-
-  Term Not = slv.mkTerm(NOT, startBool);
-  Term And = slv.mkTerm(AND, startBool, startBool);
-  Term strLt = slv.mkTerm(STRING_LT, start, start);
-  Term strLeq = slv.mkTerm(STRING_LEQ, start, start);
-  Term strPrefixof = slv.mkTerm(STRING_PREFIX, start, start);
-  Term strSuffixof = slv.mkTerm(STRING_SUFFIX, start, start);
-  Term strContains = slv.mkTerm(STRING_CONTAINS, start, start);
-  Term strIsDigit = slv.mkTerm(STRING_IS_DIGIT, start);
-  Term strEqual = slv.mkTerm(EQUAL, start, start);
-  Term intEqual = slv.mkTerm(EQUAL, startInt, startInt);
-  Term intLeq = slv.mkTerm(LEQ, startInt, startInt);
-
-  Term empty = slv.mkString("");
-  Term zeroStr = slv.mkString("0");
-  Term oneStr = slv.mkString("1");
-  Term a = slv.mkString("a");
-  Term b = slv.mkString("b");
-
   G g;
 
   g[start] = {constString,
               x,
               y,
-              strAppend,
-              strAt,
-              strSubstr,
-              strReplace,
-              strReplaceAll,
-              strFromCode,
-              strFromInt,
-              ite};
+              slv.mkTerm(STRING_CONCAT, start, start),
+              slv.mkTerm(STRING_CHARAT, start, startInt),
+              slv.mkTerm(STRING_SUBSTR, start, startInt, startInt),
+              slv.mkTerm(STRING_REPLACE, start, start, start),
+              slv.mkTerm(STRING_REPLACE_ALL, start, start, start),
+              slv.mkTerm(STRING_FROM_CODE, startInt),
+              slv.mkTerm(STRING_FROM_INT, startInt),
+              slv.mkTerm(ITE, startBool, start, start)};
 
-  g[startInt] = {zero, one, strIndexof, strToCode, strToInt};
+  g[startInt] = {slv.mkInteger(0),
+                 slv.mkInteger(1),
+                 slv.mkTerm(STRING_INDEXOF, start, start, startInt),
+                 slv.mkTerm(STRING_TO_CODE, start),
+                 slv.mkTerm(STRING_TO_INT, start)};
 
-  g[startBool] = {Not,
-                  And,
-                  strLt,
-                  strLeq,
-                  strPrefixof,
-                  strSuffixof,
-                  strContains,
-                  strIsDigit,
-                  strEqual,
-                  intEqual,
-                  intLeq};
+  g[startBool] = {slv.mkTerm(NOT, startBool),
+                  slv.mkTerm(AND, startBool, startBool),
+                  slv.mkTerm(STRING_LT, start, start),
+                  slv.mkTerm(STRING_LEQ, start, start),
+                  slv.mkTerm(STRING_PREFIX, start, start),
+                  slv.mkTerm(STRING_SUFFIX, start, start),
+                  slv.mkTerm(STRING_CONTAINS, start, start),
+                  slv.mkTerm(STRING_IS_DIGIT, start),
+                  slv.mkTerm(EQUAL, start, start),
+                  slv.mkTerm(EQUAL, startInt, startInt),
+                  slv.mkTerm(LEQ, startInt, startInt)};
 
-  g[constString] = {empty, zeroStr, oneStr, a, b};
+  g[constString] = {slv.mkString(""),
+                    slv.mkString("0"),
+                    slv.mkString("1"),
+                    slv.mkString("a"),
+                    slv.mkString("b")};
 
-  G ng = randomize(slv, {x, y}, g);
-  std::cout << mapToGrammar(slv, {x, y}, ng) << std::endl;
+  return {{x, y}, {start, startInt, startBool, constString}, g};
+}
+
+int main(int argc, char* argv[])
+{
+  if (argc != 2)
+  {
+    std::cerr << "Wrong number of arguments!\nUsage: " << argv[0]
+              << " [bv|nia|string]" << std::endl;
+    return 1;
+  }
+
+  Solver slv;
+  std::vector<Term> sygusVars, nonterminals;
+  G g;
+
+  std::string x = "s";
+
+  if (strcmp(argv[1], "bv") == 0)
+  {
+    std::tie(sygusVars, nonterminals, g) = bvGrammar(slv);
+  }
+  else if (strcmp(argv[1], "nia") == 0)
+  {
+    std::tie(sygusVars, nonterminals, g) = niaGrammar(slv);
+  }
+  else if (strcmp(argv[1], "string") == 0)
+  {
+    std::tie(sygusVars, nonterminals, g) = stringGrammar(slv);
+  }
+  else
+  {
+    std::cerr << "Unknown option!\nUsage: " << argv[0] << " [bv|nia|string]"
+              << std::endl;
+    return 2;
+  }
+
+  G ng = randomize(slv, sygusVars, g);
+  std::cout << mapToGrammar(slv, sygusVars, ng) << std::endl;
 
   return 0;
 }
