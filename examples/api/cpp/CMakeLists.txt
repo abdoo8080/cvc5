@@ -40,6 +40,7 @@ if(USE_COCOA)
 endif()
 
 set(SYGUS_EXAMPLES_API
+  random-grammars
   sygus-fun
   sygus-grammar
   sygus-inv
