@@ -233,9 +233,9 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
   g[start] = {constInt,
               x,
               y,
-              slv.mkTerm(UMINUS, start),
-              slv.mkTerm(MINUS, start, start),
-              slv.mkTerm(PLUS, start, start),
+              slv.mkTerm(NEG, start),
+              slv.mkTerm(SUB, start, start),
+              slv.mkTerm(ADD, start, start),
               slv.mkTerm(MULT, start, start),
               slv.mkTerm(INTS_DIVISION, start, start),
               slv.mkTerm(INTS_MODULUS, start, start),
@@ -335,14 +335,48 @@ int main(int argc, char* argv[])
   if (strcmp(argv[1], "bv") == 0)
   {
     std::tie(sygusVars, nonterminals, g) = bvGrammar(slv);
+    G ng = randomize(slv, sygusVars, g);
+    std::cout << "(set-logic bv)" << std::endl
+              << "(set-option :dag-thresh 0)" << std::endl
+              << std::endl
+              << "(synth-fun f ((x (_ BitVec 8)) (y (_ BitVec 8))) (_ BitVec 8)"
+              << std::endl
+              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
+              << std::endl
+              << std::endl
+              << "(declare-var x (_ BitVec 8))" << std::endl
+              << "(declare-var y (_ BitVec 8))" << std::endl
+              << std::endl;
   }
   else if (strcmp(argv[1], "nia") == 0)
   {
     std::tie(sygusVars, nonterminals, g) = niaGrammar(slv);
+    G ng = randomize(slv, sygusVars, g);
+    std::cout << "(set-logic NIA)" << std::endl
+              << "(set-option :dag-thresh 0)" << std::endl
+              << std::endl
+              << "(synth-fun f ((x Int) (y Int)) Int" << std::endl
+              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
+              << std::endl
+              << std::endl
+              << "(declare-var x Int)" << std::endl
+              << "(declare-var y Int)" << std::endl
+              << std::endl;
   }
   else if (strcmp(argv[1], "string") == 0)
   {
     std::tie(sygusVars, nonterminals, g) = stringGrammar(slv);
+    G ng = randomize(slv, sygusVars, g);
+    std::cout << "(set-logic SLIA)" << std::endl
+              << "(set-option :dag-thresh 0)" << std::endl
+              << std::endl
+              << "(synth-fun f ((x String) (y String)) String" << std::endl
+              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
+              << std::endl
+              << std::endl
+              << "(declare-var x String)" << std::endl
+              << "(declare-var y String)" << std::endl
+              << std::endl;
   }
   else
   {
@@ -350,9 +384,6 @@ int main(int argc, char* argv[])
               << std::endl;
     return 2;
   }
-
-  G ng = randomize(slv, sygusVars, g);
-  std::cout << mapToGrammar(slv, sygusVars, nonterminals, ng) << std::endl;
 
   return 0;
 }
