@@ -1,6 +1,7 @@
 #include <cvc5/cvc5.h>
 #include <string.h>
 
+#include <algorithm>
 #include <iostream>
 #include <random>
 
@@ -162,12 +163,78 @@ G randomize(const Solver& slv, const std::vector<Term>& sygusVars, G& g)
   return gp;
 }
 
+bool ofHightOne(Term t)
+{
+  for (const Term& c : t)
+  {
+    if (c.getNumChildren() != 0)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::pair<Term, G> flattenRule(const Solver& slv, Term rule)
+{
+  if (rule.getNumChildren() == 0 || ofHightOne(rule))
+  {
+    return {rule, {}};
+  }
+  G partialMap;
+  Term newRule = rule;
+  for (const auto& child : rule)
+  {
+    if (child.getKind() != VARIABLE)
+    {
+      Term var = slv.mkVar(child.getSort());
+      newRule = substFirst(slv, newRule, child, var);
+      std::pair<Term, G> pair = flattenRule(slv, child);
+      partialMap[var].push_back(pair.first);
+      partialMap.insert(pair.second.cbegin(), pair.second.cend());
+    }
+  }
+  return {newRule, partialMap};
+}
+
+std::tuple<std::vector<Term>, std::vector<Term>, G> flatten(
+    const Solver& slv,
+    std::vector<Term> vars,
+    std::vector<Term> nonterminals,
+    G& map)
+{
+  G newMap;
+  for (const auto& production : map)
+  {
+    for (const auto& rule : production.second)
+    {
+      std::pair<Term, G> pair = flattenRule(slv, rule);
+      newMap[production.first].push_back(pair.first);
+      newMap.insert(pair.second.cbegin(), pair.second.cend());
+    }
+  }
+  for (const auto& production : newMap)
+  {
+    if (std::find(nonterminals.cbegin(), nonterminals.cend(), production.first)
+        == nonterminals.cend())
+    {
+      nonterminals.push_back(production.first);
+    }
+  }
+  return {vars, nonterminals, newMap};
+}
+
 /** Converts a mapping from production to rules to a Sygus grammar. */
 Grammar mapToGrammar(const Solver& slv,
                      std::vector<Term> vars,
                      std::vector<Term> nonterminals,
-                     G& map)
+                     G map,
+                     bool flattenGrammar = false)
 {
+  if (flattenGrammar)
+  {
+    std::tie(vars, nonterminals, map) = flatten(slv, vars, nonterminals, map);
+  }
   Grammar g = slv.mkSygusGrammar(vars, nonterminals);
   for (Term nonterminal : nonterminals)
   {
@@ -319,16 +386,18 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
 
 int main(int argc, char* argv[])
 {
-  if (argc != 2)
+  if (argc != 3)
   {
     std::cerr << "Wrong number of arguments!\nUsage: " << argv[0]
-              << " [bv|nia|string]" << std::endl;
+              << " [bv|nia|string] [true|false]" << std::endl;
     return 1;
   }
 
   Solver slv;
   std::vector<Term> sygusVars, nonterminals;
   G g;
+
+  bool flatten = strcmp(argv[2], "true") == 0 ? true : false;
 
   std::string x = "s";
 
@@ -341,7 +410,7 @@ int main(int argc, char* argv[])
               << std::endl
               << "(synth-fun f ((x (_ BitVec 8)) (y (_ BitVec 8))) (_ BitVec 8)"
               << std::endl
-              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
+              << mapToGrammar(slv, sygusVars, nonterminals, ng, flatten) << ')'
               << std::endl
               << std::endl
               << "(declare-var x (_ BitVec 8))" << std::endl
@@ -356,7 +425,7 @@ int main(int argc, char* argv[])
               << "(set-option :dag-thresh 0)" << std::endl
               << std::endl
               << "(synth-fun f ((x Int) (y Int)) Int" << std::endl
-              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
+              << mapToGrammar(slv, sygusVars, nonterminals, ng, flatten) << ')'
               << std::endl
               << std::endl
               << "(declare-var x Int)" << std::endl
@@ -371,7 +440,7 @@ int main(int argc, char* argv[])
               << "(set-option :dag-thresh 0)" << std::endl
               << std::endl
               << "(synth-fun f ((x String) (y String)) String" << std::endl
-              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
+              << mapToGrammar(slv, sygusVars, nonterminals, ng, flatten) << ')'
               << std::endl
               << std::endl
               << "(declare-var x String)" << std::endl
