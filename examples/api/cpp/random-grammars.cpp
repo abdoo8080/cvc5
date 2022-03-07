@@ -97,123 +97,106 @@ Term clone(const Solver& slv,
   return t;
 }
 
-/** Returns zero or more mutations of the provided `rule`. */
-std::vector<Term> mutate(const Solver& slv,
-                         const std::vector<Term>& sygusVars,
-                         G& g,
-                         Term rule)
+/** Mutates given production `rules`. */
+std::pair<std::vector<Term>, std::vector<Term>> mutateRules(
+    const Solver& slv,
+    const std::vector<Term>& sygusVars,
+    std::unordered_map<Term, std::vector<Term>>& pools,
+    const std::vector<Term>& rules)
 {
   std::bernoulli_distribution bernoulli;
-  std::uniform_int_distribution<> uniform(0, 100);
-  std::unordered_map<Term, Term> map;
-  std::vector<Term> rules;
-  // This loop decides how many mutated versions of `rule` we should return.
-  while (bernoulli(gen))
+  std::uniform_int_distribution<uint64_t> uniform;
+  std::vector<Term> mutatedRules;
+  std::vector<Term> newNonterminals;
+  for (const Term& rule : rules)
   {
-    Term newRule = clone(slv, sygusVars, rule, map);
-    // This one decides how many mutations we should make to each version.
-    while (bernoulli(gen) && !getNonterminals(newRule, sygusVars).empty())
+    // If this is a terminal rule, keep it. Otherwise, grammar may be
+    // ill-formed.
+    if (getNonterminals(rule, sygusVars).empty())
     {
-      std::vector<Term> vars = getNonterminals(newRule, sygusVars);
-      Term var = vars[uniform(gen) % vars.size()];
-      newRule = newRule.substitute(
-          var,
-          clone(slv,
-                sygusVars,
-                g[map[var]][uniform(gen) % g[map[var]].size()],
-                map));
+      mutatedRules.push_back(rule);
     }
-    std::vector<Term> vars = getNonterminals(newRule, sygusVars);
-    // We're done with mutations. Replace all the newly created variables with
-    // the original ones.
-    for (Term var : vars)
+    else
     {
-      newRule = newRule.substitute(var, map[var]);
+      // Flip a coin to decide whether or not we want to consider this rule.
+      if (bernoulli(gen))
+      {
+        continue;
+      }
+      std::unordered_map<Term, Term> map;
+      Term mutatedRule = clone(slv, sygusVars, rule, map);
+      for (const Term& var : getNonterminals(mutatedRule, sygusVars))
+      {
+        Term nonterminal = map[var];
+        uint64_t r = uniform(gen) % (pools[nonterminal].size() + 1);
+        if (r == pools[nonterminal].size())
+        {
+          Term newNonterminal =
+              slv.mkVar(nonterminal.getSort(),
+                        nonterminal.getSymbol() + '_'
+                            + std::to_string(pools[nonterminal].size()));
+          pools[nonterminal].push_back(newNonterminal);
+          newNonterminals.push_back(newNonterminal);
+        }
+        mutatedRule = mutatedRule.substitute(var, pools[nonterminal][r]);
+      }
+      mutatedRules.push_back(mutatedRule);
     }
-    rules.push_back(newRule);
   }
-  return rules;
+  return {mutatedRules, newNonterminals};
+}
+
+Term findOriginalNonterminal(std::unordered_map<Term, std::vector<Term>> pools,
+                             Term newNonterminal)
+{
+  for (const std::pair<const Term, std::vector<Term>>& pair : pools)
+  {
+    for (const Term& nonterminal : pair.second)
+    {
+      if (nonterminal == newNonterminal)
+      {
+        return pair.first;
+      }
+    }
+  }
 }
 
 /** Generate a somewhat random grammar from the provided one. */
 G randomize(const Solver& slv, const std::vector<Term>& sygusVars, G& g)
 {
-  G gp;
+  std::unordered_map<Term, std::vector<Term>> pools;
+  std::vector<Term> stack;
   for (const std::pair<const Term, std::vector<Term>>& production : g)
   {
     Term nonterminal = production.first;
-    const std::vector<Term>& rules = production.second;
-    for (Term rule : rules)
-    {
-      // If this is a terminal rule, keep it. Otherwise, grammar may be
-      // ill-formed.
-      if (getNonterminals(rule, sygusVars).empty())
-      {
-        gp[nonterminal].push_back(rule);
-      }
-      else
-      {
-        std::vector<Term> newRules = mutate(slv, sygusVars, g, rule);
-        // std::cout << newRules << std::endl;
-        gp[nonterminal].insert(
-            gp[nonterminal].cend(), newRules.cbegin(), newRules.cend());
-      }
-    }
+    pools[nonterminal].push_back(nonterminal);
+    stack.push_back(nonterminal);
+  }
+  G gp;
+  while (!stack.empty())
+  {
+    Term currNonterminal = stack.back();
+    stack.pop_back();
+    std::vector<Term> mutatedRules, newNonteriminals;
+    std::tie(mutatedRules, newNonteriminals) =
+        mutateRules(slv,
+                    sygusVars,
+                    pools,
+                    g[findOriginalNonterminal(pools, currNonterminal)]);
+    gp[currNonterminal] = mutatedRules;
+    stack.insert(
+        stack.cend(), newNonteriminals.cbegin(), newNonteriminals.cend());
   }
   return gp;
 }
 
-bool ofHightOne(Term t)
-{
-  for (const Term& c : t)
-  {
-    if (c.getNumChildren() != 0)
-    {
-      return false;
-    }
-  }
-  return true;
-}
-
-std::pair<Term, G> flattenRule(const Solver& slv, Term rule)
-{
-  if (rule.getNumChildren() == 0 || ofHightOne(rule))
-  {
-    return {rule, {}};
-  }
-  G partialMap;
-  Term newRule = rule;
-  for (const auto& child : rule)
-  {
-    if (child.getKind() != VARIABLE)
-    {
-      Term var = slv.mkVar(child.getSort());
-      newRule = substFirst(slv, newRule, child, var);
-      std::pair<Term, G> pair = flattenRule(slv, child);
-      partialMap[var].push_back(pair.first);
-      partialMap.insert(pair.second.cbegin(), pair.second.cend());
-    }
-  }
-  return {newRule, partialMap};
-}
-
-std::tuple<std::vector<Term>, std::vector<Term>, G> flatten(
+std::tuple<std::vector<Term>, std::vector<Term>, G> update(
     const Solver& slv,
     std::vector<Term> vars,
     std::vector<Term> nonterminals,
     G& map)
 {
-  G newMap;
   for (const auto& production : map)
-  {
-    for (const auto& rule : production.second)
-    {
-      std::pair<Term, G> pair = flattenRule(slv, rule);
-      newMap[production.first].push_back(pair.first);
-      newMap.insert(pair.second.cbegin(), pair.second.cend());
-    }
-  }
-  for (const auto& production : newMap)
   {
     if (std::find(nonterminals.cbegin(), nonterminals.cend(), production.first)
         == nonterminals.cend())
@@ -221,20 +204,16 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> flatten(
       nonterminals.push_back(production.first);
     }
   }
-  return {vars, nonterminals, newMap};
+  return {vars, nonterminals, map};
 }
 
 /** Converts a mapping from production to rules to a Sygus grammar. */
 Grammar mapToGrammar(const Solver& slv,
                      std::vector<Term> vars,
                      std::vector<Term> nonterminals,
-                     G map,
-                     bool flattenGrammar = false)
+                     G map)
 {
-  if (flattenGrammar)
-  {
-    std::tie(vars, nonterminals, map) = flatten(slv, vars, nonterminals, map);
-  }
+  std::tie(vars, nonterminals, map) = update(slv, vars, nonterminals, map);
   Grammar g = slv.mkSygusGrammar(vars, nonterminals);
   for (Term nonterminal : nonterminals)
   {
@@ -386,18 +365,16 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
 
 int main(int argc, char* argv[])
 {
-  if (argc != 3)
+  if (argc != 2)
   {
     std::cerr << "Wrong number of arguments!\nUsage: " << argv[0]
-              << " [bv|nia|string] [true|false]" << std::endl;
+              << " [bv|nia|string]" << std::endl;
     return 1;
   }
 
   Solver slv;
   std::vector<Term> sygusVars, nonterminals;
   G g;
-
-  bool flatten = strcmp(argv[2], "true") == 0 ? true : false;
 
   std::string x = "s";
 
@@ -410,7 +387,7 @@ int main(int argc, char* argv[])
               << std::endl
               << "(synth-fun f ((x (_ BitVec 8)) (y (_ BitVec 8))) (_ BitVec 8)"
               << std::endl
-              << mapToGrammar(slv, sygusVars, nonterminals, ng, flatten) << ')'
+              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
               << std::endl
               << std::endl
               << "(declare-var x (_ BitVec 8))" << std::endl
@@ -425,7 +402,7 @@ int main(int argc, char* argv[])
               << "(set-option :dag-thresh 0)" << std::endl
               << std::endl
               << "(synth-fun f ((x Int) (y Int)) Int" << std::endl
-              << mapToGrammar(slv, sygusVars, nonterminals, ng, flatten) << ')'
+              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
               << std::endl
               << std::endl
               << "(declare-var x Int)" << std::endl
@@ -440,7 +417,7 @@ int main(int argc, char* argv[])
               << "(set-option :dag-thresh 0)" << std::endl
               << std::endl
               << "(synth-fun f ((x String) (y String)) String" << std::endl
-              << mapToGrammar(slv, sygusVars, nonterminals, ng, flatten) << ')'
+              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
               << std::endl
               << std::endl
               << "(declare-var x String)" << std::endl
