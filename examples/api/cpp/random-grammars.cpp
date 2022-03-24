@@ -108,13 +108,13 @@ std::pair<std::vector<Term>, std::vector<Term>> mutateRules(
   std::uniform_int_distribution<uint64_t> uniform;
   std::vector<Term> mutatedRules;
   std::vector<Term> newNonterminals;
+  std::vector<Term> terminals;
   for (const Term& rule : rules)
   {
-    // If this is a terminal rule, keep it. Otherwise, grammar may be
-    // ill-formed.
+    // Process terminal rules later.
     if (getNonterminals(rule, sygusVars).empty())
     {
-      mutatedRules.push_back(rule);
+      terminals.push_back(rule);
     }
     else
     {
@@ -142,6 +142,16 @@ std::pair<std::vector<Term>, std::vector<Term>> mutateRules(
       }
       mutatedRules.push_back(mutatedRule);
     }
+  }
+  // Add at least 1 terminal rule to ensure that the grammar is not ill-formed.
+  uint64_t r = uniform(gen) % terminals.size();
+  mutatedRules.insert(mutatedRules.cbegin(), terminals[r]);
+  terminals.erase(terminals.cbegin() + r);
+  while (bernoulli(gen) && !terminals.empty())
+  {
+    r = uniform(gen) % terminals.size();
+    mutatedRules.insert(mutatedRules.cbegin(), terminals[r]);
+    terminals.erase(terminals.cbegin() + r);
   }
   return {mutatedRules, newNonterminals};
 }
@@ -232,13 +242,14 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> bvGrammar(const Solver& slv)
 
   Term start = slv.mkVar(bitVec8, "Start");
   Term startBool = slv.mkVar(boolean, "StartBool");
-  Term constBV = slv.mkVar(bitVec8, "ConstBV");
 
   G g;
 
-  g[start] = {constBV,
-              x,
+  g[start] = {x,
               y,
+              slv.mkBitVector(8, "00", 16),
+              slv.mkBitVector(8, "01", 16),
+              slv.mkBitVector(8, "a5", 16),
               slv.mkTerm(BITVECTOR_NOT, start),
               slv.mkTerm(BITVECTOR_NEG, start),
               slv.mkTerm(BITVECTOR_AND, start, start),
@@ -254,11 +265,7 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> bvGrammar(const Solver& slv)
                   slv.mkTerm(AND, startBool, startBool),
                   slv.mkTerm(BITVECTOR_ULT, start, start)};
 
-  g[constBV] = {slv.mkBitVector(8, "00", 16),
-                slv.mkBitVector(8, "01", 16),
-                slv.mkBitVector(8, "a5", 16)};
-
-  return {{x, y}, {start, startBool, constBV}, g};
+  return {{x, y}, {start, startBool}, g};
 }
 
 std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
@@ -272,17 +279,22 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
 
   Term start = slv.mkVar(integer, "Start");
   Term startBool = slv.mkVar(boolean, "StartBool");
-  Term constInt = slv.mkVar(integer, "ConstInt");
 
   G g;
 
-  g[start] = {constInt,
-              x,
+  g[start] = {x,
               y,
+              slv.mkInteger(0),
+              slv.mkInteger(1),
+              slv.mkInteger(2),
+              slv.mkInteger(3),
+              slv.mkInteger(4),
+              slv.mkInteger(5),
               slv.mkTerm(NEG, start),
               slv.mkTerm(SUB, start, start),
               slv.mkTerm(ADD, start, start),
               slv.mkTerm(MULT, start, start),
+              slv.mkTerm(POW2, start),
               slv.mkTerm(INTS_DIVISION, start, start),
               slv.mkTerm(INTS_MODULUS, start, start),
               slv.mkTerm(ABS, start),
@@ -292,19 +304,14 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
                   slv.mkTrue(),
                   slv.mkTerm(NOT, startBool),
                   slv.mkTerm(AND, startBool, startBool),
+                  slv.mkTerm(OR, startBool, startBool),
+                  slv.mkTerm(LT, start, start),
                   slv.mkTerm(LEQ, start, start),
                   slv.mkTerm(EQUAL, start, start),
                   slv.mkTerm(GEQ, start, start),
                   slv.mkTerm(GT, start, start)};
 
-  g[constInt] = {slv.mkInteger(0),
-                 slv.mkInteger(1),
-                 slv.mkInteger(2),
-                 slv.mkInteger(3),
-                 slv.mkInteger(4),
-                 slv.mkInteger(5)};
-
-  return {{x, y}, {start, startBool, constInt}, g};
+  return {{x, y}, {start, startBool}, g};
 }
 
 std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
@@ -320,13 +327,16 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
   Term start = slv.mkVar(string, "Start");
   Term startInt = slv.mkVar(integer, "StartInt");
   Term startBool = slv.mkVar(boolean, "StartBool");
-  Term constString = slv.mkVar(string, "ConstString");
 
   G g;
 
-  g[start] = {constString,
-              x,
+  g[start] = {x,
               y,
+              slv.mkString(""),
+              slv.mkString("0"),
+              slv.mkString("1"),
+              slv.mkString("a"),
+              slv.mkString("b"),
               slv.mkTerm(STRING_CONCAT, start, start),
               slv.mkTerm(STRING_CHARAT, start, startInt),
               slv.mkTerm(STRING_SUBSTR, start, startInt, startInt),
@@ -338,11 +348,14 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
 
   g[startInt] = {slv.mkInteger(0),
                  slv.mkInteger(1),
+                 slv.mkTerm(STRING_LENGTH, start),
                  slv.mkTerm(STRING_INDEXOF, start, start, startInt),
                  slv.mkTerm(STRING_TO_CODE, start),
                  slv.mkTerm(STRING_TO_INT, start)};
 
-  g[startBool] = {slv.mkTerm(NOT, startBool),
+  g[startBool] = {slv.mkFalse(),
+                  slv.mkTrue(),
+                  slv.mkTerm(NOT, startBool),
                   slv.mkTerm(AND, startBool, startBool),
                   slv.mkTerm(STRING_LT, start, start),
                   slv.mkTerm(STRING_LEQ, start, start),
@@ -354,13 +367,7 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
                   slv.mkTerm(EQUAL, startInt, startInt),
                   slv.mkTerm(LEQ, startInt, startInt)};
 
-  g[constString] = {slv.mkString(""),
-                    slv.mkString("0"),
-                    slv.mkString("1"),
-                    slv.mkString("a"),
-                    slv.mkString("b")};
-
-  return {{x, y}, {start, startInt, startBool, constString}, g};
+  return {{x, y}, {start, startInt, startBool}, g};
 }
 
 int main(int argc, char* argv[])
