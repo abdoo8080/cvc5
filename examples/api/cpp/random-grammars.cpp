@@ -5,8 +5,6 @@
 #include <iostream>
 #include <random>
 
-#include "utils.h"
-
 using namespace cvc5::api;
 
 using G = std::unordered_map<Term, std::vector<Term>>;
@@ -250,20 +248,20 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> bvGrammar(const Solver& slv)
               slv.mkBitVector(8, "00", 16),
               slv.mkBitVector(8, "01", 16),
               slv.mkBitVector(8, "a5", 16),
-              slv.mkTerm(BITVECTOR_NOT, start),
-              slv.mkTerm(BITVECTOR_NEG, start),
-              slv.mkTerm(BITVECTOR_AND, start, start),
-              slv.mkTerm(BITVECTOR_OR, start, start),
-              slv.mkTerm(BITVECTOR_ADD, start, start),
-              slv.mkTerm(BITVECTOR_MULT, start, start),
-              slv.mkTerm(BITVECTOR_UDIV, start, start),
-              slv.mkTerm(BITVECTOR_UREM, start, start),
-              slv.mkTerm(BITVECTOR_SHL, start, start),
-              slv.mkTerm(BITVECTOR_LSHR, start, start)};
+              slv.mkTerm(BITVECTOR_NOT, {start}),
+              slv.mkTerm(BITVECTOR_NEG, {start}),
+              slv.mkTerm(BITVECTOR_AND, {start, start}),
+              slv.mkTerm(BITVECTOR_OR, {start, start}),
+              slv.mkTerm(BITVECTOR_ADD, {start, start}),
+              slv.mkTerm(BITVECTOR_MULT, {start, start}),
+              slv.mkTerm(BITVECTOR_UDIV, {start, start}),
+              slv.mkTerm(BITVECTOR_UREM, {start, start}),
+              slv.mkTerm(BITVECTOR_SHL, {start, start}),
+              slv.mkTerm(BITVECTOR_LSHR, {start, start})};
 
-  g[startBool] = {slv.mkTerm(NOT, startBool),
-                  slv.mkTerm(AND, startBool, startBool),
-                  slv.mkTerm(BITVECTOR_ULT, start, start)};
+  g[startBool] = {slv.mkTerm(NOT, {startBool}),
+                  slv.mkTerm(AND, {startBool, startBool}),
+                  slv.mkTerm(BITVECTOR_ULT, {start, start})};
 
   return {{x, y}, {start, startBool}, g};
 }
@@ -290,26 +288,25 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
               slv.mkInteger(3),
               slv.mkInteger(4),
               slv.mkInteger(5),
-              slv.mkTerm(NEG, start),
-              slv.mkTerm(SUB, start, start),
-              slv.mkTerm(ADD, start, start),
-              slv.mkTerm(MULT, start, start),
-              slv.mkTerm(POW2, start),
-              slv.mkTerm(INTS_DIVISION, start, start),
-              slv.mkTerm(INTS_MODULUS, start, start),
-              slv.mkTerm(ABS, start),
-              slv.mkTerm(ITE, startBool, start, start)};
+              slv.mkTerm(NEG, {start}),
+              slv.mkTerm(SUB, {start, start}),
+              slv.mkTerm(ADD, {start, start}),
+              slv.mkTerm(MULT, {start, start}),
+              slv.mkTerm(INTS_DIVISION, {start, start}),
+              slv.mkTerm(INTS_MODULUS, {start, start}),
+              slv.mkTerm(ABS, {start}),
+              slv.mkTerm(ITE, {startBool, start, start})};
 
   g[startBool] = {slv.mkFalse(),
                   slv.mkTrue(),
-                  slv.mkTerm(NOT, startBool),
-                  slv.mkTerm(AND, startBool, startBool),
-                  slv.mkTerm(OR, startBool, startBool),
-                  slv.mkTerm(LT, start, start),
-                  slv.mkTerm(LEQ, start, start),
-                  slv.mkTerm(EQUAL, start, start),
-                  slv.mkTerm(GEQ, start, start),
-                  slv.mkTerm(GT, start, start)};
+                  slv.mkTerm(NOT, {startBool}),
+                  slv.mkTerm(AND, {startBool, startBool}),
+                  slv.mkTerm(OR, {startBool, startBool}),
+                  slv.mkTerm(LT, {start, start}),
+                  slv.mkTerm(LEQ, {start, start}),
+                  slv.mkTerm(EQUAL, {start, start}),
+                  slv.mkTerm(GEQ, {start, start}),
+                  slv.mkTerm(GT, {start, start})};
 
   return {{x, y}, {start, startBool}, g};
 }
@@ -337,35 +334,35 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
               slv.mkString("1"),
               slv.mkString("a"),
               slv.mkString("b"),
-              slv.mkTerm(STRING_CONCAT, start, start),
-              slv.mkTerm(STRING_CHARAT, start, startInt),
-              slv.mkTerm(STRING_SUBSTR, start, startInt, startInt),
-              slv.mkTerm(STRING_REPLACE, start, start, start),
-              slv.mkTerm(STRING_REPLACE_ALL, start, start, start),
-              slv.mkTerm(STRING_FROM_CODE, startInt),
-              slv.mkTerm(STRING_FROM_INT, startInt),
-              slv.mkTerm(ITE, startBool, start, start)};
+              slv.mkTerm(STRING_CONCAT, {start, start}),
+              slv.mkTerm(STRING_CHARAT, {start, startInt}),
+              slv.mkTerm(STRING_SUBSTR, {start, startInt, startInt}),
+              slv.mkTerm(STRING_REPLACE, {start, start, start}),
+              slv.mkTerm(STRING_REPLACE_ALL, {start, start, start}),
+              slv.mkTerm(STRING_FROM_CODE, {startInt}),
+              slv.mkTerm(STRING_FROM_INT, {startInt}),
+              slv.mkTerm(ITE, {startBool, start, start})};
 
   g[startInt] = {slv.mkInteger(0),
                  slv.mkInteger(1),
-                 slv.mkTerm(STRING_LENGTH, start),
-                 slv.mkTerm(STRING_INDEXOF, start, start, startInt),
-                 slv.mkTerm(STRING_TO_CODE, start),
-                 slv.mkTerm(STRING_TO_INT, start)};
+                 slv.mkTerm(STRING_LENGTH, {start}),
+                 slv.mkTerm(STRING_INDEXOF, {start, start, startInt}),
+                 slv.mkTerm(STRING_TO_CODE, {start}),
+                 slv.mkTerm(STRING_TO_INT, {start})};
 
   g[startBool] = {slv.mkFalse(),
                   slv.mkTrue(),
-                  slv.mkTerm(NOT, startBool),
-                  slv.mkTerm(AND, startBool, startBool),
-                  slv.mkTerm(STRING_LT, start, start),
-                  slv.mkTerm(STRING_LEQ, start, start),
-                  slv.mkTerm(STRING_PREFIX, start, start),
-                  slv.mkTerm(STRING_SUFFIX, start, start),
-                  slv.mkTerm(STRING_CONTAINS, start, start),
-                  slv.mkTerm(STRING_IS_DIGIT, start),
-                  slv.mkTerm(EQUAL, start, start),
-                  slv.mkTerm(EQUAL, startInt, startInt),
-                  slv.mkTerm(LEQ, startInt, startInt)};
+                  slv.mkTerm(NOT, {startBool}),
+                  slv.mkTerm(AND, {startBool, startBool}),
+                  slv.mkTerm(STRING_LT, {start, start}),
+                  slv.mkTerm(STRING_LEQ, {start, start}),
+                  slv.mkTerm(STRING_PREFIX, {start, start}),
+                  slv.mkTerm(STRING_SUFFIX, {start, start}),
+                  slv.mkTerm(STRING_CONTAINS, {start, start}),
+                  slv.mkTerm(STRING_IS_DIGIT, {start}),
+                  slv.mkTerm(EQUAL, {start, start}),
+                  slv.mkTerm(EQUAL, {startInt, startInt}),
+                  slv.mkTerm(LEQ, {startInt, startInt})};
 
   return {{x, y}, {start, startInt, startBool}, g};
 }
