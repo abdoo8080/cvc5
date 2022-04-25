@@ -5,7 +5,7 @@
 #include <iostream>
 #include <random>
 
-using namespace cvc5::api;
+using namespace cvc5;
 
 using G = std::unordered_map<Term, std::vector<Term>>;
 
@@ -222,7 +222,7 @@ Grammar mapToGrammar(const Solver& slv,
                      G map)
 {
   std::tie(vars, nonterminals, map) = update(slv, vars, nonterminals, map);
-  Grammar g = slv.mkSygusGrammar(vars, nonterminals);
+  Grammar g = slv.mkGrammar(vars, nonterminals);
   for (Term nonterminal : nonterminals)
   {
     g.addRules(nonterminal, map[nonterminal]);
@@ -386,7 +386,7 @@ int main(int argc, char* argv[])
   {
     std::tie(sygusVars, nonterminals, g) = bvGrammar(slv);
     G ng = randomize(slv, sygusVars, g);
-    std::cout << "(set-logic bv)" << std::endl
+    std::cout << "(set-logic BV)" << std::endl
               << "(set-option :dag-thresh 0)" << std::endl
               << std::endl
               << "(synth-fun f ((x (_ BitVec 8)) (y (_ BitVec 8))) (_ BitVec 8)"
