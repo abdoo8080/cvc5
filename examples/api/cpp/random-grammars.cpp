@@ -259,8 +259,11 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> bvGrammar(const Solver& slv)
               slv.mkTerm(BITVECTOR_SHL, {start, start}),
               slv.mkTerm(BITVECTOR_LSHR, {start, start})};
 
-  g[startBool] = {slv.mkTerm(NOT, {startBool}),
+  g[startBool] = {slv.mkFalse(),
+                  slv.mkTrue(),
+                  slv.mkTerm(NOT, {startBool}),
                   slv.mkTerm(AND, {startBool, startBool}),
+                  slv.mkTerm(OR, {startBool, startBool}),
                   slv.mkTerm(BITVECTOR_ULT, {start, start})};
 
   return {{x, y}, {start, startBool}, g};
