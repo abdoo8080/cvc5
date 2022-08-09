@@ -297,7 +297,7 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
               slv.mkTerm(MULT, {start, start}),
               slv.mkTerm(INTS_DIVISION, {start, start}),
               slv.mkTerm(INTS_MODULUS, {start, start}),
-              slv.mkTerm(ABS, {start}),
+              // slv.mkTerm(ABS, {start}),
               slv.mkTerm(ITE, {startBool, start, start})};
 
   g[startBool] = {slv.mkFalse(),
@@ -341,8 +341,8 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
               slv.mkTerm(STRING_CHARAT, {start, startInt}),
               slv.mkTerm(STRING_SUBSTR, {start, startInt, startInt}),
               slv.mkTerm(STRING_REPLACE, {start, start, start}),
-              slv.mkTerm(STRING_REPLACE_ALL, {start, start, start}),
-              slv.mkTerm(STRING_FROM_CODE, {startInt}),
+              // slv.mkTerm(STRING_REPLACE_ALL, {start, start, start}),
+              // slv.mkTerm(STRING_FROM_CODE, {startInt}),
               slv.mkTerm(STRING_FROM_INT, {startInt}),
               slv.mkTerm(ITE, {startBool, start, start})};
 
@@ -350,19 +350,19 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
                  slv.mkInteger(1),
                  slv.mkTerm(STRING_LENGTH, {start}),
                  slv.mkTerm(STRING_INDEXOF, {start, start, startInt}),
-                 slv.mkTerm(STRING_TO_CODE, {start}),
+                //  slv.mkTerm(STRING_TO_CODE, {start}),
                  slv.mkTerm(STRING_TO_INT, {start})};
 
   g[startBool] = {slv.mkFalse(),
                   slv.mkTrue(),
                   slv.mkTerm(NOT, {startBool}),
                   slv.mkTerm(AND, {startBool, startBool}),
-                  slv.mkTerm(STRING_LT, {start, start}),
-                  slv.mkTerm(STRING_LEQ, {start, start}),
+                  // slv.mkTerm(STRING_LT, {start, start}),
+                  // slv.mkTerm(STRING_LEQ, {start, start}),
                   slv.mkTerm(STRING_PREFIX, {start, start}),
                   slv.mkTerm(STRING_SUFFIX, {start, start}),
                   slv.mkTerm(STRING_CONTAINS, {start, start}),
-                  slv.mkTerm(STRING_IS_DIGIT, {start}),
+                  // slv.mkTerm(STRING_IS_DIGIT, {start}),
                   slv.mkTerm(EQUAL, {start, start}),
                   slv.mkTerm(EQUAL, {startInt, startInt}),
                   slv.mkTerm(LEQ, {startInt, startInt})};
@@ -390,7 +390,6 @@ int main(int argc, char* argv[])
     std::tie(sygusVars, nonterminals, g) = bvGrammar(slv);
     G ng = randomize(slv, sygusVars, g);
     std::cout << "(set-logic BV)" << std::endl
-              << "(set-option :dag-thresh 0)" << std::endl
               << std::endl
               << "(synth-fun f ((x (_ BitVec 8)) (y (_ BitVec 8))) (_ BitVec 8)"
               << std::endl
@@ -406,7 +405,6 @@ int main(int argc, char* argv[])
     std::tie(sygusVars, nonterminals, g) = niaGrammar(slv);
     G ng = randomize(slv, sygusVars, g);
     std::cout << "(set-logic NIA)" << std::endl
-              << "(set-option :dag-thresh 0)" << std::endl
               << std::endl
               << "(synth-fun f ((x Int) (y Int)) Int" << std::endl
               << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
@@ -421,7 +419,6 @@ int main(int argc, char* argv[])
     std::tie(sygusVars, nonterminals, g) = stringGrammar(slv);
     G ng = randomize(slv, sygusVars, g);
     std::cout << "(set-logic SLIA)" << std::endl
-              << "(set-option :dag-thresh 0)" << std::endl
               << std::endl
               << "(synth-fun f ((x String) (y String)) String" << std::endl
               << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
