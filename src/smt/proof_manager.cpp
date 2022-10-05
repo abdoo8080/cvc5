@@ -27,8 +27,6 @@
 #include "proof/proof_checker.h"
 #include "proof/proof_node_algorithm.h"
 #include "proof/proof_node_manager.h"
-#include "proof/verit/verit_post_processor.h"
-#include "proof/verit/verit_printer.h"
 #include "rewriter/rewrite_db.h"
 #include "smt/assertions.h"
 #include "smt/difficulty_post_processor.h"

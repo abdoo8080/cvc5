@@ -232,40 +232,6 @@ enum class PfRule : uint32_t
    * above. \endverbatim
    */
   MACRO_SR_PRED_TRANSFORM,
-<<<<<<< HEAD
-  // ======== Encode predicate transformation
-  // Children: (P1:F)
-  // Arguments: (G)
-  // ----------------------------------------
-  // Conclusion: G
-  // where F and G are equivalent up to their encoding in an external proof
-  // format. This is currently verified by:
-  //   RewriteDbNodeConverter::convert(F) == RewriteDbNodeConverter::convert(G)
-  // This rule can be treated as a no-op when appropriate in external proof
-  // formats.
-  ENCODE_PRED_TRANSFORM,
-  // ======== Annotation
-  // Children: (P1:F)
-  // Arguments: (a1 ... an)
-  // ----------------------------------------
-  // Conclusion: F
-  ANNOTATION,
-  // ======== DSL Rewrite
-  // Children: (P1:F1 ... Pn:Fn)
-  // Arguments: (id, F)
-  // ----------------------------------------
-  // Conclusion: F
-  // Where (G1, ..., Gn) => G is DSL rewrite rule # id, and
-  //  G1*sigma = F1, ..., Gn*sigma = Fn, G*sigma = F
-  // for some substitution sigma.
-  DSL_REWRITE,
-  //================================================= Processing rules
-  // ======== Remove Term Formulas Axiom
-  // Children: none
-  // Arguments: (t)
-  // ---------------------------------------------------------------
-  // Conclusion: RemoveTermFormulas::getAxiomFor(t).
-=======
   /**
    * \verbatim embed:rst:leading-asterisk
    * **Builtin theory -- Annotation**
@@ -287,7 +253,6 @@ enum class PfRule : uint32_t
    *
    * \endverbatim
    */
->>>>>>> main
   REMOVE_TERM_FORMULA_AXIOM,
 
   /**
@@ -1393,41 +1358,6 @@ enum class PfRule : uint32_t
    * \endverbatim
    */
   INSTANTIATE,
-<<<<<<< HEAD
-  // ======== Alpha equivalence
-  // Children: none
-  // Arguments: ((forall ((x1 T1) ... (xn Tn)) F), y1 ... yn)
-  // ----------------------------------------
-  // Conclusion: (= (forall ((x1 T1) ... (xn Tn)) F)
-  //                (forall ((y1 T1) ... (yn Tn)) F*sigma))
-  // sigma maps x1 ... xn to y1 ... yn.
-  ALPHA_EQUIV,
-  // ======== (Trusted) quantifiers preprocess
-  // Children: ?
-  // Arguments: (F)
-  // ---------------------------------------------------------------
-  // Conclusion: F
-  // where F is an equality of the form t = QuantifiersRewriter::preprocess(t)
-  QUANTIFIERS_PREPROCESS,
-  //================================================= String rules
-  //======================== Core solver
-  // ======== Concat eq
-  // Children: (P1:(= (str.++ t1 ... tn t) (str.++ t1 ... tn s)))
-  // Arguments: (b), indicating if reverse direction
-  // ---------------------
-  // Conclusion: (= t s)
-  //
-  // Notice that t or s may be empty, in which case they are implicit in the
-  // concatenation above. For example, if
-  // P1 concludes (= x (str.++ x z)), then
-  // (CONCAT_EQ P1 :args false) concludes (= "" z)
-  //
-  // Also note that constants are split, such that if
-  // P1 concludes (= (str.++ "abc" x) (str.++ "a" y)), then
-  // (CONCAT_EQ P1 :args false) concludes (= (str.++ "bc" x) y)
-  // This splitting is done only for constants such that Word::splitConstant
-  // returns non-null.
-=======
   /**
    * \verbatim embed:rst:leading-asterisk
    * **Quantifiers -- Alpha equivalence**
@@ -1481,7 +1411,6 @@ enum class PfRule : uint32_t
    * for constants such that ``Word::splitConstant`` returns non-null.
    * \endverbatim
    */
->>>>>>> main
   CONCAT_EQ,
   /**
    * \verbatim embed:rst:leading-asterisk
@@ -2301,7 +2230,6 @@ enum class PfRule : uint32_t
    * \endverbatim
    */
   LFSC_RULE,
-<<<<<<< HEAD
   //================================================ Place holder for Lean rules
   // ======== Lean rule
   // Children: (P1 ... Pn)
@@ -2315,16 +2243,6 @@ enum class PfRule : uint32_t
   // The C argument is the clausal form of Q, if any, set depending on id. When
   // C is set that is the term that is printed in the final Lean proof.
   LEAN_RULE,
-  //================================================ Place holder for veriT
-  // rules
-  // ======== veriT rule
-  // Children: (P1 ... Pn)
-  // Arguments: (id, Q, Q', A1, ..., Am)
-  // ---------------------
-  // Conclusion: (Q)
-  // where Q' is the representation of Q to be printed by the veriT printer.
-  VERIT_RULE,
-=======
   /**
    * \verbatim embed:rst:leading-asterisk
    * **External -- Alethe**
@@ -2341,7 +2259,6 @@ enum class PfRule : uint32_t
    * \endverbatim
    */
   ALETHE_RULE,
->>>>>>> main
 
   //================================================= Unknown rule
   UNKNOWN,
