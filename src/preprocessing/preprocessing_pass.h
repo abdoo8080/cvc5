@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Justin Xu, Mathias Preiner, Gereon Kremer
+ *   Justin Xu, Aina Niemetz, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -34,9 +34,10 @@
 
 #include <string>
 
+#include "smt/env_obj.h"
 #include "util/statistics_stats.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace preprocessing {
 
 class AssertionPipeline;
@@ -48,7 +49,8 @@ class PreprocessingPassContext;
  */
 enum PreprocessingPassResult { CONFLICT, NO_CONFLICT };
 
-class PreprocessingPass {
+class PreprocessingPass : protected EnvObj
+{
  public:
   /* Preprocesses a list of assertions assertionsToPreprocess */
   PreprocessingPassResult apply(AssertionPipeline* assertionsToPreprocess);
@@ -58,11 +60,6 @@ class PreprocessingPass {
   virtual ~PreprocessingPass();
 
  protected:
-  /*
-   * Method for dumping assertions within a pass. Also called before and after
-   * applying the pass.
-   */
-  void dumpAssertions(const char* key, const AssertionPipeline& assertionList);
 
   /*
    * Abstract method that each pass implements to do the actual preprocessing.
@@ -81,6 +78,6 @@ class PreprocessingPass {
 };
 
 }  // namespace preprocessing
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__PREPROCESSING__PREPROCESSING_PASS_H */

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Morgan Deters, Liana Hadarean, Tim King
+ *   Gereon Kremer, Morgan Deters, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -16,13 +16,13 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <new>
+#include <optional>
 
 #include "api/cpp/cvc5.h"
 #include "base/configuration.h"
@@ -31,27 +31,22 @@
 #include "main/command_executor.h"
 #include "main/interactive_shell.h"
 #include "main/main.h"
+#include "main/options.h"
+#include "main/portfolio_driver.h"
 #include "main/signal_handlers.h"
 #include "main/time_limit.h"
-#include "options/base_options.h"
-#include "options/options.h"
-#include "options/options_public.h"
-#include "options/parser_options.h"
-#include "options/main_options.h"
-#include "options/set_language.h"
+#include "parser/api/cpp/command.h"
 #include "parser/parser.h"
 #include "parser/parser_builder.h"
-#include "smt/command.h"
-#include "smt/smt_engine.h"
+#include "smt/solver_engine.h"
 #include "util/result.h"
 
 using namespace std;
-using namespace cvc5;
+using namespace cvc5::internal;
 using namespace cvc5::parser;
 using namespace cvc5::main;
 
-namespace cvc5 {
-namespace main {
+namespace cvc5::main {
 
 /** Full argv[0] */
 const char* progPath;
@@ -60,75 +55,45 @@ const char* progPath;
 std::string progName;
 
 /** A pointer to the CommandExecutor (the signal handlers need it) */
-std::unique_ptr<cvc5::main::CommandExecutor> pExecutor;
+std::unique_ptr<CommandExecutor> pExecutor;
 
-/** The time point the binary started, accessible to signal handlers */
-std::unique_ptr<TotalTimer> totalTime;
+}  // namespace cvc5::main
 
-TotalTimer::~TotalTimer()
+int runCvc5(int argc, char* argv[], std::unique_ptr<cvc5::Solver>& solver)
 {
-  if (pExecutor != nullptr)
-  {
-    auto duration = std::chrono::steady_clock::now() - d_start;
-    pExecutor->getSmtEngine()->setTotalTimeStatistic(
-        std::chrono::duration<double>(duration).count());
-  }
-    }
-
-    }  // namespace main
-    }  // namespace cvc5
-
-void printUsage(const Options& opts, bool full) {
-  stringstream ss;
-  ss << "usage: " << progName << " [options] [input-file]"
-     << endl
-     << endl
-     << "Without an input file, or with `-', cvc5 reads from standard input."
-     << endl
-     << endl
-     << "cvc5 options:" << endl;
-  if(full) {
-    options::printUsage(ss.str(), *opts.base.out);
-  } else {
-    options::printShortUsage(ss.str(), *opts.base.out);
-  }
-}
-
-int runCvc5(int argc, char* argv[], Options& opts)
-{
-  main::totalTime = std::make_unique<TotalTimer>();
-
   // Initialize the signal handlers
   signal_handlers::install();
 
   progPath = argv[0];
 
+  // Create the command executor to execute the parsed commands
+  pExecutor = std::make_unique<CommandExecutor>(solver);
+  cvc5::DriverOptions dopts = solver->getDriverOptions();
+
   // Parse the options
-  std::vector<string> filenames = options::parse(opts, argc, argv, progName);
-
-  auto limit = install_time_limit(opts);
-
-  if (opts.driver.help)
+  std::vector<string> filenames = parse(*solver, argc, argv, progName);
+  if (solver->getOptionInfo("help").boolValue())
   {
-    printUsage(opts, true);
+    printUsage(progName, dopts.out());
     exit(1);
   }
-  else if (opts.base.languageHelp)
+  for (const auto& name : {"show-config",
+                           "copyright",
+                           "show-trace-tags",
+                           "version"})
   {
-    options::printLanguageHelp(*opts.base.out);
-    exit(1);
-  }
-  else if (opts.driver.version)
-  {
-    *opts.base.out << Configuration::about().c_str() << flush;
-    exit(0);
+    if (solver->getOptionInfo(name).boolValue())
+    {
+      std::exit(0);
+    }
   }
 
-  segvSpin = opts.driver.segvSpin;
+  auto limit = install_time_limit(solver->getOptionInfo("tlimit").uintValue());
+  segvSpin = solver->getOptionInfo("segv-spin").boolValue();
 
   // If in competition mode, set output stream option to flush immediately
 #ifdef CVC5_COMPETITION_MODE
-  *opts.base.out << unitbuf;
+  dopts.out() << unitbuf;
 #endif /* CVC5_COMPETITION_MODE */
 
   // We only accept one input file
@@ -139,196 +104,174 @@ int runCvc5(int argc, char* argv[], Options& opts)
   // If no file supplied we will read from standard input
   const bool inputFromStdin = filenames.empty() || filenames[0] == "-";
 
-  // if we're reading from stdin on a TTY, default to interactive mode
-  if (!opts.driver.interactiveWasSetByUser)
+  // If we're reading from stdin, use interactive mode if stdin-input-per-line
+  // is true, or if we are a TTY.
+  if (!solver->getOptionInfo("interactive").setByUser)
   {
-    opts.driver.interactive = inputFromStdin && isatty(fileno(stdin));
+    bool inputPerLine =
+        solver->getOptionInfo("stdin-input-per-line").boolValue();
+    solver->setOption(
+        "interactive",
+        (inputFromStdin && (inputPerLine || isatty(fileno(stdin)))) ? "true"
+                                                                    : "false");
   }
 
   // Auto-detect input language by filename extension
   std::string filenameStr("<stdin>");
   if (!inputFromStdin) {
-    // Use swap to avoid copying the string
-    // TODO: use std::move() when switching to c++11
-    filenameStr.swap(filenames[0]);
+    filenameStr = std::move(filenames[0]);
   }
   const char* filename = filenameStr.c_str();
 
-  if (opts.base.inputLanguage == language::input::LANG_AUTO)
+  if (solver->getOption("input-language") == "LANG_AUTO")
   {
     if( inputFromStdin ) {
       // We can't do any fancy detection on stdin
-      opts.base.inputLanguage = language::input::LANG_CVC;
+      solver->setOption("input-language", "smt2");
     } else {
       size_t len = filenameStr.size();
       if(len >= 5 && !strcmp(".smt2", filename + len - 5)) {
-        opts.base.inputLanguage = language::input::LANG_SMTLIB_V2_6;
+        solver->setOption("input-language", "smt2");
       } else if((len >= 2 && !strcmp(".p", filename + len - 2))
                 || (len >= 5 && !strcmp(".tptp", filename + len - 5))) {
-        opts.base.inputLanguage = language::input::LANG_TPTP;
-      } else if(( len >= 4 && !strcmp(".cvc", filename + len - 4) )
-                || ( len >= 5 && !strcmp(".cvc4", filename + len - 5) )) {
-        opts.base.inputLanguage = language::input::LANG_CVC;
+        solver->setOption("input-language", "tptp");
       } else if((len >= 3 && !strcmp(".sy", filename + len - 3))
                 || (len >= 3 && !strcmp(".sl", filename + len - 3))) {
         // version 2 sygus is the default
-        opts.base.inputLanguage = language::input::LANG_SYGUS_V2;
+        solver->setOption("input-language", "sygus2");
       }
     }
   }
-
-  if (opts.base.outputLanguage == language::output::LANG_AUTO)
+  if (solver->getOption("input-language") == "LANG_SYGUS_V2")
   {
-    opts.base.outputLanguage = language::toOutputLanguage(opts.base.inputLanguage);
+    // Enable the sygus API. We set this here instead of in set defaults 
+    // to simplify checking at the API level. In particular, the sygus
+    // option is the authority on whether sygus commands are currently
+    // allowed in the API.
+    solver->setOption("sygus", "true");
   }
+
+  if (solver->getOption("output-language") == "LANG_AUTO")
+  {
+    solver->setOption("output-language", solver->getOption("input-language"));
+  }
+  pExecutor->storeOptionsAsOriginal();
 
   // Determine which messages to show based on smtcomp_mode and verbosity
   if(Configuration::isMuzzledBuild()) {
-    DebugChannel.setStream(&cvc5::null_os);
-    TraceChannel.setStream(&cvc5::null_os);
-    NoticeChannel.setStream(&cvc5::null_os);
-    ChatChannel.setStream(&cvc5::null_os);
-    MessageChannel.setStream(&cvc5::null_os);
-    WarningChannel.setStream(&cvc5::null_os);
+    TraceChannel.setStream(&cvc5::internal::null_os);
+    WarningChannel.setStream(&cvc5::internal::null_os);
   }
-
-  // important even for muzzled builds (to get result output right)
-  (*opts.base.out)
-      << language::SetLanguage(opts.base.outputLanguage);
-
-  // Create the command executor to execute the parsed commands
-  pExecutor = std::make_unique<CommandExecutor>(opts);
 
   int returnValue = 0;
   {
-    // notify SmtEngine that we are starting to parse
-    pExecutor->getSmtEngine()->notifyStartParsing(filenameStr);
+    solver->setInfo("filename", filenameStr);
 
     // Parse and execute commands until we are done
-    std::unique_ptr<Command> cmd;
     bool status = true;
-    if (opts.driver.interactive && inputFromStdin)
+    if (solver->getOptionInfo("interactive").boolValue() && inputFromStdin)
     {
-      if (!opts.base.incrementalSolvingWasSetByUser)
+      if (!solver->getOptionInfo("incremental").setByUser)
       {
-        cmd.reset(new SetOptionCommand("incremental", "true"));
-        cmd->setMuted(true);
-        pExecutor->doCommand(cmd);
+        solver->setOption("incremental", "true");
       }
+      // We use the interactive shell when piping from stdin, even some cases
+      // where the input stream is not a TTY. We do this to avoid memory issues
+      // involving tokens that span multiple lines.
+      // We compute whether the interactive shell is actually interactive
+      // (via isatty). If we are not interactive, we disable certain output
+      // information, e.g. for querying the user.
+      bool isInteractive = isatty(fileno(stdin));
       InteractiveShell shell(pExecutor->getSolver(),
-                             pExecutor->getSymbolManager());
-      if (opts.driver.interactivePrompt)
+                             pExecutor->getSymbolManager(),
+                             dopts.in(),
+                             dopts.out(),
+                             isInteractive);
+
+      if (isInteractive)
       {
-        CVC5Message() << Configuration::getPackageName() << " "
-                      << Configuration::getVersionString();
-        if(Configuration::isGitBuild()) {
-          CVC5Message() << " [" << Configuration::getGitId() << "]";
+        auto& out = solver->getDriverOptions().out();
+        out << Configuration::getPackageName() << " "
+            << Configuration::getVersionString();
+        if (Configuration::isGitBuild())
+        {
+          out << " [" << Configuration::getGitInfo() << "]";
         }
-        CVC5Message() << (Configuration::isDebugBuild() ? " DEBUG" : "")
-                      << " assertions:"
-                      << (Configuration::isAssertionBuild() ? "on" : "off")
-                      << endl
-                      << endl;
-        CVC5Message() << Configuration::copyright() << endl;
+        out << (Configuration::isDebugBuild() ? " DEBUG" : "") << " assertions:"
+            << (Configuration::isAssertionBuild() ? "on" : "off") << std::endl
+            << std::endl
+            << Configuration::copyright() << std::endl;
       }
 
-      while(true) {
-        try {
-          cmd.reset(shell.readCommand());
-        } catch(UnsafeInterruptException& e) {
-          *opts.base.out << CommandInterrupted();
+      bool quit = false;
+      while (!quit)
+      {
+        std::optional<InteractiveShell::CmdSeq> cmds = shell.readCommand();
+        if (!cmds)
+        {
           break;
         }
-        if (cmd == nullptr)
-          break;
-        status = pExecutor->doCommand(cmd) && status;
-        if (cmd->interrupted()) {
-          break;
+        for (std::unique_ptr<cvc5::parser::Command>& cmd : *cmds)
+        {
+          status = pExecutor->doCommand(cmd) && status;
+          if (cmd->interrupted())
+          {
+            quit = true;
+            break;
+          }
         }
       }
     }
     else
     {
-      if (!opts.base.incrementalSolvingWasSetByUser)
+      if (!solver->getOptionInfo("incremental").setByUser)
       {
-        cmd.reset(new SetOptionCommand("incremental", "false"));
-        cmd->setMuted(true);
-        pExecutor->doCommand(cmd);
+        solver->setOption("incremental", "false");
+      }
+      // we don't need to check that terms passed to API methods are well
+      // formed, since this should be an invariant of the parser
+      if (!solver->getOptionInfo("wf-checking").setByUser)
+      {
+        solver->setOption("wf-checking", "false");
       }
 
-      ParserBuilder parserBuilder(pExecutor->getSolver(),
-                                  pExecutor->getSymbolManager(),
-                                  opts);
+      ParserBuilder parserBuilder(
+          pExecutor->getSolver(), pExecutor->getSymbolManager(), true);
       std::unique_ptr<Parser> parser(parserBuilder.build());
       if( inputFromStdin ) {
         parser->setInput(Input::newStreamInput(
-            opts.base.inputLanguage, cin, filename));
+            solver->getOption("input-language"), cin, filename));
       }
       else
       {
-        parser->setInput(Input::newFileInput(opts.base.inputLanguage,
-                                             filename,
-                                             opts.parser.memoryMap));
+        parser->setInput(
+            Input::newFileInput(solver->getOption("input-language"), filename));
       }
 
-      bool interrupted = false;
-      while (status)
-      {
-        if (interrupted) {
-          *opts.base.out << CommandInterrupted();
-          pExecutor->reset();
-          break;
-        }
-        try {
-          cmd.reset(parser->nextCommand());
-          if (cmd == nullptr) break;
-        } catch (UnsafeInterruptException& e) {
-          interrupted = true;
-          continue;
-        }
-
-        status = pExecutor->doCommand(cmd);
-        if (cmd->interrupted() && status == 0) {
-          interrupted = true;
-          break;
-        }
-
-        if(dynamic_cast<QuitCommand*>(cmd.get()) != nullptr) {
-          break;
-        }
-      }
-    }
-
-    api::Result result;
-    if(status) {
-      result = pExecutor->getResult();
-      returnValue = 0;
-    } else {
-      // there was some kind of error
-      returnValue = 1;
+      PortfolioDriver driver(parser);
+      returnValue = driver.solve(pExecutor) ? 0 : 1;
     }
 
 #ifdef CVC5_COMPETITION_MODE
-    if (opts.base.out != nullptr)
-    {
-      *opts.base.out << std::flush;
-    }
+    dopts.out() << std::flush;
     // exit, don't return (don't want destructors to run)
     // _exit() from unistd.h doesn't run global destructors
     // or other on_exit/atexit stuff.
     _exit(returnValue);
 #endif /* CVC5_COMPETITION_MODE */
 
-    totalTime.reset();
     pExecutor->flushOutputStreams();
 
 #ifdef CVC5_DEBUG
-    if (opts.driver.earlyExit && opts.driver.earlyExitWasSetByUser)
     {
-      _exit(returnValue);
+      auto info = solver->getOptionInfo("early-exit");
+      if (info.boolValue() && info.setByUser)
+      {
+        _exit(returnValue);
+      }
     }
 #else  /* CVC5_DEBUG */
-    if (opts.driver.earlyExit)
+    if (solver->getOptionInfo("early-exit").boolValue())
     {
       _exit(returnValue);
     }

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Gereon Kremer, Makai Mann, Mathias Preiner
+ *   Gereon Kremer, Andrew Reynolds, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,17 +20,17 @@
 #include "theory/arith/theory_arith.h"
 #include "theory/rewriter.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace arith {
 
-InferenceManager::InferenceManager(TheoryArith& ta,
-                                   ArithState& astate,
-                                   ProofNodeManager* pnm)
-    : InferenceManagerBuffered(ta, astate, pnm, "theory::arith::"),
+InferenceManager::InferenceManager(Env& env,
+                                   TheoryArith& ta,
+                                   ArithState& astate)
+    : InferenceManagerBuffered(env, ta, astate, "theory::arith::"),
       // currently must track propagated literals if using the equality solver
-      d_trackPropLits(options::arithEqSolver()),
-      d_propLits(astate.getSatContext())
+      d_trackPropLits(options().arith.arithEqSolver),
+      d_propLits(context())
 {
 }
 
@@ -115,22 +115,22 @@ std::size_t InferenceManager::numWaitingLemmas() const
 
 bool InferenceManager::hasCachedLemma(TNode lem, LemmaProperty p)
 {
-  Node rewritten = Rewriter::rewrite(lem);
+  Node rewritten = rewrite(lem);
   return TheoryInferenceManager::hasCachedLemma(rewritten, p);
 }
 
 bool InferenceManager::cacheLemma(TNode lem, LemmaProperty p)
 {
-  Node rewritten = Rewriter::rewrite(lem);
+  Node rewritten = rewrite(lem);
   return TheoryInferenceManager::cacheLemma(rewritten, p);
 }
 
 bool InferenceManager::isEntailedFalse(const SimpleTheoryLemma& lem)
 {
-  if (options::nlExtEntailConflicts())
+  if (options().arith.nlExtEntailConflicts)
   {
     Node ch_lemma = lem.d_node.negate();
-    ch_lemma = Rewriter::rewrite(ch_lemma);
+    ch_lemma = rewrite(ch_lemma);
     Trace("arith-inf-manager") << "InferenceManager::Check entailment of "
                                << ch_lemma << "..." << std::endl;
 
@@ -166,4 +166,4 @@ bool InferenceManager::hasPropagated(TNode lit) const
 
 }  // namespace arith
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

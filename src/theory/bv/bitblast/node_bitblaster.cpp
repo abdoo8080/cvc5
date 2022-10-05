@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,11 +18,12 @@
 #include "theory/theory_model.h"
 #include "theory/theory_state.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace bv {
 
-NodeBitblaster::NodeBitblaster(TheoryState* s) : TBitblaster<Node>(), d_state(s)
+NodeBitblaster::NodeBitblaster(Env& env, TheoryState* s)
+    : TBitblaster<Node>(), EnvObj(env), d_state(s)
 {
 }
 
@@ -35,14 +36,17 @@ void NodeBitblaster::bbAtom(TNode node)
     return;
   }
 
-  Node normalized = Rewriter::rewrite(node);
+  /* Note: We rewrite here since it's not guaranteed (yet) that facts sent
+   * to theories are rewritten.
+   */
+  Node normalized = rewrite(node);
   Node atom_bb =
       normalized.getKind() != kind::CONST_BOOLEAN
               && normalized.getKind() != kind::BITVECTOR_BITOF
           ? d_atomBBStrategies[normalized.getKind()](normalized, this)
           : normalized;
 
-  storeBBAtom(node, Rewriter::rewrite(atom_bb));
+  storeBBAtom(node, rewrite(atom_bb));
 }
 
 void NodeBitblaster::storeBBAtom(TNode atom, Node atom_bb)
@@ -133,7 +137,7 @@ Node NodeBitblaster::getModelFromSatSolver(TNode a, bool fullModel)
 
 void NodeBitblaster::computeRelevantTerms(std::set<Node>& termSet)
 {
-  Assert(options::bitblastMode() == options::BitblastMode::EAGER);
+  Assert(options().bv.bitblastMode == options::BitblastMode::EAGER);
   for (const auto& var : d_variables)
   {
     termSet.insert(var);
@@ -165,6 +169,13 @@ bool NodeBitblaster::isVariable(TNode node)
   return d_variables.find(node) != d_variables.end();
 }
 
+Node NodeBitblaster::applyAtomBBStrategy(TNode node)
+{
+  Assert(node.getKind() != kind::CONST_BOOLEAN);
+  Assert(node.getKind() != kind::BITVECTOR_BITOF);
+  return d_atomBBStrategies[node.getKind()](node, this);
+}
+
 }  // namespace bv
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

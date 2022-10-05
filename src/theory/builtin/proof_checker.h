@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Aina Niemetz, Haniel Barbosa
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,9 +22,11 @@
 #include "proof/method_id.h"
 #include "proof/proof_checker.h"
 #include "proof/proof_node.h"
-#include "theory/quantifiers/extended_rewrite.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
+
+class Env;
+
 namespace theory {
 namespace builtin {
 
@@ -32,18 +34,10 @@ namespace builtin {
 class BuiltinProofRuleChecker : public ProofRuleChecker
 {
  public:
-  BuiltinProofRuleChecker() : d_rdb(nullptr) {}
+  /** Constructor. */
+  BuiltinProofRuleChecker(Env& env);
+  /** Destructor. */
   ~BuiltinProofRuleChecker() {}
-  /**
-   * Apply rewrite on n (in skolem form). This encapsulates the exact behavior
-   * of a REWRITE step in a proof.
-   *
-   * @param n The node to rewrite,
-   * @param idr The method identifier of the rewriter, by default RW_REWRITE
-   * specifying a call to Rewriter::rewrite.
-   * @return The rewritten form of n.
-   */
-  Node applyRewrite(Node n, MethodId idr = MethodId::RW_REWRITE);
   /**
    * Get substitution for literal exp. Updates vars/subs to the substitution
    * specified by exp for the substitution method ids.
@@ -119,14 +113,13 @@ class BuiltinProofRuleChecker : public ProofRuleChecker
                      const std::vector<Node>& children,
                      const std::vector<Node>& args) override;
 
-  /** extended rewriter object */
-  quantifiers::ExtendedRewriter d_ext_rewriter;
-  /** Pointer to the rewrite database */
-  rewriter::RewriteDb* d_rdb;
+ private:
+  /** Reference to the environment. */
+  Env& d_env;
 };
 
 }  // namespace builtin
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__BUILTIN__PROOF_CHECKER_H */

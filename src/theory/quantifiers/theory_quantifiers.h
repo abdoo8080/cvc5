@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -29,7 +29,7 @@
 #include "theory/theory.h"
 #include "theory/valuation.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
@@ -37,12 +37,7 @@ class QuantifiersMacros;
 
 class TheoryQuantifiers : public Theory {
  public:
-  TheoryQuantifiers(context::Context* c,
-                    context::UserContext* u,
-                    OutputChannel& out,
-                    Valuation valuation,
-                    const LogicInfo& logicInfo,
-                    ProofNodeManager* pnm = nullptr);
+  TheoryQuantifiers(Env& env, OutputChannel& out, Valuation valuation);
   ~TheoryQuantifiers();
 
   //--------------------------------- initialization
@@ -77,15 +72,10 @@ class TheoryQuantifiers : public Theory {
   /** Collect model values in m based on the relevant terms given by termSet */
   bool collectModelValues(TheoryModel* m,
                           const std::set<Node>& termSet) override;
-  void shutdown() override {}
   std::string identify() const override
   {
     return std::string("TheoryQuantifiers");
   }
-  void setUserAttribute(const std::string& attr,
-                        Node n,
-                        std::vector<Node> node_values,
-                        std::string str_value) override;
 
  private:
   /** The theory rewriter for this theory. */
@@ -108,6 +98,6 @@ class TheoryQuantifiers : public Theory {
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__THEORY_QUANTIFIERS_H */

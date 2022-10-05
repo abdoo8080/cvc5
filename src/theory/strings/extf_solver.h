@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Andres Noetzli, Tim King
+ *   Andrew Reynolds, Andres Noetzli, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,6 +23,7 @@
 
 #include "context/cdo.h"
 #include "expr/node.h"
+#include "smt/env_obj.h"
 #include "theory/ext_theory.h"
 #include "theory/strings/base_solver.h"
 #include "theory/strings/core_solver.h"
@@ -33,7 +34,7 @@
 #include "theory/strings/strings_rewriter.h"
 #include "theory/strings/theory_strings_preprocess.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace strings {
 
@@ -79,12 +80,13 @@ class ExtfInfoTmp
  * functions for the theory of strings using a combination of context-dependent
  * simplification (Reynolds et al CAV 2017) and lazy reductions.
  */
-class ExtfSolver
+class ExtfSolver : protected EnvObj
 {
   typedef context::CDHashSet<Node> NodeSet;
 
  public:
-  ExtfSolver(SolverState& s,
+  ExtfSolver(Env& env,
+             SolverState& s,
              InferenceManager& im,
              TermRegistry& tr,
              StringsRewriter& rewriter,
@@ -153,6 +155,21 @@ class ExtfSolver
    * context (see ExtTheory::getActive).
    */
   std::vector<Node> getActive(Kind k) const;
+  /**
+   * Return true if n is active in the model. If this method returns false,
+   * then n is already satisfied in the model (its value in the model is
+   * the same as its representative in the equality engine).
+   */
+  bool isActiveInModel(Node n) const;
+  /**
+   * @return The relevant active terms. This method retrieves the relevant
+   * terms from the term registry and filters out inactive terms.
+   *
+   * Note that the set of active terms is not a subset of the relevant terms
+   * since active terms may include preregistered terms that don't appear
+   * in any current assertions.
+   */
+  std::vector<Node> getRelevantActive() const;
   //---------------------------------- end information about ExtTheory
   /**
    * Print the relevant information regarding why we have a model, return as a
@@ -234,6 +251,6 @@ class StringsExtfCallback : public ExtTheoryCallback
 
 }  // namespace strings
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__STRINGS__EXTF_SOLVER_H */

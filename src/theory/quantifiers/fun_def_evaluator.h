@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,20 +20,21 @@
 
 #include <map>
 #include <vector>
-#include "expr/node.h"
-#include "theory/evaluator.h"
 
-namespace cvc5 {
+#include "expr/node.h"
+#include "smt/env_obj.h"
+
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
 /**
  * Techniques for evaluating recursively defined functions.
  */
-class FunDefEvaluator
+class FunDefEvaluator : protected EnvObj
 {
  public:
-  FunDefEvaluator();
+  FunDefEvaluator(Env& env);
   ~FunDefEvaluator() {}
   /**
    * Assert definition of a (recursive) function definition given by quantified
@@ -45,7 +46,7 @@ class FunDefEvaluator
    * class. If n cannot be simplified to a constant, then this method returns
    * null.
    */
-  Node evaluate(Node n) const;
+  Node evaluateDefinitions(Node n) const;
   /**
    * Has a call to assertDefinition been made? If this returns false, then
    * the evaluate method is the same as calling the rewriter, and returning
@@ -74,12 +75,10 @@ class FunDefEvaluator
   std::map<Node, FunDefInfo> d_funDefMap;
   /** list of all definitions */
   std::vector<Node> d_funDefs;
-  /** evaluator utility */
-  Evaluator d_eval;
 };
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,32 +20,33 @@
 
 #include "context/cdo.h"
 #include "expr/node.h"
+#include "smt/env.h"
+#include "smt/env_obj.h"
 #include "theory/valuation.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 namespace eq {
 class EqualityEngine;
 }
 
-class TheoryState
+class TheoryState : protected EnvObj
 {
  public:
-  TheoryState(context::Context* c, context::UserContext* u, Valuation val);
+  TheoryState(Env& env,
+              Valuation val);
   virtual ~TheoryState() {}
   /**
    * Set equality engine, where ee is a pointer to the official equality engine
    * of theory.
    */
   void setEqualityEngine(eq::EqualityEngine* ee);
-  /** Get the SAT context */
-  context::Context* getSatContext() const;
-  /** Get the user context */
-  context::UserContext* getUserContext() const;
   //-------------------------------------- equality information
   /** Is t registered as a term in the equality engine of this class? */
-  virtual bool hasTerm(TNode a) const;
+  virtual bool hasTerm(TNode t) const;
+  /** Add term t to the equality engine if it is not registered */
+  virtual void addTerm(TNode t);
   /**
    * Get the representative of t in the equality engine of this class, or t
    * itself if it is not registered as a term.
@@ -101,20 +102,11 @@ class TheoryState
   context::CDList<Assertion>::const_iterator factsBegin(TheoryId tid);
   /** The beginning iterator of facts for theory tid.*/
   context::CDList<Assertion>::const_iterator factsEnd(TheoryId tid);
-  /**
-   * Is the cardinality of type tn finite? This method depends on whether
-   * finite model finding is enabled. For details, see theory_engine.h.
-   */
-  bool isFiniteType(TypeNode tn) const;
 
   /** Get the underlying valuation class */
   Valuation& getValuation();
 
  protected:
-  /** Pointer to the SAT context object used by the theory. */
-  context::Context* d_context;
-  /** Pointer to the user context object used by the theory. */
-  context::UserContext* d_ucontext;
   /**
    * The valuation proxy for the Theory to communicate back with the
    * theory engine (and other theories).
@@ -127,6 +119,6 @@ class TheoryState
 };
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__SOLVER_STATE_H */

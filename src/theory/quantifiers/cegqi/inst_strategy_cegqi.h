@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Tim King
+ *   Andrew Reynolds, Mathias Preiner, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,16 +18,16 @@
 #ifndef CVC5__THEORY__QUANTIFIERS__INST_STRATEGY_CEGQI_H
 #define CVC5__THEORY__QUANTIFIERS__INST_STRATEGY_CEGQI_H
 
+#include "smt/env_obj.h"
 #include "theory/decision_manager.h"
 #include "theory/quantifiers/bv_inverter.h"
 #include "theory/quantifiers/cegqi/ceg_instantiator.h"
 #include "theory/quantifiers/cegqi/nested_qe.h"
-#include "theory/quantifiers/cegqi/vts_term_cache.h"
 #include "theory/quantifiers/instantiate.h"
 #include "theory/quantifiers/quant_module.h"
 #include "util/statistics_stats.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
@@ -48,7 +48,7 @@ class InstRewriterCegqi : public InstantiationRewriter
    * corresponding to the rewrite and its proof generator.
    */
   TrustNode rewriteInstantiation(Node q,
-                                 std::vector<Node>& terms,
+                                 const std::vector<Node>& terms,
                                  Node inst,
                                  bool doVts) override;
 
@@ -69,7 +69,8 @@ class InstStrategyCegqi : public QuantifiersModule
   typedef context::CDHashMap<Node, int> NodeIntMap;
 
  public:
-  InstStrategyCegqi(QuantifiersState& qs,
+  InstStrategyCegqi(Env& env,
+                    QuantifiersState& qs,
                     QuantifiersInferenceManager& qim,
                     QuantifiersRegistry& qr,
                     TermRegistry& tr);
@@ -114,7 +115,7 @@ class InstStrategyCegqi : public QuantifiersModule
    * proof generator.
    */
   TrustNode rewriteInstantiation(Node q,
-                                 std::vector<Node>& terms,
+                                 const std::vector<Node>& terms,
                                  Node inst,
                                  bool doVts);
   /** get the instantiation rewriter object */
@@ -154,8 +155,6 @@ class InstStrategyCegqi : public QuantifiersModule
    * This object is responsible for finding instantiatons for q.
    */
   std::map<Node, std::unique_ptr<CegInstantiator>> d_cinst;
-  /** virtual term substitution term cache for arithmetic instantiation */
-  std::unique_ptr<VtsTermCache> d_vtsCache;
   /** inversion utility for BV instantiation */
   std::unique_ptr<BvInverter> d_bv_invert;
   /**
@@ -180,6 +179,8 @@ class InstStrategyCegqi : public QuantifiersModule
   const Node d_small_const_multiplier;
   /** a small constant, used as a coefficient above */
   Node d_small_const;
+  /** whether we have initialized the lower bound on the free delta */
+  context::CDO<bool> d_freeDeltaLb;
   //---------------------- end for vts delta minimization
   /** register ce lemma */
   bool registerCbqiLemma( Node q );
@@ -218,6 +219,6 @@ class InstStrategyCegqi : public QuantifiersModule
 
 }
 }
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Tim King
+ *   Andrew Reynolds, Mathias Preiner, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,10 +21,11 @@
 #include <vector>
 
 #include "expr/node.h"
+#include "smt/env_obj.h"
 #include "theory/inference_id.h"
 #include "util/statistics_stats.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
@@ -86,11 +87,12 @@ class TermProperties {
   // get cache node
   // we consider terms + TermProperties that are unique up to their cache node
   // (see constructInstantiationInc)
-  virtual Node getCacheNode() const { return d_coeff; }
-  // is non-basic 
-  virtual bool isBasic() const { return d_coeff.isNull(); }
-  // get modified term 
-  virtual Node getModifiedTerm( Node pv ) const {
+  Node getCacheNode() const { return d_coeff; }
+  // is non-basic
+  bool isBasic() const { return d_coeff.isNull(); }
+  // get modified term
+  Node getModifiedTerm(Node pv) const
+  {
     if( !d_coeff.isNull() ){
       return NodeManager::currentNM()->mkNode( kind::MULT, d_coeff, pv );
     }else{
@@ -99,7 +101,7 @@ class TermProperties {
   }
   // compose property, should be such that: 
   //   p.getModifiedTerm( this.getModifiedTerm( x ) ) = this_updated.getModifiedTerm( x )
-  virtual void composeProperty(TermProperties& p);
+  void composeProperty(TermProperties& p);
 };
 
 /** Solved form
@@ -203,13 +205,15 @@ std::ostream& operator<<(std::ostream& os, CegHandledStatus status);
  * For details on counterexample-guided quantifier instantiation
  * (for linear arithmetic), see Reynolds/King/Kuncak FMSD 2017.
  */
-class CegInstantiator {
+class CegInstantiator : protected EnvObj
+{
  public:
   /**
    * The instantiator will be constructing instantiations for quantified formula
    * q, parent is the owner of this object.
    */
-  CegInstantiator(Node q,
+  CegInstantiator(Env& env,
+                  Node q,
                   QuantifiersState& qs,
                   TermRegistry& tr,
                   InstStrategyCegqi* parent);
@@ -342,8 +346,11 @@ class CegInstantiator {
    * returns CEG_PARTIALLY_HANDLED, then it may be worthwhile to handle the
    * quantified formula using cegqi, however other strategies should also be
    * tried.
+   *
+   * @param cegqiAll Whether we apply CEQGI to all quantifiers (option
+   * options::cegqiAll).
    */
-  static CegHandledStatus isCbqiQuant(Node q);
+  static CegHandledStatus isCbqiQuant(Node q, bool cegqiAll);
   //------------------------------------ end static queries
  private:
   /** The quantified formula of this instantiator */
@@ -575,21 +582,22 @@ class CegInstantiator {
  * In these calls, the Instantiator in turn makes calls to methods in
  * CegInstanatior (primarily constructInstantiationInc).
  */
-class Instantiator {
-public:
- Instantiator(TypeNode tn);
- virtual ~Instantiator() {}
- /** reset
-  * This is called once, prior to any of the below methods are called.
-  * This function sets up any initial information necessary for constructing
-  * instantiations for pv based on the current context.
-  */
- virtual void reset(CegInstantiator* ci,
-                    SolvedForm& sf,
-                    Node pv,
-                    CegInstEffort effort)
- {
- }
+class Instantiator : protected EnvObj
+{
+ public:
+  Instantiator(Env& env, TypeNode tn);
+  virtual ~Instantiator() {}
+  /** reset
+   * This is called once, prior to any of the below methods are called.
+   * This function sets up any initial information necessary for constructing
+   * instantiations for pv based on the current context.
+   */
+  virtual void reset(CegInstantiator* ci,
+                     SolvedForm& sf,
+                     Node pv,
+                     CegInstEffort effort)
+  {
+  }
 
   /** has process equal term
    *
@@ -782,7 +790,7 @@ public:
 
 class ModelValueInstantiator : public Instantiator {
 public:
- ModelValueInstantiator(TypeNode tn) : Instantiator(tn) {}
+ ModelValueInstantiator(Env& env, TypeNode tn) : Instantiator(env, tn) {}
  virtual ~ModelValueInstantiator() {}
  bool useModelValue(CegInstantiator* ci,
                     SolvedForm& sf,
@@ -818,6 +826,6 @@ class InstantiatorPreprocess
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

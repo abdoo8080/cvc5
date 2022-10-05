@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,12 +19,16 @@
 #define CVC5__THEORY__QUANTIFIERS__CEGIS_H
 
 #include <map>
+
+#include "smt/env_obj.h"
 #include "theory/quantifiers/sygus/sygus_module.h"
 #include "theory/quantifiers/sygus_sampler.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
+
+class SygusEvalUnfold;
 
 /** Cegis
  *
@@ -42,7 +46,11 @@ namespace quantifiers {
 class Cegis : public SygusModule
 {
  public:
-  Cegis(QuantifiersInferenceManager& qim, TermDbSygus* tds, SynthConjecture* p);
+  Cegis(Env& env,
+        QuantifiersState& qs,
+        QuantifiersInferenceManager& qim,
+        TermDbSygus* tds,
+        SynthConjecture* p);
   ~Cegis() override {}
   /** initialize */
   virtual bool initialize(Node conj,
@@ -111,6 +119,13 @@ class Cegis : public SygusModule
   std::vector<Node> d_rl_vals;
   /** all variables appearing in refinement lemmas */
   std::unordered_set<Node> d_refinement_lemma_vars;
+  /**
+   * Are the counterexamples we are handling in this class of only closed
+   * enumerable types (see TypeNode::isClosedEnumerable). If this is false,
+   * then CEGIS refinement lemmas can contain terms that are unhandled by
+   * theory solvers, e.g. uninterpreted constants.
+   */
+  bool d_cexClosedEnum;
 
   /** adds lem as a refinement lemma */
   void addRefinementLemma(Node lem);
@@ -223,6 +238,6 @@ class Cegis : public SygusModule
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__CEGIS_H */

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner
+ *   Andrew Reynolds, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,9 +21,13 @@
 #include <unordered_map>
 
 #include "expr/node.h"
+#include "expr/subs.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
+
+class Rewriter;
+
 namespace quantifiers {
 
 /** Extended rewriter
@@ -48,26 +52,14 @@ namespace quantifiers {
 class ExtendedRewriter
 {
  public:
-  ExtendedRewriter(bool aggr = true);
+  ExtendedRewriter(Rewriter& rew, bool aggr = true);
   ~ExtendedRewriter() {}
   /** return the extended rewritten form of n */
   Node extendedRewrite(Node n) const;
 
  private:
-  /**
-   * Whether this extended rewriter applies aggressive rewriting techniques,
-   * which are more expensive. Examples of aggressive rewriting include:
-   * - conditional rewriting,
-   * - condition merging,
-   * - sorting childing of commutative operators with more than 5 children.
-   *
-   * Aggressive rewriting is applied for SyGuS, whereas non-aggressive rewriting
-   * may be applied as a preprocessing step.
-   */
-  bool d_aggr;
-  /** true/false nodes */
-  Node d_true;
-  Node d_false;
+  /** The underlying rewriter that we are extending  */
+  Rewriter& d_rew;
   /** cache that the extended rewritten form of n is ret */
   void setCache(Node n, Node ret) const;
   /** get the cache for n */
@@ -216,10 +208,9 @@ class ExtendedRewriter
   Node partialSubstitute(Node n,
                          const std::map<Node, Node>& assign,
                          const std::map<Kind, bool>& rkinds) const;
-  /** same as above, with vectors */
+  /** same as above, with the subs utility */
   Node partialSubstitute(Node n,
-                         const std::vector<Node>& vars,
-                         const std::vector<Node>& subs,
+                         const Subs& subs,
                          const std::map<Kind, bool>& rkinds) const;
   /** solve equality
    *
@@ -232,15 +223,12 @@ class ExtendedRewriter
    * If n is an equality of the form x = t, where t is either:
    * (1) a constant, or
    * (2) a variable y such that x < y based on an ordering,
-   * then this method adds x to vars and y to subs and return true, otherwise
+   * then this method adds {x -> y} to subs and return true, otherwise
    * it returns false.
    * If usePred is true, we may additionally add n -> true, or n[0] -> false
    * is n is a negation.
    */
-  bool inferSubstitution(Node n,
-                         std::vector<Node>& vars,
-                         std::vector<Node>& subs,
-                         bool usePred = false) const;
+  bool inferSubstitution(Node n, Subs& subs, bool usePred = false) const;
   /** extended rewrite
    *
    * Prints debug information, indicating the rewrite n ---> ret was found.
@@ -256,10 +244,26 @@ class ExtendedRewriter
    */
   Node extendedRewriteStrings(Node ret) const;
   //--------------------------------------end theory-specific top-level calls
+
+  /**
+   * Whether this extended rewriter applies aggressive rewriting techniques,
+   * which are more expensive. Examples of aggressive rewriting include:
+   * - conditional rewriting,
+   * - condition merging,
+   * - sorting childing of commutative operators with more than 5 children.
+   *
+   * Aggressive rewriting is applied for SyGuS, whereas non-aggressive rewriting
+   * may be applied as a preprocessing step.
+   */
+  bool d_aggr;
+  /** Common constant nodes */
+  Node d_true;
+  Node d_false;
+  Node d_intZero;
 };
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__EXTENDED_REWRITE_H */

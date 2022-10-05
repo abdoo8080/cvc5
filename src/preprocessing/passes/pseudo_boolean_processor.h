@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Tim King, Andres Noetzli, Mathias Preiner
+ *   Tim King, Andres Noetzli, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,6 +21,7 @@
 #ifndef CVC5__PREPROCESSING__PASSES__PSEUDO_BOOLEAN_PROCESSOR_H
 #define CVC5__PREPROCESSING__PASSES__PSEUDO_BOOLEAN_PROCESSOR_H
 
+#include <optional>
 #include <unordered_set>
 #include <vector>
 
@@ -29,10 +30,9 @@
 #include "expr/node.h"
 #include "preprocessing/preprocessing_pass.h"
 #include "theory/substitutions.h"
-#include "util/maybe.h"
 #include "util/rational.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace preprocessing {
 namespace passes {
 
@@ -100,7 +100,7 @@ class PseudoBooleanProcessor : public PreprocessingPass
   context::CDO<unsigned> d_pbs;
 
   // decompose into \sum pos >= neg + off
-  Maybe<Rational> d_off;
+  std::optional<Rational> d_off;
   std::vector<Node> d_pos;
   std::vector<Node> d_neg;
 
@@ -110,6 +110,6 @@ class PseudoBooleanProcessor : public PreprocessingPass
 
 }  // namespace passes
 }  // namespace preprocessing
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif  // CVC5__PREPROCESSING__PASSES__PSEUDO_BOOLEAN_PROCESSOR_H

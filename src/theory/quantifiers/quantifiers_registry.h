@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Morgan Deters
+ *   Andrew Reynolds, Morgan Deters, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,8 +22,9 @@
 #include "theory/quantifiers/quant_bound_inference.h"
 #include "theory/quantifiers/quant_util.h"
 #include "theory/quantifiers/quantifiers_attributes.h"
+#include "theory/quantifiers/quantifiers_preprocess.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 class QuantifiersModule;
@@ -42,7 +43,7 @@ class QuantifiersRegistry : public QuantifiersUtil
   friend class Instantiate;
 
  public:
-  QuantifiersRegistry();
+  QuantifiersRegistry(Env& env);
   ~QuantifiersRegistry() {}
   /**
    * Register quantifier, which allocates the instantiation constants for q.
@@ -83,14 +84,16 @@ class QuantifiersRegistry : public QuantifiersUtil
    */
   Node substituteInstConstantsToBoundVariables(Node n, Node q);
   /** substitute { variables of q -> terms } in n */
-  Node substituteBoundVariables(Node n, Node q, std::vector<Node>& terms);
+  Node substituteBoundVariables(Node n, Node q, const std::vector<Node>& terms);
   /** substitute { instantiation constants of q -> terms } in n */
-  Node substituteInstConstants(Node n, Node q, std::vector<Node>& terms);
+  Node substituteInstConstants(Node n, Node q, const std::vector<Node>& terms);
   //----------------------------- end instantiation constants
   /** Get quantifiers attributes utility class */
   QuantAttributes& getQuantAttributes();
   /** Get quantifiers bound inference utility */
   QuantifiersBoundInference& getQuantifiersBoundInference();
+  /** Get the preprocess utility */
+  QuantifiersPreprocess& getPreprocess();
   /**
    * Get quantifiers name, which returns a variable corresponding to the name of
    * quantified formula q if q has a name, or otherwise returns q itself.
@@ -126,10 +129,12 @@ class QuantifiersRegistry : public QuantifiersUtil
   QuantAttributes d_quantAttr;
   /** The quantifiers bound inference class */
   QuantifiersBoundInference d_quantBoundInf;
+  /** The quantifiers preprocessor utility */
+  QuantifiersPreprocess d_quantPreproc;
 };
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__QUANTIFIERS_REGISTRY_H */

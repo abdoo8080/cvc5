@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,8 +22,9 @@
 #include "expr/node.h"
 #include "proof/eager_proof_generator.h"
 #include "proof/proof_node_manager.h"
+#include "smt/env_obj.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace arith {
 
@@ -33,10 +34,10 @@ namespace arith {
  *
  * In particular, we may rewrite (= x y) to (and (>= x y) (<= x y)).
  */
-class PreprocessRewriteEq
+class PreprocessRewriteEq : protected EnvObj
 {
  public:
-  PreprocessRewriteEq(context::Context* c, ProofNodeManager* pnm);
+  PreprocessRewriteEq(Env& env);
   ~PreprocessRewriteEq() {}
   /**
    * Preprocess equality, applies ppRewrite for equalities. This method is
@@ -45,16 +46,12 @@ class PreprocessRewriteEq
   TrustNode ppRewriteEq(TNode eq);
 
  private:
-  /** Are proofs enabled? */
-  bool proofsEnabled() const;
   /** Used to prove pp-rewrites */
   EagerProofGenerator d_ppPfGen;
-  /** Proof node manager */
-  ProofNodeManager* d_pnm;
 };
 
 }  // namespace arith
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,13 +20,13 @@
 #include "theory/quantifiers/quantifiers_attributes.h"
 #include "theory/rewriter.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
-FunDefEvaluator::FunDefEvaluator() {}
+FunDefEvaluator::FunDefEvaluator(Env& env) : EnvObj(env) {}
 
 void FunDefEvaluator::assertDefinition(Node q)
 {
@@ -51,11 +51,11 @@ void FunDefEvaluator::assertDefinition(Node q)
                    << fdi.d_args << " / " << fdi.d_body << std::endl;
 }
 
-Node FunDefEvaluator::evaluate(Node n) const
+Node FunDefEvaluator::evaluateDefinitions(Node n) const
 {
   // should do standard rewrite before this call
-  Assert(Rewriter::rewrite(n) == n);
-  Trace("fd-eval") << "FunDefEvaluator: evaluate " << n << std::endl;
+  Assert(rewrite(n) == n);
+  Trace("fd-eval") << "FunDefEvaluator: evaluateDefinitions " << n << std::endl;
   NodeManager* nm = NodeManager::currentNM();
   std::unordered_map<TNode, unsigned> funDefCount;
   std::unordered_map<TNode, unsigned>::iterator itCount;
@@ -167,7 +167,7 @@ Node FunDefEvaluator::evaluate(Node n) const
             itCount = funDefCount.find(f);
           }
           if (itf == d_funDefMap.end()
-              || itCount->second > options::sygusRecFunEvalLimit())
+              || itCount->second > options().quantifiers.sygusRecFunEvalLimit)
           {
             Trace("fd-eval")
                 << "FunDefEvaluator: "
@@ -185,8 +185,8 @@ Node FunDefEvaluator::evaluate(Node n) const
           if (!args.empty())
           {
             // invoke it on arguments using the evaluator
-            sbody = d_eval.eval(sbody, args, children);
-            if (Trace.isOn("fd-eval-debug2"))
+            sbody = evaluate(sbody, args, children);
+            if (TraceIsOn("fd-eval-debug2"))
             {
               Trace("fd-eval-debug2")
                   << "FunDefEvaluator: evaluation with args:\n";
@@ -217,7 +217,7 @@ Node FunDefEvaluator::evaluate(Node n) const
           if (childChanged)
           {
             ret = nm->mkNode(cur.getKind(), children);
-            ret = Rewriter::rewrite(ret);
+            ret = rewrite(ret);
           }
           Trace("fd-eval-debug2") << "built from arguments " << ret << "\n";
           visited[cur] = ret;
@@ -269,4 +269,4 @@ Node FunDefEvaluator::getDefinitionFor(Node f) const
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

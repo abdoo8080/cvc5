@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,12 +19,13 @@
 #define CVC5__THEORY__SHARED_SOLVER__H
 
 #include "expr/node.h"
+#include "smt/env_obj.h"
 #include "theory/inference_id.h"
 #include "theory/shared_terms_database.h"
 #include "theory/term_registration_visitor.h"
 #include "theory/valuation.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 class LogicInfo;
 class ProofNodeManager;
@@ -44,10 +45,10 @@ class TheoryInferenceManager;
  * (2) Be the official interface for equality statuses,
  * (3) Propagate equalities to TheoryEngine when necessary and explain them.
  */
-class SharedSolver
+class SharedSolver : protected EnvObj
 {
  public:
-  SharedSolver(TheoryEngine& te, ProofNodeManager* pnm);
+  SharedSolver(Env& env, TheoryEngine& te);
   virtual ~SharedSolver() {}
   //------------------------------------- initialization
   /**
@@ -144,6 +145,6 @@ class SharedSolver
 };
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__SHARED_SOLVER__H */

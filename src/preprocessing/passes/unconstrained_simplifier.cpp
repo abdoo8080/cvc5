@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -24,26 +24,27 @@
 #include "preprocessing/assertion_pipeline.h"
 #include "preprocessing/preprocessing_pass_context.h"
 #include "smt/logic_exception.h"
-#include "smt/smt_statistics_registry.h"
 #include "theory/logic_info.h"
 #include "theory/rewriter.h"
 #include "util/bitvector.h"
 #include "util/rational.h"
-
-namespace cvc5 {
-namespace preprocessing {
-namespace passes {
+#include "util/statistics_registry.h"
 
 using namespace std;
-using namespace cvc5::theory;
+using namespace cvc5::internal::kind;
+using namespace cvc5::internal::theory;
+
+namespace cvc5::internal {
+namespace preprocessing {
+namespace passes {
 
 UnconstrainedSimplifier::UnconstrainedSimplifier(
     PreprocessingPassContext* preprocContext)
     : PreprocessingPass(preprocContext, "unconstrained-simplifier"),
-      d_numUnconstrainedElim(smtStatisticsRegistry().registerInt(
+      d_numUnconstrainedElim(statisticsRegistry().registerInt(
           "preprocessor::number of unconstrained elims")),
-      d_context(preprocContext->getDecisionContext()),
-      d_substitutions(preprocContext->getDecisionContext())
+      d_context(context()),
+      d_substitutions(context())
 {
 }
 
@@ -231,7 +232,7 @@ void UnconstrainedSimplifier::processUnconstrained()
               // Special case: condition is unconstrained, then and else are
               // different, and total cardinality of the type is 2, then the
               // result is unconstrained
-              Node test = Rewriter::rewrite(parent[1].eqNode(parent[2]));
+              Node test = rewrite(parent[1].eqNode(parent[2]));
               if (test == nm->mkConst<bool>(false))
               {
                 ++d_numUnconstrainedElim;
@@ -254,7 +255,7 @@ void UnconstrainedSimplifier::processUnconstrained()
           if (parent[0].getType() != parent[1].getType())
           {
             TNode other = (parent[0] == current) ? parent[1] : parent[0];
-            if (current.getType().isSubtypeOf(other.getType()))
+            if (current.getType() == other.getType())
             {
               break;
             }
@@ -309,7 +310,7 @@ void UnconstrainedSimplifier::processUnconstrained()
         case kind::NOT:
         case kind::BITVECTOR_NOT:
         case kind::BITVECTOR_NEG:
-        case kind::UMINUS:
+        case kind::NEG:
           ++d_numUnconstrainedElim;
           Assert(parent[0] == current);
           if (currentSub.isNull())
@@ -446,8 +447,8 @@ void UnconstrainedSimplifier::processUnconstrained()
 
         // N-ary operators returning same type requiring at least one child to
         // be unconstrained
-        case kind::PLUS:
-        case kind::MINUS:
+        case kind::ADD:
+        case kind::SUB:
           if (current.getType().isInteger() && !parent.getType().isInteger())
           {
             break;
@@ -514,9 +515,9 @@ void UnconstrainedSimplifier::processUnconstrained()
             if (current.getType().isInteger())
             {
               // div/mult by 1 should have been simplified
-              Assert(other != nm->mkConst<Rational>(1));
+              Assert(other != nm->mkConstInt(Rational(1)));
               // div by -1 should have been simplified
-              if (other != nm->mkConst<Rational>(-1))
+              if (other != nm->mkConstInt(Rational(-1)))
               {
                 break;
               }
@@ -529,8 +530,9 @@ void UnconstrainedSimplifier::processUnconstrained()
             else
             {
               // TODO(#2377): could build ITE here
-              Node test = other.eqNode(nm->mkConst<Rational>(0));
-              if (Rewriter::rewrite(test) != nm->mkConst<bool>(false))
+              Node test = other.eqNode(
+                  nm->mkConstRealOrInt(other.getType(), Rational(0)));
+              if (rewrite(test) != nm->mkConst<bool>(false))
               {
                 break;
               }
@@ -573,7 +575,7 @@ void UnconstrainedSimplifier::processUnconstrained()
               Node test = nm->mkNode(extractOp, children);
               BitVector one(1, unsigned(1));
               test = test.eqNode(nm->mkConst<BitVector>(one));
-              if (Rewriter::rewrite(test) != nm->mkConst<bool>(true))
+              if (rewrite(test) != nm->mkConst<bool>(true))
               {
                 done = true;
                 break;
@@ -591,7 +593,7 @@ void UnconstrainedSimplifier::processUnconstrained()
         // Uninterpreted function - if domain is infinite, no quantifiers are
         // used, and any child is unconstrained, result is unconstrained
         case kind::APPLY_UF:
-          if (d_preprocContext->getLogicInfo().isQuantified()
+          if (logicInfo().isQuantified()
               || !current.getType().getCardinality().isInfinite())
           {
             break;
@@ -753,8 +755,7 @@ void UnconstrainedSimplifier::processUnconstrained()
             }
             currentSub = newUnconstrainedVar(parent.getType(), currentSub);
             current = parent;
-            Node test =
-                Rewriter::rewrite(other.eqNode(nm->mkConst<BitVector>(bv)));
+            Node test = rewrite(other.eqNode(nm->mkConst<BitVector>(bv)));
             if (test == nm->mkConst<bool>(false))
             {
               break;
@@ -857,11 +858,10 @@ PreprocessingPassResult UnconstrainedSimplifier::applyInternal(
   if (!d_unconstrained.empty())
   {
     processUnconstrained();
-    //    d_substitutions.print(CVC5Message.getStream());
     for (size_t i = 0, asize = assertions.size(); i < asize; ++i)
     {
       Node a = assertions[i];
-      Node as = Rewriter::rewrite(d_substitutions.apply(a));
+      Node as = rewrite(d_substitutions.apply(a));
       // replace the assertion
       assertionsToPreprocess->replace(i, as);
     }
@@ -880,4 +880,4 @@ PreprocessingPassResult UnconstrainedSimplifier::applyInternal(
 
 }  // namespace passes
 }  // namespace preprocessing
-}  // namespace cvc5
+}  // namespace cvc5::internal

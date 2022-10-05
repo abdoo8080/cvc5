@@ -1,16 +1,16 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Haniel Barbosa
+ *   Haniel Barbosa, Aina Niemetz, Andrew Reynolds
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
  * ****************************************************************************
  *
- * The unsat core manager of SmtEngine.
+ * The unsat core manager of SolverEngine.
  */
 
 #include "cvc5_private.h"
@@ -23,14 +23,14 @@
 #include "proof/proof_node.h"
 #include "theory/quantifiers/instantiation_list.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 namespace smt {
 
 class Assertions;
 
 /**
- * This class is responsible for managing the proof output of SmtEngine, as
+ * This class is responsible for managing the proof output of SolverEngine, as
  * well as setting up the global proof checker and proof node manager.
  */
 class UnsatCoreManager
@@ -52,7 +52,7 @@ class UnsatCoreManager
                     Assertions& as,
                     std::vector<Node>& core);
 
-  /** Gets the relevant instaniations for the refutation.
+  /** Gets the relevant instaniations and skolemizations for the refutation.
    *
    * The relevant instantiations are all the conclusions of proof nodes of type
    * INSTANTIATE that occur in pfn.
@@ -61,14 +61,18 @@ class UnsatCoreManager
    * premises of INSTANTIATE proof nodes to its instantiations, which are a
    * matrix with each row corresponding to the terms with which the respective
    * quantified formula is instiated.
+   *
+   * Similiarly, for SKOLEMIZE, it populates the mapping sks will all
+   * skolemization steps in the proof.
    */
-  void getRelevantInstantiations(std::shared_ptr<ProofNode> pfn,
-                                 std::map<Node, InstantiationList>& insts,
-                                 bool getDebugInfo = false);
+  void getRelevantQuantTermVectors(std::shared_ptr<ProofNode> pfn,
+                                   std::map<Node, InstantiationList>& insts,
+                                   std::map<Node, std::vector<Node>>& sks,
+                                   bool getDebugInfo = false);
 
 }; /* class UnsatCoreManager */
 
 }  // namespace smt
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__SMT__UNSAT_CORE_MANAGER_H */

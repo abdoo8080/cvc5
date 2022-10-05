@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Gereon Kremer
+ *   Andrew Reynolds, Mathias Preiner, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -25,12 +25,13 @@
 #include "context/cdhashset.h"
 #include "context/context.h"
 #include "expr/node.h"
+#include "smt/env_obj.h"
 #include "theory/datatypes/sygus_simple_sym.h"
 #include "theory/decision_manager.h"
 #include "theory/quantifiers/sygus_sampler.h"
 #include "theory/quantifiers/term_database.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 class SynthConjecture;
@@ -62,7 +63,7 @@ class InferenceManager;
  * We prioritize decisions of form (1) before (2). Both kinds of decision are
  * critical for solution completeness, which is enforced by DecisionManager.
  */
-class SygusExtension
+class SygusExtension : protected EnvObj
 {
   typedef context::CDHashMap<Node, int> IntMap;
   typedef context::CDHashMap<Node, Node> NodeMap;
@@ -70,7 +71,8 @@ class SygusExtension
   typedef context::CDHashSet<Node> NodeSet;
 
  public:
-  SygusExtension(TheoryState& s,
+  SygusExtension(Env& env,
+                 TheoryState& s,
                  InferenceManager& im,
                  quantifiers::TermDbSygus* tds);
   ~SygusExtension();
@@ -287,7 +289,8 @@ private:
    * This is used for the sygusRewVerify() option to verify the correctness of
    * the rewriter.
    */
-  std::map<Node, std::map<TypeNode, quantifiers::SygusSampler>> d_sampler;
+  std::map<Node, std::map<TypeNode, std::unique_ptr<quantifiers::SygusSampler>>>
+      d_sampler;
   /** Assert tester internal
    *
    * This function is called when the tester with index tindex is asserted for
@@ -553,7 +556,10 @@ private:
   class SygusSizeDecisionStrategy : public DecisionStrategyFmf
   {
    public:
-    SygusSizeDecisionStrategy(InferenceManager& im, Node t, TheoryState& s);
+    SygusSizeDecisionStrategy(Env& env,
+                              InferenceManager& im,
+                              Node t,
+                              TheoryState& s);
     /** the measure term */
     Node d_this;
     /**
@@ -704,11 +710,15 @@ private:
    * false, and 0 if it is not asserted.
    */
   int getGuardStatus( Node g );
+  /** Calls util::getSelector based on the value of options::dtShareSel */
+  Node getSelectorInternal(TypeNode dtt,
+                           const DTypeConstructor& dc,
+                           size_t index) const;
 };
 
 }
 }
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif
 

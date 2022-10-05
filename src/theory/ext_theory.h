@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Tim King, Mathias Preiner
+ *   Andrew Reynolds, Tim King, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -41,8 +41,10 @@
 #include "context/cdo.h"
 #include "context/context.h"
 #include "expr/node.h"
+#include "smt/env_obj.h"
+#include "theory/theory_inference_manager.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 class OutputChannel;
@@ -75,6 +77,8 @@ enum class ExtReducedId
   STRINGS_REGEXP_INCLUDE,
   // subsumed due to RE inclusion reasoning for negative memberships
   STRINGS_REGEXP_INCLUDE_NEG,
+  // reduction for seq.nth over seq.rev
+  STRINGS_NTH_REV,
 };
 /**
  * Converts an ext reduced identifier to a string.
@@ -162,7 +166,7 @@ class ExtTheoryCallback
  * underlying theory for a "derivable substitution", whereby extended functions
  * may be reducable.
  */
-class ExtTheory
+class ExtTheory : protected EnvObj
 {
   using NodeBoolMap = context::CDHashMap<Node, bool>;
   using NodeExtReducedIdMap = context::CDHashMap<Node, ExtReducedId>;
@@ -173,10 +177,7 @@ class ExtTheory
    *
    * If cacheEnabled is false, we do not cache results of getSubstitutedTerm.
    */
-  ExtTheory(ExtTheoryCallback& p,
-            context::Context* c,
-            context::UserContext* u,
-            OutputChannel& out);
+  ExtTheory(Env& env, ExtTheoryCallback& p, TheoryInferenceManager& im);
   virtual ~ExtTheory() {}
   /** Tells this class to treat terms with Kind k as extended functions */
   void addFunctionKind(Kind k) { d_extf_kind[k] = true; }
@@ -291,11 +292,11 @@ class ExtTheory
                             bool batch,
                             bool isRed);
   /** send lemma on the output channel */
-  bool sendLemma(Node lem, bool preprocess = false);
+  bool sendLemma(Node lem, InferenceId id, bool preprocess = false);
   /** reference to the callback */
   ExtTheoryCallback& d_parent;
-  /** Reference to the output channel we are using */
-  OutputChannel& d_out;
+  /** inference manager used to send lemmas */
+  TheoryInferenceManager& d_im;
   /** the true node */
   Node d_true;
   /** extended function terms, map to whether they are active */
@@ -330,6 +331,6 @@ class ExtTheory
 };
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__EXT_THEORY_H */

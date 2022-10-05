@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Morgan Deters
+ *   Andrew Reynolds, Morgan Deters, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,16 +19,17 @@
 #include "theory/quantifiers/ematching/trigger.h"
 #include "theory/quantifiers/term_util.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 namespace inst {
 
-TriggerDatabase::TriggerDatabase(QuantifiersState& qs,
+TriggerDatabase::TriggerDatabase(Env& env,
+                                 QuantifiersState& qs,
                                  QuantifiersInferenceManager& qim,
                                  QuantifiersRegistry& qr,
                                  TermRegistry& tr)
-    : d_qs(qs), d_qim(qim), d_qreg(qr), d_treg(tr)
+    : EnvObj(env), d_qs(qs), d_qim(qim), d_qreg(qr), d_treg(tr)
 {
 }
 TriggerDatabase::~TriggerDatabase() {}
@@ -78,11 +79,12 @@ Trigger* TriggerDatabase::mkTrigger(Node q,
   Trigger* t;
   if (!hoApps.empty())
   {
-    t = new HigherOrderTrigger(d_qs, d_qim, d_qreg, d_treg, q, trNodes, hoApps);
+    t = new HigherOrderTrigger(
+        d_env, d_qs, d_qim, d_qreg, d_treg, q, trNodes, hoApps);
   }
   else
   {
-    t = new Trigger(d_qs, d_qim, d_qreg, d_treg, q, trNodes);
+    t = new Trigger(d_env, d_qs, d_qim, d_qreg, d_treg, q, trNodes);
   }
   d_trie.addTrigger(trNodes, t);
   return t;
@@ -186,4 +188,4 @@ bool TriggerDatabase::mkTriggerTerms(Node q,
 }  // namespace inst
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Morgan Deters
+ *   Andrew Reynolds, Mathias Preiner, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,16 +18,15 @@
 #include "expr/node_algorithm.h"
 #include "expr/skolem_manager.h"
 #include "theory/quantifiers/single_inv_partition.h"
-#include "theory/rewriter.h"
 #include "theory/smt_engine_subsolver.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
-SygusQePreproc::SygusQePreproc() {}
+SygusQePreproc::SygusQePreproc(Env& env) : EnvObj(env) {}
 
 Node SygusQePreproc::preprocess(Node q)
 {
@@ -40,7 +39,7 @@ Node SygusQePreproc::preprocess(Node q)
   SkolemManager* sm = nm->getSkolemManager();
   Trace("cegqi-qep") << "Compute single invocation for " << q << "..."
                      << std::endl;
-  quantifiers::SingleInvocationPartition sip;
+  quantifiers::SingleInvocationPartition sip(d_env);
   std::vector<Node> funcs0;
   funcs0.insert(funcs0.end(), q[0].begin(), q[0].end());
   sip.init(funcs0, body);
@@ -52,8 +51,8 @@ Node SygusQePreproc::preprocess(Node q)
     return Node::null();
   }
   // create new smt engine to do quantifier elimination
-  std::unique_ptr<SmtEngine> smt_qe;
-  initializeSubsolver(smt_qe);
+  std::unique_ptr<SolverEngine> smt_qe;
+  initializeSubsolver(smt_qe, d_env);
   Trace("cegqi-qep") << "Property is non-ground single invocation, run "
                         "QE to obtain single invocation."
                      << std::endl;
@@ -118,7 +117,7 @@ Node SygusQePreproc::preprocess(Node q)
 
   Trace("cegqi-qep") << "Run quantifier elimination on " << conj_se_ngsi_subs
                      << std::endl;
-  Node qeRes = smt_qe->getQuantifierElimination(conj_se_ngsi_subs, true, false);
+  Node qeRes = smt_qe->getQuantifierElimination(conj_se_ngsi_subs, true);
   Trace("cegqi-qep") << "Result : " << qeRes << std::endl;
 
   // create single invocation conjecture, if QE was successful
@@ -134,7 +133,7 @@ Node SygusQePreproc::preprocess(Node q)
     qeRes = nm->mkNode(FORALL, q[0], qeRes, q[2]);
     Trace("cegqi-qep") << "Converted conjecture after QE : " << qeRes
                        << std::endl;
-    qeRes = Rewriter::rewrite(qeRes);
+    qeRes = rewrite(qeRes);
     Node nq = qeRes;
     // must assert it is equivalent to the original
     Node lem = q.eqNode(nq);
@@ -147,4 +146,4 @@ Node SygusQePreproc::preprocess(Node q)
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

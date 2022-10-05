@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Morgan Deters, Clark Barrett, Tim King
+ *   Morgan Deters, Clark Barrett, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -16,21 +16,21 @@
 
 #include "theory/arrays/array_info.h"
 
-#include "smt/smt_statistics_registry.h"
+#include "util/statistics_registry.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace arrays {
 
-Info::Info(context::Context* c, Backtracker<TNode>* bck)
+Info::Info(context::Context* c)
     : isNonLinear(c, false),
       rIntro1Applied(c, false),
-      modelRep(c,TNode()),
-      constArr(c,TNode()),
-      weakEquivPointer(c,TNode()),
-      weakEquivIndex(c,TNode()),
-      weakEquivSecondary(c,TNode()),
-      weakEquivSecondaryReason(c,TNode())
+      modelRep(c, TNode()),
+      constArr(c, TNode()),
+      weakEquivPointer(c, TNode()),
+      weakEquivIndex(c, TNode()),
+      weakEquivSecondary(c, TNode()),
+      weakEquivSecondaryReason(c, TNode())
 {
   indices = new(true)CTNodeList(c);
   stores = new(true)CTNodeList(c);
@@ -43,31 +43,26 @@ Info::~Info() {
   in_stores->deleteSelf();
 }
 
-ArrayInfo::ArrayInfo(context::Context* c,
-                     Backtracker<TNode>* b,
+ArrayInfo::ArrayInfo(StatisticsRegistry& sr,
+                     context::Context* c,
                      std::string statisticsPrefix)
     : ct(c),
-      bck(b),
       info_map(),
-      d_mergeInfoTimer(smtStatisticsRegistry().registerTimer(
-          statisticsPrefix + "mergeInfoTimer")),
-      d_avgIndexListLength(smtStatisticsRegistry().registerAverage(
-          statisticsPrefix + "avgIndexListLength")),
-      d_avgStoresListLength(smtStatisticsRegistry().registerAverage(
-          statisticsPrefix + "avgStoresListLength")),
-      d_avgInStoresListLength(smtStatisticsRegistry().registerAverage(
-          statisticsPrefix + "avgInStoresListLength")),
-      d_listsCount(
-          smtStatisticsRegistry().registerInt(statisticsPrefix + "listsCount")),
-      d_callsMergeInfo(smtStatisticsRegistry().registerInt(statisticsPrefix
-                                                           + "callsMergeInfo")),
-      d_maxList(
-          smtStatisticsRegistry().registerInt(statisticsPrefix + "maxList")),
-      d_tableSize(smtStatisticsRegistry().registerSize<CNodeInfoMap>(
+      d_mergeInfoTimer(sr.registerTimer(statisticsPrefix + "mergeInfoTimer")),
+      d_avgIndexListLength(
+          sr.registerAverage(statisticsPrefix + "avgIndexListLength")),
+      d_avgStoresListLength(
+          sr.registerAverage(statisticsPrefix + "avgStoresListLength")),
+      d_avgInStoresListLength(
+          sr.registerAverage(statisticsPrefix + "avgInStoresListLength")),
+      d_listsCount(sr.registerInt(statisticsPrefix + "listsCount")),
+      d_callsMergeInfo(sr.registerInt(statisticsPrefix + "callsMergeInfo")),
+      d_maxList(sr.registerInt(statisticsPrefix + "maxList")),
+      d_tableSize(sr.registerSize<CNodeInfoMap>(
           statisticsPrefix + "infoTableSize", info_map))
 {
   emptyList = new(true) CTNodeList(ct);
-  emptyInfo = new Info(ct, bck);
+  emptyInfo = new Info(ct);
 }
 
 ArrayInfo::~ArrayInfo() {
@@ -102,16 +97,6 @@ void printList (CTNodeList* list) {
   Trace("arrays-info")<<"] \n";
 }
 
-void printList (List<TNode>* list) {
-  List<TNode>::const_iterator it = list->begin();
-  Trace("arrays-info")<<"   [ ";
-  for (; it != list->end(); ++it)
-  {
-    Trace("arrays-info")<<(*it)<<" ";
-  }
-  Trace("arrays-info")<<"] \n";
-}
-
 void ArrayInfo::mergeLists(CTNodeList* la, const CTNodeList* lb) const{
   std::set<TNode> temp;
   CTNodeList::const_iterator it;
@@ -138,7 +123,7 @@ void ArrayInfo::addIndex(const Node a, const TNode i) {
 
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_indices = temp_info->indices;
     temp_indices->push_back(i);
     info_map[a] = temp_info;
@@ -148,7 +133,7 @@ void ArrayInfo::addIndex(const Node a, const TNode i) {
       temp_indices->push_back(i);
     }
   }
-  if(Trace.isOn("arrays-ind")) {
+  if(TraceIsOn("arrays-ind")) {
     printList((*(info_map.find(a))).second->indices);
   }
 
@@ -163,7 +148,7 @@ void ArrayInfo::addStore(const Node a, const TNode st){
 
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_store = temp_info->stores;
     temp_store->push_back(st);
     info_map[a]=temp_info;
@@ -186,7 +171,7 @@ void ArrayInfo::addInStore(const TNode a, const TNode b){
 
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_inst = temp_info->in_stores;
     temp_inst->push_back(b);
     info_map[a] = temp_info;
@@ -204,7 +189,7 @@ void ArrayInfo::setNonLinear(const TNode a) {
   Info* temp_info;
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_info->isNonLinear = true;
     info_map[a] = temp_info;
   } else {
@@ -218,7 +203,7 @@ void ArrayInfo::setRIntro1Applied(const TNode a) {
   Info* temp_info;
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_info->rIntro1Applied = true;
     info_map[a] = temp_info;
   } else {
@@ -232,7 +217,7 @@ void ArrayInfo::setModelRep(const TNode a, const TNode b) {
   Info* temp_info;
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_info->modelRep = b;
     info_map[a] = temp_info;
   } else {
@@ -246,7 +231,7 @@ void ArrayInfo::setConstArr(const TNode a, const TNode constArr) {
   Info* temp_info;
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_info->constArr = constArr;
     info_map[a] = temp_info;
   } else {
@@ -259,7 +244,7 @@ void ArrayInfo::setWeakEquivPointer(const TNode a, const TNode pointer) {
   Info* temp_info;
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_info->weakEquivPointer = pointer;
     info_map[a] = temp_info;
   } else {
@@ -272,7 +257,7 @@ void ArrayInfo::setWeakEquivIndex(const TNode a, const TNode index) {
   Info* temp_info;
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_info->weakEquivIndex = index;
     info_map[a] = temp_info;
   } else {
@@ -285,7 +270,7 @@ void ArrayInfo::setWeakEquivSecondary(const TNode a, const TNode secondary) {
   Info* temp_info;
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_info->weakEquivSecondary = secondary;
     info_map[a] = temp_info;
   } else {
@@ -298,7 +283,7 @@ void ArrayInfo::setWeakEquivSecondaryReason(const TNode a, const TNode reason) {
   Info* temp_info;
   CNodeInfoMap::iterator it = info_map.find(a);
   if(it == info_map.end()) {
-    temp_info = new Info(ct, bck);
+    temp_info = new Info(ct);
     temp_info->weakEquivSecondaryReason = reason;
     info_map[a] = temp_info;
   } else {
@@ -437,12 +422,12 @@ void ArrayInfo::mergeInfo(const TNode a, const TNode b){
 
   if(ita != info_map.end()) {
     Trace("arrays-mergei")<<"Arrays::mergeInfo info "<<a<<"\n";
-    if(Trace.isOn("arrays-mergei"))
+    if(TraceIsOn("arrays-mergei"))
       (*ita).second->print();
 
     if(itb != info_map.end()) {
       Trace("arrays-mergei")<<"Arrays::mergeInfo info "<<b<<"\n";
-      if(Trace.isOn("arrays-mergei"))
+      if(TraceIsOn("arrays-mergei"))
         (*itb).second->print();
 
       CTNodeList* lista_i = (*ita).second->indices;
@@ -497,7 +482,7 @@ void ArrayInfo::mergeInfo(const TNode a, const TNode b){
       CTNodeList* listb_st = (*itb).second->stores;
       CTNodeList* listb_inst = (*itb).second->in_stores;
 
-      Info* temp_info = new Info(ct, bck);
+      Info* temp_info = new Info(ct);
 
       mergeLists(temp_info->indices, listb_i);
       mergeLists(temp_info->stores, listb_st);
@@ -515,4 +500,4 @@ void ArrayInfo::mergeInfo(const TNode a, const TNode b){
 
 }  // namespace arrays
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

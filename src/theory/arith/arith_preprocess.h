@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Gereon Kremer
+ *   Andrew Reynolds, Gereon Kremer, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,10 +19,11 @@
 #define CVC5__THEORY__ARITH__ARITH_PREPROCESS_H
 
 #include "context/cdhashmap.h"
+#include "smt/env_obj.h"
 #include "theory/arith/operator_elim.h"
 #include "theory/logic_info.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 class SkolemLemma;
@@ -40,10 +41,11 @@ class OperatorElim;
  * extends that utility with the ability to generate lemmas on demand via
  * the provided inference manager.
  */
-class ArithPreprocess
+class ArithPreprocess : protected EnvObj
 {
  public:
-  ArithPreprocess(ArithState& state,
+  ArithPreprocess(Env& env,
+                  ArithState& state,
                   InferenceManager& im,
                   ProofNodeManager* pnm,
                   OperatorElim& oe);
@@ -88,6 +90,6 @@ class ArithPreprocess
 
 }  // namespace arith
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -16,34 +16,28 @@
 
 #include "theory/shared_terms_database.h"
 
-#include "smt/smt_statistics_registry.h"
 #include "theory/theory_engine.h"
 
 using namespace std;
-using namespace cvc5::theory;
+using namespace cvc5::internal::theory;
 
-namespace cvc5 {
+namespace cvc5::internal {
 
-SharedTermsDatabase::SharedTermsDatabase(TheoryEngine* theoryEngine,
-                                         context::Context* context,
-                                         context::UserContext* userContext,
-                                         ProofNodeManager* pnm)
-    : ContextNotifyObj(context),
+SharedTermsDatabase::SharedTermsDatabase(Env& env, TheoryEngine* theoryEngine)
+    : EnvObj(env),
+      ContextNotifyObj(env.getContext()),
       d_statSharedTerms(
-          smtStatisticsRegistry().registerInt("theory::shared_terms")),
-      d_addedSharedTermsSize(context, 0),
-      d_termsToTheories(context),
-      d_alreadyNotifiedMap(context),
-      d_registeredEqualities(context),
+          statisticsRegistry().registerInt("theory::shared_terms")),
+      d_addedSharedTermsSize(env.getContext(), 0),
+      d_termsToTheories(env.getContext()),
+      d_alreadyNotifiedMap(env.getContext()),
+      d_registeredEqualities(env.getContext()),
       d_EENotify(*this),
       d_theoryEngine(theoryEngine),
-      d_inConflict(context, false),
+      d_inConflict(env.getContext(), false),
       d_conflictPolarity(),
-      d_satContext(context),
-      d_userContext(userContext),
       d_equalityEngine(nullptr),
-      d_pfee(nullptr),
-      d_pnm(pnm)
+      d_pfee(nullptr)
 {
 }
 
@@ -52,13 +46,12 @@ void SharedTermsDatabase::setEqualityEngine(eq::EqualityEngine* ee)
   Assert(ee != nullptr);
   d_equalityEngine = ee;
   // if proofs are enabled, make the proof equality engine if necessary
-  if (d_pnm != nullptr)
+  if (d_env.isTheoryProofProducing())
   {
     d_pfee = d_equalityEngine->getProofEqualityEngine();
     if (d_pfee == nullptr)
     {
-      d_pfeeAlloc.reset(
-          new eq::ProofEqEngine(d_satContext, d_userContext, *ee, d_pnm));
+      d_pfeeAlloc = std::make_unique<eq::ProofEqEngine>(d_env, *ee);
       d_pfee = d_pfeeAlloc.get();
       d_equalityEngine->setProofEqualityEngine(d_pfee);
     }
@@ -83,7 +76,7 @@ void SharedTermsDatabase::addSharedTerm(TNode atom,
                                         TNode term,
                                         TheoryIdSet theories)
 {
-  Debug("register") << "SharedTermsDatabase::addSharedTerm(" << atom << ", "
+  Trace("register") << "SharedTermsDatabase::addSharedTerm(" << atom << ", "
                     << term << ", " << TheoryIdSetUtil::setToString(theories)
                     << ")" << std::endl;
 
@@ -160,7 +153,7 @@ TheoryIdSet SharedTermsDatabase::getNotifiedTheories(TNode term) const
 
 bool SharedTermsDatabase::propagateSharedEquality(TheoryId theory, TNode a, TNode b, bool value)
 {
-  Debug("shared-terms-database") << "SharedTermsDatabase::newEquality(" << theory << "," << a << "," << b << ", " << (value ? "true" : "false") << ")" << endl;
+  Trace("shared-terms-database") << "SharedTermsDatabase::newEquality(" << theory << "," << a << "," << b << ", " << (value ? "true" : "false") << ")" << endl;
 
   if (d_inConflict) {
     return false;
@@ -194,7 +187,7 @@ void SharedTermsDatabase::markNotified(TNode term, TheoryIdSet theories)
     return;
   }
 
-  Debug("shared-terms-database") << "SharedTermsDatabase::markNotified(" << term << ")" << endl;
+  Trace("shared-terms-database") << "SharedTermsDatabase::markNotified(" << term << ")" << endl;
 
   // First update the set of notified theories for this term
   d_alreadyNotifiedMap[term] =
@@ -252,7 +245,7 @@ theory::eq::EqualityEngine* SharedTermsDatabase::getEqualityEngine()
 void SharedTermsDatabase::assertShared(TNode n, bool polarity, TNode reason)
 {
   Assert(d_equalityEngine != nullptr);
-  Debug("shared-terms-database::assert")
+  Trace("shared-terms-database::assert")
       << "SharedTermsDatabase::assertShared(" << n << ", "
       << (polarity ? "true" : "false") << ", " << reason << ")" << endl;
   // Add it to the equality engine
@@ -328,4 +321,4 @@ TrustNode SharedTermsDatabase::explain(TNode literal) const
   return TrustNode::mkTrustPropExp(literal, exp, nullptr);
 }
 
-}  // namespace cvc5
+}  // namespace cvc5::internal

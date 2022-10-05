@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Paul Meng, Mathias Preiner
+ *   Andrew Reynolds, Aina Niemetz, Paul Meng
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,8 +23,12 @@
 
 #include "expr/node.h"
 #include "expr/type_node.h"
+#include "smt/env_obj.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
+
+class Env;
+
 namespace theory {
 
 /** sort inference
@@ -35,8 +39,9 @@ namespace theory {
  *   "Sort it out with Monotonicity" Claessen 2011
  *   "Non-Cyclic Sorts for First-Order Satisfiability" Korovin 2013.
  */
-class SortInference {
-private:
+class SortInference : protected EnvObj
+{
+ private:
   //all subsorts
   std::vector< int > d_sub_sorts;
   std::map< int, bool > d_non_monotonic_sorts;
@@ -106,7 +111,7 @@ private:
   void reset();
 
  public:
-  SortInference() : d_sortCount(1) {}
+  SortInference(Env& env) : EnvObj(env), d_sortCount(1) {}
   ~SortInference(){}
 
   /** initialize
@@ -144,7 +149,7 @@ private:
    */
   void computeMonotonicity(const std::vector<Node>& assertions);
   /** return true if tn was inferred to be monotonic */
-  bool isMonotonic(TypeNode tn);
+  bool isMonotonic(TypeNode tn) const;
   //get sort id for term n
   int getSortId( Node n );
   //get sort id for variable of quantified formula f
@@ -167,6 +172,6 @@ private:
 };
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Gereon Kremer, Tim King
+ *   Andrew Reynolds, Gereon Kremer, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -25,25 +25,24 @@
 #include "theory/arith/nl/nl_model.h"
 #include "util/rational.h"
 
-namespace cvc5 {
+using namespace cvc5::internal::kind;
+
+namespace cvc5::internal {
 namespace theory {
 namespace arith {
 namespace nl {
 
-ExtState::ExtState(InferenceManager& im,
-                   NlModel& model,
-                   ProofNodeManager* pnm,
-                   context::UserContext* c)
-    : d_im(im), d_model(model), d_pnm(pnm), d_ctx(c)
+ExtState::ExtState(Env& env, InferenceManager& im, NlModel& model)
+    : EnvObj(env), d_im(im), d_model(model)
 {
   d_false = NodeManager::currentNM()->mkConst(false);
   d_true = NodeManager::currentNM()->mkConst(true);
-  d_zero = NodeManager::currentNM()->mkConst(Rational(0));
-  d_one = NodeManager::currentNM()->mkConst(Rational(1));
-  d_neg_one = NodeManager::currentNM()->mkConst(Rational(-1));
-  if (d_pnm != nullptr)
+  d_zero = NodeManager::currentNM()->mkConstInt(Rational(0));
+  d_one = NodeManager::currentNM()->mkConstInt(Rational(1));
+  d_neg_one = NodeManager::currentNM()->mkConstInt(Rational(-1));
+  if (env.isTheoryProofProducing())
   {
-    d_proof.reset(new CDProofSet<CDProof>(d_pnm, d_ctx, "nl-ext"));
+    d_proof.reset(new CDProofSet<CDProof>(env, env.getUserContext(), "nl-ext"));
   }
 }
 
@@ -105,10 +104,10 @@ bool ExtState::isProofEnabled() const { return d_proof.get() != nullptr; }
 CDProof* ExtState::getProof()
 {
   Assert(isProofEnabled());
-  return d_proof->allocateProof(d_ctx);
+  return d_proof->allocateProof(d_env.getUserContext());
 }
 
 }  // namespace nl
 }  // namespace arith
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

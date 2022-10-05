@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -15,7 +15,7 @@
 
 #include "proof/lfsc/lfsc_list_sc_node_converter.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace proof {
 
 LfscListScNodeConverter::LfscListScNodeConverter(
@@ -101,10 +101,7 @@ Node LfscListScNodeConverter::postConvert(Node n)
     std::vector<Node> children;
     Node f = d_conv.getOperatorOfTerm(n);
     children.push_back(f);
-    for (size_t i = 0; i < 2; i++)
-    {
-      children.push_back(n[i]);
-    }
+    children.insert(children.end(), n.begin(), n.end());
     children.push_back(null);
     Node sop = mkOperatorFor("nary_concat", children, tn);
     children.insert(children.begin(), sop);
@@ -128,4 +125,4 @@ Node LfscListScNodeConverter::mkOperatorFor(const std::string& name,
 }
 
 }  // namespace proof
-}  // namespace cvc5
+}  // namespace cvc5::internal

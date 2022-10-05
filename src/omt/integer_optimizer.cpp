@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Michael Chang, Yancheng Ou
+ *   Yancheng Ou, Michael Chang, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -16,25 +16,25 @@
 #include "omt/integer_optimizer.h"
 
 #include "options/smt_options.h"
-#include "smt/smt_engine.h"
+#include "smt/solver_engine.h"
 
-using namespace cvc5::smt;
-namespace cvc5::omt {
+using namespace cvc5::internal::smt;
+namespace cvc5::internal::omt {
 
-OptimizationResult OMTOptimizerInteger::optimize(SmtEngine* optChecker,
+OptimizationResult OMTOptimizerInteger::optimize(SolverEngine* optChecker,
                                                  TNode target,
                                                  bool isMinimize)
 {
   // linear search for integer goal
   // the smt engine to which we send intermediate queries
   // for the linear search.
-  NodeManager* nm = optChecker->getNodeManager();
+  NodeManager* nm = NodeManager::currentNM();
   optChecker->push();
   Result intermediateSatResult = optChecker->checkSat();
   // Model-value of objective (used in optimization loop)
   Node value;
   if (intermediateSatResult.isUnknown()
-      || intermediateSatResult.isSat() == Result::UNSAT)
+      || intermediateSatResult.getStatus() == Result::UNSAT)
   {
     return OptimizationResult(intermediateSatResult, value);
   }
@@ -58,7 +58,7 @@ OptimizationResult OMTOptimizerInteger::optimize(SmtEngine* optChecker,
   // This loop will keep incrmenting/decrementing the objective until unsat
   // When unsat is hit,
   // the optimized value is the model value just before the unsat call
-  while (intermediateSatResult.isSat() == Result::SAT)
+  while (intermediateSatResult.getStatus() == Result::SAT)
   {
     lastSatResult = intermediateSatResult;
     value = optChecker->getValue(target);
@@ -71,15 +71,15 @@ OptimizationResult OMTOptimizerInteger::optimize(SmtEngine* optChecker,
   return OptimizationResult(lastSatResult, value);
 }
 
-OptimizationResult OMTOptimizerInteger::minimize(SmtEngine* optChecker,
+OptimizationResult OMTOptimizerInteger::minimize(SolverEngine* optChecker,
                                                  TNode target)
 {
   return this->optimize(optChecker, target, true);
 }
-OptimizationResult OMTOptimizerInteger::maximize(SmtEngine* optChecker,
+OptimizationResult OMTOptimizerInteger::maximize(SolverEngine* optChecker,
                                                  TNode target)
 {
   return this->optimize(optChecker, target, false);
 }
 
-}  // namespace cvc5::omt
+}  // namespace cvc5::internal::omt

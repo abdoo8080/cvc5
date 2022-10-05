@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Gereon Kremer, Haniel Barbosa
+ *   Andrew Reynolds, Gereon Kremer, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,12 +23,15 @@
 #include "context/cdhashmap.h"
 #include "context/cdhashset.h"
 #include "expr/node.h"
+#include "proof/assumption_proof_generator.h"
 #include "proof/buffered_proof_generator.h"
 #include "proof/eager_proof_generator.h"
 #include "proof/lazy_proof.h"
+#include "smt/env_obj.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
+class Env;
 class ProofNode;
 class ProofNodeManager;
 
@@ -84,10 +87,11 @@ class ProofEqEngine : public EagerProofGenerator
   typedef context::CDHashMap<Node, std::shared_ptr<ProofNode>> NodeProofMap;
 
  public:
-  ProofEqEngine(context::Context* c,
-                context::UserContext* u,
-                EqualityEngine& ee,
-                ProofNodeManager* pnm);
+  /**
+   * @param env The environment
+   * @param ee The equality engine this is layered on
+   */
+  ProofEqEngine(Env& env, EqualityEngine& ee);
   ~ProofEqEngine() {}
   //-------------------------- assert fact
   /**
@@ -278,11 +282,11 @@ class ProofEqEngine : public EagerProofGenerator
   eq::EqualityEngine& d_ee;
   /** The default proof generator (for simple facts) */
   BufferedProofGenerator d_factPg;
+  /** The no-explain proof generator */
+  AssumptionProofGenerator d_assumpPg;
   /** common nodes */
   Node d_true;
   Node d_false;
-  /** the proof node manager */
-  ProofNodeManager* d_pnm;
   /** The SAT-context-dependent proof object */
   LazyCDProof d_proof;
   /**
@@ -296,6 +300,6 @@ class ProofEqEngine : public EagerProofGenerator
 
 }  // namespace eq
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__STRINGS__PROOF_MANAGER_H */

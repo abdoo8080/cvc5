@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,7 +20,7 @@
 #include "theory/arrays/theory_arrays_rewriter.h"
 #include "theory/rewriter.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace arrays {
 
@@ -31,8 +31,6 @@ void ArraysProofRuleChecker::registerTo(ProofChecker* pc)
   pc->registerChecker(PfRule::ARRAYS_READ_OVER_WRITE_1, this);
   pc->registerChecker(PfRule::ARRAYS_EXT, this);
   pc->registerChecker(PfRule::ARRAYS_EQ_RANGE_EXPAND, this);
-  // trusted rules
-  pc->registerTrustedChecker(PfRule::ARRAYS_TRUST, this, 2);
 }
 
 Node ArraysProofRuleChecker::checkInternal(PfRule id,
@@ -111,17 +109,10 @@ Node ArraysProofRuleChecker::checkInternal(PfRule id,
     Node expandedEqRange = TheoryArraysRewriter::expandEqRange(args[0]);
     return args[0].eqNode(expandedEqRange);
   }
-  if (id == PfRule::ARRAYS_TRUST)
-  {
-    // "trusted" rules
-    Assert(!args.empty());
-    Assert(args[0].getType().isBoolean());
-    return args[0];
-  }
   // no rule
   return Node::null();
 }
 
 }  // namespace arrays
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Aina Niemetz, Dejan Jovanovic
+ *   Aina Niemetz, Dejan Jovanovic, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,12 +18,13 @@
 
 #include "context/context.h"
 #include "expr/node.h"
+#include "smt/smt_solver.h"
 #include "test_smt.h"
 #include "theory/theory.h"
 #include "theory/theory_engine.h"
 #include "util/resource_manager.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 using namespace theory;
 using namespace expr;
@@ -37,30 +38,20 @@ class TestTheoryWhite : public TestSmtNoFinishInit
   void SetUp() override
   {
     TestSmtNoFinishInit::SetUp();
-    d_context = d_smtEngine->getContext();
-    d_user_context = d_smtEngine->getUserContext();
-    d_logicInfo.reset(new LogicInfo());
-    d_logicInfo->lock();
-    d_smtEngine->finishInit();
-    delete d_smtEngine->getTheoryEngine()->d_theoryTable[THEORY_BUILTIN];
-    delete d_smtEngine->getTheoryEngine()->d_theoryOut[THEORY_BUILTIN];
-    d_smtEngine->getTheoryEngine()->d_theoryTable[THEORY_BUILTIN] = nullptr;
-    d_smtEngine->getTheoryEngine()->d_theoryOut[THEORY_BUILTIN] = nullptr;
+    d_slvEngine->finishInit();
+    TheoryEngine* te = d_slvEngine->d_smtSolver->getTheoryEngine();
+    delete te->d_theoryTable[THEORY_BUILTIN];
+    delete te->d_theoryOut[THEORY_BUILTIN];
+    te->d_theoryTable[THEORY_BUILTIN] = nullptr;
+    te->d_theoryOut[THEORY_BUILTIN] = nullptr;
 
-    d_dummy_theory.reset(new DummyTheory<THEORY_BUILTIN>(d_context,
-                                                         d_user_context,
-                                                         d_outputChannel,
-                                                         Valuation(nullptr),
-                                                         *d_logicInfo,
-                                                         nullptr));
+    d_dummy_theory.reset(new DummyTheory<THEORY_BUILTIN>(
+        d_slvEngine->getEnv(), d_outputChannel, Valuation(nullptr)));
     d_outputChannel.clear();
     d_atom0 = d_nodeManager->mkConst(true);
     d_atom1 = d_nodeManager->mkConst(false);
   }
 
-  Context* d_context;
-  UserContext* d_user_context;
-  std::unique_ptr<LogicInfo> d_logicInfo;
   DummyOutputChannel d_outputChannel;
   std::unique_ptr<DummyTheory<THEORY_BUILTIN>> d_dummy_theory;
   Node d_atom0;
@@ -72,14 +63,8 @@ TEST_F(TestTheoryWhite, effort)
   Theory::Effort s = Theory::EFFORT_STANDARD;
   Theory::Effort f = Theory::EFFORT_FULL;
 
-  ASSERT_TRUE(Theory::standardEffortOnly(s));
-  ASSERT_FALSE(Theory::standardEffortOnly(f));
-
   ASSERT_FALSE(Theory::fullEffort(s));
   ASSERT_TRUE(Theory::fullEffort(f));
-
-  ASSERT_TRUE(Theory::standardEffortOrMore(s));
-  ASSERT_TRUE(Theory::standardEffortOrMore(f));
 }
 
 TEST_F(TestTheoryWhite, done)
@@ -108,4 +93,4 @@ TEST_F(TestTheoryWhite, outputChannel)
   d_outputChannel.d_callHistory.clear();
 }
 }  // namespace test
-}  // namespace cvc5
+}  // namespace cvc5::internal

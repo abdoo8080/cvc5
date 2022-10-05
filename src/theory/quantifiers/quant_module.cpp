@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Aina Niemetz
+ *   Andrew Reynolds, Andres Noetzli, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -15,17 +15,18 @@
 
 #include "theory/quantifiers/quant_module.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 QuantifiersModule::QuantifiersModule(
+    Env& env,
     quantifiers::QuantifiersState& qs,
     quantifiers::QuantifiersInferenceManager& qim,
     quantifiers::QuantifiersRegistry& qr,
     quantifiers::TermRegistry& tr)
-    : d_qstate(qs), d_qim(qim), d_qreg(qr), d_treg(tr)
+    : EnvObj(env), d_qstate(qs), d_qim(qim), d_qreg(qr), d_treg(tr)
 {
 }
 
@@ -75,5 +76,10 @@ quantifiers::QuantifiersRegistry& QuantifiersModule::getQuantifiersRegistry()
   return d_qreg;
 }
 
+quantifiers::TermRegistry& QuantifiersModule::getTermRegistry()
+{
+  return d_treg;
+}
+
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

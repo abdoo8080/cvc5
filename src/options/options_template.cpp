@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Morgan Deters, Tim King, Andrew Reynolds
+ *   Gereon Kremer, Tim King, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -16,27 +16,16 @@
 #include "options/options.h"
 
 #include "base/check.h"
-#include "base/exception.h"
-#include "base/output.h"
-#include "options/language.h"
+#include "base/cvc5config.h"
 #include "options/options_handler.h"
 #include "options/options_listener.h"
 
 // clang-format off
 ${headers_module}$
-
-#include "base/cvc5config.h"
-
-${headers_handler}$
-
-using namespace cvc5;
-using namespace cvc5::options;
 // clang-format on
 
-namespace cvc5
+namespace cvc5::internal
 {
-  thread_local Options* Options::s_current = nullptr;
-
   Options::Options()
       :
 // clang-format off
@@ -49,13 +38,19 @@ ${holder_ref_inits}$
 
   Options::~Options() {}
 
-void Options::copyValues(const Options& options){
-  if(this != &options) {
+// clang-format off
+${write_functions}$
+// clang-format on
+
+  void Options::copyValues(const Options& options)
+  {
+    if (this != &options)
+    {
 // clang-format off
 ${holder_mem_copy}$
 // clang-format on
+    }
   }
-}
 
-}  // namespace cvc5
+}  // namespace cvc5::internal
 

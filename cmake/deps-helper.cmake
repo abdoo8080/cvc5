@@ -1,10 +1,10 @@
 ###############################################################################
 # Top contributors (to current version):
-#   Gereon Kremer
+#   Gereon Kremer, Mathias Preiner, Andrew V. Jones
 #
 # This file is part of the cvc5 project.
 #
-# Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+# Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
 # in the top-level source directory and their institutional affiliations.
 # All rights reserved.  See the file COPYING in the top-level source
 # directory for licensing information.
@@ -19,7 +19,7 @@
 set(DEPS_PREFIX "${CMAKE_BINARY_DIR}/deps")
 # base path to installed dependencies
 set(DEPS_BASE "${CMAKE_BINARY_DIR}/deps")
-# CMake wants directories specified via INTERFACE_INCLUDE_DIRECTORIES
+# CMake wants directories specified via INTERFACE_SYSTEM_INCLUDE_DIRECTORIES
 # (and similar) to exist when target property is set.
 file(MAKE_DIRECTORY "${DEPS_BASE}/include/")
 
@@ -38,6 +38,22 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.14")
         LOG_OUTPUT_ON_FAILURE ON
     )
 endif()
+
+macro(force_static_library)
+    if (WIN32)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES .lib .a)
+    else()
+        set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+    endif()
+endmacro(force_static_library)
+
+macro(reset_force_static_library)
+    if (WIN32)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES .dll .lib)
+    else()
+        set(CMAKE_FIND_LIBRARY_SUFFIXES .so .dylib .a)
+    endif()
+endmacro(reset_force_static_library)
 
 macro(check_auto_download name disable_option)
     if(NOT ENABLE_AUTO_DOWNLOAD)

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner
+ *   Andrew Reynolds, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,17 +19,14 @@
 #define CVC5__THEORY__QUANTIFIERS__EXPR_MINER_MANAGER_H
 
 #include "expr/node.h"
+#include "smt/env_obj.h"
 #include "theory/quantifiers/candidate_rewrite_database.h"
-#include "theory/quantifiers/extended_rewrite.h"
 #include "theory/quantifiers/query_generator.h"
 #include "theory/quantifiers/solution_filter.h"
 #include "theory/quantifiers/sygus_sampler.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
-
-class QuantifiersEngine;
-
 namespace quantifiers {
 
 /** ExpressionMinerManager
@@ -39,10 +36,10 @@ namespace quantifiers {
  * coordination, possibly sharing information and utilities like a common
  * sampling object.
  */
-class ExpressionMinerManager
+class ExpressionMinerManager : protected EnvObj
 {
  public:
-  ExpressionMinerManager();
+  ExpressionMinerManager(Env& env);
   ~ExpressionMinerManager() {}
   /**  Initialize this class
    *
@@ -70,14 +67,8 @@ class ExpressionMinerManager
                        Node f,
                        unsigned nsamples,
                        bool useSygusType);
-  /** enable rewrite rule synthesis (--sygus-rr-synth) */
-  void enableRewriteRuleSynth();
-  /** enable query generation (--sygus-query-gen) */
-  void enableQueryGeneration(unsigned deqThresh);
-  /** filter strong solutions (--sygus-filter-sol=strong) */
-  void enableFilterStrongSolutions();
-  /** filter weak solutions (--sygus-filter-sol=weak) */
-  void enableFilterWeakSolutions();
+  /** initialize options */
+  void initializeMinersForOptions();
   /** add term
    *
    * Expression miners may print information on the output stream out, for
@@ -93,10 +84,16 @@ class ExpressionMinerManager
   bool addTerm(Node sol, std::ostream& out, bool& rew_print);
 
  private:
+  /** enable rewrite rule synthesis (--sygus-rr-synth) */
+  void enableRewriteRuleSynth();
+  /** enable query generation (--sygus-query-gen) */
+  void enableQueryGeneration(unsigned deqThresh);
+  /** filter strong solutions (--sygus-filter-sol=strong) */
+  void enableFilterStrongSolutions();
+  /** filter weak solutions (--sygus-filter-sol=weak) */
+  void enableFilterWeakSolutions();
   /** whether we are doing rewrite synthesis */
   bool d_doRewSynth;
-  /** whether we are doing query generation */
-  bool d_doQueryGen;
   /** whether we are filtering solutions based on logical strength */
   bool d_doFilterLogicalStrength;
   /** the sygus function passed to initializeSygus, if any */
@@ -107,18 +104,16 @@ class ExpressionMinerManager
   TermDbSygus* d_tds;
   /** candidate rewrite database */
   CandidateRewriteDatabase d_crd;
-  /** query generator */
-  QueryGenerator d_qg;
+  /** The query generator we are using */
+  std::unique_ptr<QueryGenerator> d_qg;
   /** solution filter based on logical strength */
   SolutionFilterStrength d_sols;
   /** sygus sampler object */
   SygusSampler d_sampler;
-  /** extended rewriter object */
-  ExtendedRewriter d_ext_rew;
 };
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__EXPR_MINER_MANAGER_H */

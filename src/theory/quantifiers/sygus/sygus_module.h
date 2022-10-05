@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Andres Noetzli
+ *   Andrew Reynolds, Andres Noetzli, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,13 +21,15 @@
 #include <vector>
 
 #include "expr/node.h"
+#include "smt/env_obj.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
 class SynthConjecture;
 class TermDbSygus;
+class QuantifiersState;
 class QuantifiersInferenceManager;
 
 /** SygusModule
@@ -48,10 +50,12 @@ class QuantifiersInferenceManager;
  * Modules implement an initialize function, which determines whether the module
  * will take responsibility for the given conjecture.
  */
-class SygusModule
+class SygusModule : protected EnvObj
 {
  public:
-  SygusModule(QuantifiersInferenceManager& qim,
+  SygusModule(Env& env,
+              QuantifiersState& qs,
+              QuantifiersInferenceManager& qim,
               TermDbSygus* tds,
               SynthConjecture* p);
   virtual ~SygusModule() {}
@@ -147,6 +151,8 @@ class SygusModule
   virtual bool usingRepairConst() { return false; }
 
  protected:
+  /** Reference to the state of the quantifiers engine */
+  QuantifiersState& d_qstate;
   /** Reference to the quantifiers inference manager */
   QuantifiersInferenceManager& d_qim;
   /** sygus term database of d_qe */
@@ -157,6 +163,6 @@ class SygusModule
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__SYGUS_MODULE_H */

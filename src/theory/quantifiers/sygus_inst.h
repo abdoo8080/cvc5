@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Mathias Preiner, Andrew Reynolds
+ *   Mathias Preiner, Andrew Reynolds, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,10 +22,11 @@
 #include <unordered_set>
 
 #include "context/cdhashset.h"
+#include "smt/env_obj.h"
 #include "theory/decision_strategy.h"
 #include "theory/quantifiers/quant_module.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 class QuantifiersEngine;
@@ -64,7 +65,8 @@ namespace quantifiers {
 class SygusInst : public QuantifiersModule
 {
  public:
-  SygusInst(QuantifiersState& qs,
+  SygusInst(Env& env,
+            QuantifiersState& qs,
             QuantifiersInferenceManager& qim,
             QuantifiersRegistry& qr,
             TermRegistry& tr);
@@ -109,6 +111,9 @@ class SygusInst : public QuantifiersModule
    */
   bool sendEvalUnfoldLemmas(const std::vector<Node>& lemmas);
 
+  /** Return true if this module should process quantified formula q */
+  bool shouldProcess(Node q);
+
   /* Maps quantifiers to a vector of instantiation constants. */
   std::unordered_map<Node, std::vector<Node>> d_inst_constants;
 
@@ -143,6 +148,6 @@ class SygusInst : public QuantifiersModule
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

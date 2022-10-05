@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Yancheng Ou
+ *   Yancheng Ou, Aina Niemetz, Andrew Reynolds
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,7 +18,7 @@
 #include "test_smt.h"
 #include "util/bitvector.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 using namespace theory;
 using namespace smt;
@@ -31,8 +31,8 @@ class TestTheoryWhiteOptMultigoal : public TestSmtNoFinishInit
   void SetUp() override
   {
     TestSmtNoFinishInit::SetUp();
-    d_smtEngine->setOption("produce-assertions", "true");
-    d_smtEngine->finishInit();
+    d_slvEngine->setOption("produce-assertions", "true");
+    d_slvEngine->finishInit();
 
     d_BV32Type.reset(new TypeNode(d_nodeManager->mkBitVectorType(32u)));
   }
@@ -42,19 +42,19 @@ class TestTheoryWhiteOptMultigoal : public TestSmtNoFinishInit
 
 TEST_F(TestTheoryWhiteOptMultigoal, box)
 {
-  d_smtEngine->resetAssertions();
+  d_slvEngine->resetAssertions();
   Node x = d_nodeManager->mkVar(*d_BV32Type);
   Node y = d_nodeManager->mkVar(*d_BV32Type);
   Node z = d_nodeManager->mkVar(*d_BV32Type);
 
   // 18 <= x
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(
       kind::BITVECTOR_ULE, d_nodeManager->mkConst(BitVector(32u, 18u)), x));
 
   // y <= x
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, y, x));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, y, x));
 
-  OptimizationSolver optSolver(d_smtEngine.get());
+  OptimizationSolver optSolver(d_slvEngine.get());
 
   // minimize x
   optSolver.addObjective(x, OptimizationObjective::MINIMIZE, false);
@@ -66,7 +66,7 @@ TEST_F(TestTheoryWhiteOptMultigoal, box)
   // Box optimization
   Result r = optSolver.checkOpt(OptimizationSolver::BOX);
 
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
 
   std::vector<OptimizationResult> results = optSolver.getValues();
 
@@ -84,19 +84,19 @@ TEST_F(TestTheoryWhiteOptMultigoal, box)
 
 TEST_F(TestTheoryWhiteOptMultigoal, lex)
 {
-  d_smtEngine->resetAssertions();
+  d_slvEngine->resetAssertions();
   Node x = d_nodeManager->mkVar(*d_BV32Type);
   Node y = d_nodeManager->mkVar(*d_BV32Type);
   Node z = d_nodeManager->mkVar(*d_BV32Type);
 
   // 18 <= x
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(
       kind::BITVECTOR_ULE, d_nodeManager->mkConst(BitVector(32u, 18u)), x));
 
   // y <= x
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, y, x));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, y, x));
 
-  OptimizationSolver optSolver(d_smtEngine.get());
+  OptimizationSolver optSolver(d_slvEngine.get());
 
   // minimize x
   optSolver.addObjective(x, OptimizationObjective::MINIMIZE, false);
@@ -107,7 +107,7 @@ TEST_F(TestTheoryWhiteOptMultigoal, lex)
 
   Result r = optSolver.checkOpt(OptimizationSolver::LEXICOGRAPHIC);
 
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
 
   std::vector<OptimizationResult> results = optSolver.getValues();
 
@@ -124,7 +124,7 @@ TEST_F(TestTheoryWhiteOptMultigoal, lex)
 
 TEST_F(TestTheoryWhiteOptMultigoal, pareto)
 {
-  d_smtEngine->resetAssertions();
+  d_slvEngine->resetAssertions();
   TypeNode bv4ty(d_nodeManager->mkBitVectorType(4u));
   Node a = d_nodeManager->mkVar(bv4ty);
   Node b = d_nodeManager->mkVar(bv4ty);
@@ -169,13 +169,13 @@ TEST_F(TestTheoryWhiteOptMultigoal, pareto)
     (and (= a 1) (= b 3))
   ))
   */
-  d_smtEngine->assertFormula(d_nodeManager->mkOr(stmts));
+  d_slvEngine->assertFormula(d_nodeManager->mkOr(stmts));
 
   /*
     (maximize a)
     (maximize b)
    */
-  OptimizationSolver optSolver(d_smtEngine.get());
+  OptimizationSolver optSolver(d_slvEngine.get());
   optSolver.addObjective(a, OptimizationObjective::MAXIMIZE);
   optSolver.addObjective(b, OptimizationObjective::MAXIMIZE);
 
@@ -186,7 +186,7 @@ TEST_F(TestTheoryWhiteOptMultigoal, pareto)
       {1, 3}, {2, 2}, {3, 1}};
 
   r = optSolver.checkOpt(OptimizationSolver::PARETO);
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
   std::vector<OptimizationResult> results = optSolver.getValues();
   std::pair<uint32_t, uint32_t> res = {
       results[0].getValue().getConst<BitVector>().toInteger().toUnsignedInt(),
@@ -201,7 +201,7 @@ TEST_F(TestTheoryWhiteOptMultigoal, pareto)
   possibleResults.erase(res);
 
   r = optSolver.checkOpt(OptimizationSolver::PARETO);
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
   results = optSolver.getValues();
   res = {
       results[0].getValue().getConst<BitVector>().toInteger().toUnsignedInt(),
@@ -216,7 +216,7 @@ TEST_F(TestTheoryWhiteOptMultigoal, pareto)
   possibleResults.erase(res);
 
   r = optSolver.checkOpt(OptimizationSolver::PARETO);
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
   results = optSolver.getValues();
   res = {
       results[0].getValue().getConst<BitVector>().toInteger().toUnsignedInt(),
@@ -231,31 +231,31 @@ TEST_F(TestTheoryWhiteOptMultigoal, pareto)
   possibleResults.erase(res);
 
   r = optSolver.checkOpt(OptimizationSolver::PARETO);
-  ASSERT_EQ(r.isSat(), Result::UNSAT);
+  ASSERT_EQ(r.getStatus(), Result::UNSAT);
   ASSERT_EQ(possibleResults.size(), 0);
 }
 
 TEST_F(TestTheoryWhiteOptMultigoal, pushpop)
 {
-  d_smtEngine->resetAssertions();
+  d_slvEngine->resetAssertions();
   Node x = d_nodeManager->mkVar(*d_BV32Type);
   Node y = d_nodeManager->mkVar(*d_BV32Type);
   Node z = d_nodeManager->mkVar(*d_BV32Type);
 
   // 18 <= x
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(
       kind::BITVECTOR_ULE, d_nodeManager->mkConst(BitVector(32u, 18u)), x));
 
   // y <= x
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, y, x));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, y, x));
 
-  OptimizationSolver optSolver(d_smtEngine.get());
+  OptimizationSolver optSolver(d_slvEngine.get());
 
   // minimize x
   optSolver.addObjective(x, OptimizationObjective::MINIMIZE, false);
 
   // push
-  d_smtEngine->push();
+  d_slvEngine->push();
 
   // maximize y with `signed` comparison over bit-vectors.
   optSolver.addObjective(y, OptimizationObjective::MAXIMIZE, true);
@@ -265,7 +265,7 @@ TEST_F(TestTheoryWhiteOptMultigoal, pushpop)
   // Lexico optimization
   Result r = optSolver.checkOpt(OptimizationSolver::LEXICOGRAPHIC);
 
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
 
   std::vector<OptimizationResult> results = optSolver.getValues();
 
@@ -280,22 +280,22 @@ TEST_F(TestTheoryWhiteOptMultigoal, pushpop)
             BitVector(32u, (unsigned)0xFFFFFFFF));
 
   // pop
-  d_smtEngine->pop();
+  d_slvEngine->pop();
 
   // now we only have one objective: (minimize x)
   r = optSolver.checkOpt(OptimizationSolver::LEXICOGRAPHIC);
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
   results = optSolver.getValues();
   ASSERT_EQ(results.size(), 1);
   ASSERT_EQ(results[0].getValue().getConst<BitVector>(), BitVector(32u, 18u));
 
   // resetting the assertions also resets the optimization objectives
-  d_smtEngine->resetAssertions();
+  d_slvEngine->resetAssertions();
   r = optSolver.checkOpt(OptimizationSolver::LEXICOGRAPHIC);
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
   results = optSolver.getValues();
   ASSERT_EQ(results.size(), 0);
 }
 
 }  // namespace test
-}  // namespace cvc5
+}  // namespace cvc5::internal

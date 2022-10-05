@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Mudathir Mohamed, Gereon Kremer
+ *   Mudathir Mohamed, Aina Niemetz, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,8 +22,9 @@
 
 #include "context/cdhashmap.h"
 #include "expr/node.h"
+#include "smt/env_obj.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace bags {
 
@@ -34,12 +35,12 @@ class SolverState;
  * Term registry, the purpose of this class is to maintain a database of
  * commonly used terms, and mappings from bags to their "proxy variables".
  */
-class TermRegistry
+class TermRegistry : protected EnvObj
 {
   typedef context::CDHashMap<Node, Node> NodeMap;
 
  public:
-  TermRegistry(SolverState& state, InferenceManager& im);
+  TermRegistry(Env& env, SolverState& state, InferenceManager& im);
 
   /**
    * Returns the existing empty bag for type tn
@@ -60,6 +61,6 @@ class TermRegistry
 
 }  // namespace bags
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__BAGS__TERM_REGISTRY_H */

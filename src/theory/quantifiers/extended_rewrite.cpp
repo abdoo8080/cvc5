@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Andres Noetzli, Aina Niemetz
+ *   Andrew Reynolds, Mathias Preiner, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,13 +22,15 @@
 #include "theory/datatypes/datatypes_rewriter.h"
 #include "theory/quantifiers/term_util.h"
 #include "theory/rewriter.h"
+#include "theory/strings/arith_entail.h"
 #include "theory/strings/sequences_rewriter.h"
+#include "theory/strings/word.h"
 #include "theory/theory.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 using namespace std;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
@@ -42,10 +44,12 @@ struct ExtRewriteAggAttributeId
 };
 typedef expr::Attribute<ExtRewriteAggAttributeId, Node> ExtRewriteAggAttribute;
 
-ExtendedRewriter::ExtendedRewriter(bool aggr) : d_aggr(aggr)
+ExtendedRewriter::ExtendedRewriter(Rewriter& rew, bool aggr)
+    : d_rew(rew), d_aggr(aggr)
 {
   d_true = NodeManager::currentNM()->mkConst(true);
   d_false = NodeManager::currentNM()->mkConst(false);
+  d_intZero = NodeManager::currentNM()->mkConstInt(Rational(0));
 }
 
 void ExtendedRewriter::setCache(Node n, Node ret) const
@@ -97,7 +101,7 @@ bool ExtendedRewriter::addToChildren(Node nc,
 
 Node ExtendedRewriter::extendedRewrite(Node n) const
 {
-  n = Rewriter::rewrite(n);
+  n = d_rew.rewrite(n);
 
   // has it already been computed?
   Node ncache = getCache(n);
@@ -204,7 +208,7 @@ Node ExtendedRewriter::extendedRewrite(Node n) const
       }
     }
   }
-  ret = Rewriter::rewrite(ret);
+  ret = d_rew.rewrite(ret);
   //--------------------end rewrite children
 
   // now, do extended rewrite
@@ -269,7 +273,7 @@ Node ExtendedRewriter::extendedRewrite(Node n) const
   }
   Trace("q-ext-rewrite-debug") << "...ext-rewrite : " << n << " -> " << ret
                                << std::endl;
-  if (Trace.isOn("q-ext-rewrite-nf"))
+  if (TraceIsOn("q-ext-rewrite-nf"))
   {
     if (n == ret)
     {
@@ -287,7 +291,7 @@ Node ExtendedRewriter::extendedRewriteAggr(Node n) const
       << "Do aggressive rewrites on " << n << std::endl;
   bool polarity = n.getKind() != NOT;
   Node ret_atom = n.getKind() == NOT ? n[0] : n;
-  if ((ret_atom.getKind() == EQUAL && ret_atom[0].getType().isReal())
+  if ((ret_atom.getKind() == EQUAL && ret_atom[0].getType().isRealOrInt())
       || ret_atom.getKind() == GEQ)
   {
     // ITE term removal in polynomials
@@ -481,22 +485,20 @@ Node ExtendedRewriter::extendedRewriteIte(Kind itek, Node n, bool full) const
   {
     // If x is less than t based on an ordering, then we use { x -> t } as a
     // substitution to the children of ite( x = t ^ C, s, t ) below.
-    std::vector<Node> vars;
-    std::vector<Node> subs;
-    inferSubstitution(n[0], vars, subs, true);
+    Subs subs;
+    inferSubstitution(n[0], subs, true);
 
-    if (!vars.empty())
+    if (!subs.empty())
     {
       // reverse substitution to opposite child
       // r{ x -> t } = s  implies  ite( x=t ^ C, s, r ) ---> r
       // We can use ordinary substitute since the result of the substitution
       // is not being returned. In other words, nn is only being used to query
       // whether the second branch is a generalization of the first.
-      Node nn =
-          t2.substitute(vars.begin(), vars.end(), subs.begin(), subs.end());
+      Node nn = subs.apply(t2);
       if (nn != t2)
       {
-        nn = Rewriter::rewrite(nn);
+        nn = d_rew.rewrite(nn);
         if (nn == t1)
         {
           new_ret = t2;
@@ -507,8 +509,8 @@ Node ExtendedRewriter::extendedRewriteIte(Kind itek, Node n, bool full) const
       // ite( x=t ^ C, s, r ) ---> ite( x=t ^ C, s{ x -> t }, r )
       // must use partial substitute here, to avoid substitution into witness
       std::map<Kind, bool> rkinds;
-      nn = partialSubstitute(t1, vars, subs, rkinds);
-      nn = Rewriter::rewrite(nn);
+      nn = partialSubstitute(t1, subs, rkinds);
+      nn = d_rew.rewrite(nn);
       if (nn != t1)
       {
         // If full=false, then we've duplicated a term u in the children of n.
@@ -537,7 +539,7 @@ Node ExtendedRewriter::extendedRewriteIte(Kind itek, Node n, bool full) const
       Node nn = partialSubstitute(t2, assign, rkinds);
       if (nn != t2)
       {
-        nn = Rewriter::rewrite(nn);
+        nn = d_rew.rewrite(nn);
         if (nn == t1)
         {
           new_ret = nn;
@@ -625,7 +627,7 @@ Node ExtendedRewriter::extendedRewritePullIte(Kind itek, Node n) const
       {
         children[ii] = n[i][j + 1];
         Node pull = nm->mkNode(n.getKind(), children);
-        Node pullr = Rewriter::rewrite(pull);
+        Node pullr = d_rew.rewrite(pull);
         children[ii] = n[i];
         ite_c[i][j] = pullr;
       }
@@ -688,7 +690,7 @@ Node ExtendedRewriter::extendedRewritePullIte(Kind itek, Node n) const
       Assert(nite.getKind() == itek);
       // now, simply pull the ITE and try ITE rewrites
       Node pull_ite = nm->mkNode(itek, nite[0], ip.second[0], ip.second[1]);
-      pull_ite = Rewriter::rewrite(pull_ite);
+      pull_ite = d_rew.rewrite(pull_ite);
       if (pull_ite.getKind() == ITE)
       {
         Node new_pull_ite = extendedRewriteIte(itek, pull_ite, false);
@@ -887,7 +889,7 @@ Node ExtendedRewriter::extendedRewriteBcp(Kind andk,
         ccs = cpol ? ccs : TermUtil::mkNegate(notk, ccs);
         Trace("ext-rew-bcp") << "BCP: propagated " << c << " -> " << ccs
                              << std::endl;
-        ccs = Rewriter::rewrite(ccs);
+        ccs = d_rew.rewrite(ccs);
         Trace("ext-rew-bcp") << "BCP: rewritten to " << ccs << std::endl;
         to_process.push_back(ccs);
         // store this as a node that propagation touched. This marks c so that
@@ -1060,11 +1062,10 @@ Node ExtendedRewriter::extendedRewriteEqRes(Kind andk,
       if (!eq.isNull())
       {
         // see if it corresponds to a substitution
-        std::vector<Node> vars;
-        std::vector<Node> subs;
-        if (inferSubstitution(eq, vars, subs))
+        Subs subs;
+        if (inferSubstitution(eq, subs))
         {
-          Assert(vars.size() == 1);
+          Assert(subs.size() == 1);
           std::vector<Node> children;
           bool childrenChanged = false;
           // apply to all other children
@@ -1076,7 +1077,7 @@ Node ExtendedRewriter::extendedRewriteEqRes(Kind andk,
               // Substitution is only applicable to compatible kinds. We always
               // use the partialSubstitute method to avoid substitution into
               // witness terms.
-              ccs = partialSubstitute(ccs, vars, subs, bcp_kinds);
+              ccs = partialSubstitute(ccs, subs, bcp_kinds);
               childrenChanged = childrenChanged || n[j] != ccs;
             }
             children.push_back(ccs);
@@ -1330,7 +1331,7 @@ Node ExtendedRewriter::extendedRewriteEqChain(
   // check subsumptions
   // sort by #atoms
   std::sort(atom_count.begin(), atom_count.end(), sortPairSecond);
-  if (Trace.isOn("ext-rew-eqchain"))
+  if (TraceIsOn("ext-rew-eqchain"))
   {
     for (const std::pair<Node, unsigned>& ac : atom_count)
     {
@@ -1522,7 +1523,7 @@ Node ExtendedRewriter::extendedRewriteEqChain(
     index--;
     new_ret = nm->mkNode(eqk, children[index], new_ret);
   }
-  new_ret = Rewriter::rewrite(new_ret);
+  new_ret = d_rew.rewrite(new_ret);
   if (new_ret != ret)
   {
     return new_ret;
@@ -1606,16 +1607,12 @@ Node ExtendedRewriter::partialSubstitute(
 }
 
 Node ExtendedRewriter::partialSubstitute(
-    Node n,
-    const std::vector<Node>& vars,
-    const std::vector<Node>& subs,
-    const std::map<Kind, bool>& rkinds) const
+    Node n, const Subs& subs, const std::map<Kind, bool>& rkinds) const
 {
-  Assert(vars.size() == subs.size());
   std::map<Node, Node> assign;
-  for (size_t i = 0, nvars = vars.size(); i < nvars; i++)
+  for (size_t i = 0, nvars = subs.size(); i < nvars; i++)
   {
-    assign[vars[i]] = subs[i];
+    assign[subs.d_vars[i]] = subs.d_subs[i];
   }
   return partialSubstitute(n, assign, rkinds);
 }
@@ -1628,17 +1625,14 @@ Node ExtendedRewriter::solveEquality(Node n) const
   return Node::null();
 }
 
-bool ExtendedRewriter::inferSubstitution(Node n,
-                                         std::vector<Node>& vars,
-                                         std::vector<Node>& subs,
-                                         bool usePred) const
+bool ExtendedRewriter::inferSubstitution(Node n, Subs& subs, bool usePred) const
 {
   if (n.getKind() == AND)
   {
     bool ret = false;
     for (const Node& nc : n)
     {
-      bool cret = inferSubstitution(nc, vars, subs, usePred);
+      bool cret = inferSubstitution(nc, subs, usePred);
       ret = ret || cret;
     }
     return ret;
@@ -1656,8 +1650,7 @@ bool ExtendedRewriter::inferSubstitution(Node n,
     {
       if (n[i].isConst())
       {
-        vars.push_back(n[1 - i]);
-        subs.push_back(n[i]);
+        subs.add(n[1 - i], n[i]);
         return true;
       }
       if (n[i].isVar())
@@ -1681,11 +1674,9 @@ bool ExtendedRewriter::inferSubstitution(Node n,
           Assert(TermUtil::isNegate(n[i].getKind()));
           r2 = TermUtil::mkNegate(n[i].getKind(), r2);
         }
-        // TODO (#1706) : union find
-        if (std::find(vars.begin(), vars.end(), r1) == vars.end())
+        if (!subs.contains(r1))
         {
-          vars.push_back(r1);
-          subs.push_back(r2);
+          subs.add(r1, r2);
           return true;
         }
       }
@@ -1694,32 +1685,65 @@ bool ExtendedRewriter::inferSubstitution(Node n,
   if (usePred)
   {
     bool negated = n.getKind() == NOT;
-    vars.push_back(negated ? n[0] : n);
-    subs.push_back(negated ? d_false : d_true);
+    Node var = negated ? n[0] : n;
+    Node s = NodeManager::currentNM()->mkConst(!negated);
+    subs.add(var, s);
     return true;
   }
   return false;
 }
 
-Node ExtendedRewriter::extendedRewriteStrings(Node ret) const
+Node ExtendedRewriter::extendedRewriteStrings(Node node) const
 {
-  Node new_ret;
   Trace("q-ext-rewrite-debug")
-      << "Extended rewrite strings : " << ret << std::endl;
+      << "Extended rewrite strings : " << node << std::endl;
 
-  if (ret.getKind() == EQUAL)
+  Kind k = node.getKind();
+  if (k == EQUAL)
   {
-    new_ret = strings::SequencesRewriter(nullptr).rewriteEqualityExt(ret);
+    strings::SequencesRewriter sr(&d_rew, nullptr);
+    return sr.rewriteEqualityExt(node);
+  }
+  else if (k == STRING_SUBSTR)
+  {
+    NodeManager* nm = NodeManager::currentNM();
+    Node tot_len = d_rew.rewrite(nm->mkNode(STRING_LENGTH, node[0]));
+    strings::ArithEntail aent(&d_rew);
+    // (str.substr s x y) --> "" if x < len(s) |= 0 >= y
+    Node n1_lt_tot_len = d_rew.rewrite(nm->mkNode(LT, node[1], tot_len));
+    if (aent.checkWithAssumption(n1_lt_tot_len, d_intZero, node[2], false))
+    {
+      Node ret = strings::Word::mkEmptyWord(node.getType());
+      debugExtendedRewrite(node, ret, "SS_START_ENTAILS_ZERO_LEN");
+      return ret;
+    }
+
+    // (str.substr s x y) --> "" if 0 < y |= x >= str.len(s)
+    Node non_zero_len = d_rew.rewrite(nm->mkNode(LT, d_intZero, node[2]));
+    if (aent.checkWithAssumption(non_zero_len, node[1], tot_len, false))
+    {
+      Node ret = strings::Word::mkEmptyWord(node.getType());
+      debugExtendedRewrite(node, ret, "SS_NON_ZERO_LEN_ENTAILS_OOB");
+      return ret;
+    }
+    // (str.substr s x y) --> "" if x >= 0 |= 0 >= str.len(s)
+    Node geq_zero_start = d_rew.rewrite(nm->mkNode(GEQ, node[1], d_intZero));
+    if (aent.checkWithAssumption(geq_zero_start, d_intZero, tot_len, false))
+    {
+      Node ret = strings::Word::mkEmptyWord(node.getType());
+      debugExtendedRewrite(node, ret, "SS_GEQ_ZERO_START_ENTAILS_EMP_S");
+      return ret;
+    }
   }
 
-  return new_ret;
+  return Node::null();
 }
 
 void ExtendedRewriter::debugExtendedRewrite(Node n,
                                             Node ret,
                                             const char* c) const
 {
-  if (Trace.isOn("q-ext-rewrite"))
+  if (TraceIsOn("q-ext-rewrite"))
   {
     if (!ret.isNull())
     {
@@ -1732,4 +1756,4 @@ void ExtendedRewriter::debugExtendedRewrite(Node n,
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,8 +19,6 @@
 #include "options/base_options.h"
 #include "printer/printer.h"
 #include "proof/unsat_core.h"
-#include "smt/smt_engine.h"
-#include "smt/smt_engine_scope.h"
 #include "theory/datatypes/theory_datatypes_utils.h"
 #include "theory/quantifiers/sygus/ce_guided_single_inv.h"
 #include "theory/quantifiers/sygus/transition_inference.h"
@@ -29,51 +27,18 @@
 #include "theory/smt_engine_subsolver.h"
 #include "util/random.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
-bool VariadicTrie::add(Node n, const std::vector<Node>& i)
-{
-  VariadicTrie* curr = this;
-  for (const Node& ic : i)
-  {
-    curr = &(curr->d_children[ic]);
-  }
-  if (curr->d_data.isNull())
-  {
-    curr->d_data = n;
-    return true;
-  }
-  return false;
-}
-
-bool VariadicTrie::hasSubset(const std::vector<Node>& is) const
-{
-  if (!d_data.isNull())
-  {
-    return true;
-  }
-  for (const std::pair<const Node, VariadicTrie>& p : d_children)
-  {
-    Node n = p.first;
-    if (std::find(is.begin(), is.end(), n) != is.end())
-    {
-      if (p.second.hasSubset(is))
-      {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-CegisCoreConnective::CegisCoreConnective(QuantifiersInferenceManager& qim,
+CegisCoreConnective::CegisCoreConnective(Env& env,
+                                         QuantifiersState& qs,
+                                         QuantifiersInferenceManager& qim,
                                          TermDbSygus* tds,
                                          SynthConjecture* p)
-    : Cegis(qim, tds, p)
+    : Cegis(env, qs, qim, tds, p)
 {
   d_true = NodeManager::currentNM()->mkConst(true);
   d_false = NodeManager::currentNM()->mkConst(false);
@@ -106,7 +71,7 @@ bool CegisCoreConnective::processInitialize(Node conj,
   }
   Trace("sygus-ccore-init") << "  body : " << body << std::endl;
 
-  TransitionInference ti;
+  TransitionInference ti(d_env);
   ti.process(body, conj[0][0]);
 
   if (!ti.isComplete())
@@ -165,7 +130,7 @@ bool CegisCoreConnective::processInitialize(Node conj,
       sc = sc[1];
     }
     Node scb = TermUtil::simpleNegate(sc);
-    TransitionInference tisc;
+    TransitionInference tisc(d_env);
     tisc.process(scb, conj[0][0]);
     Node scTrans = ti.getTransitionRelation();
     Trace("sygus-ccore-init")
@@ -296,7 +261,7 @@ bool CegisCoreConnective::constructSolution(
   Assert(candidates.size() == candidate_values.size());
   Trace("sygus-ccore-summary")
       << "CegisCoreConnective: construct solution..." << std::endl;
-  if (Trace.isOn("sygus-ccore"))
+  if (TraceIsOn("sygus-ccore"))
   {
     Trace("sygus-ccore")
         << "CegisCoreConnective: Construct candidate solutions..." << std::endl;
@@ -311,7 +276,7 @@ bool CegisCoreConnective::constructSolution(
   Assert(candidates.size() == 1 && candidates[0] == d_candidate);
   TNode cval = candidate_values[0];
   Node ets = d_eterm.substitute(d_candidate, cval);
-  Node etsr = Rewriter::rewrite(ets);
+  Node etsr = rewrite(ets);
   Trace("sygus-ccore-debug") << "...predicate is: " << etsr << std::endl;
   NodeManager* nm = NodeManager::currentNM();
   for (unsigned d = 0; d < 2; d++)
@@ -344,10 +309,10 @@ bool CegisCoreConnective::constructSolution(
       std::vector<Node> mvs;
       Result r = checkSat(fassert, mvs);
       Trace("sygus-ccore-debug") << "...got " << r << std::endl;
-      if (r.asSatisfiabilityResult().isSat() != Result::UNSAT)
+      if (r.getStatus() != Result::UNSAT)
       {
         // failed the filter, remember the refinement point
-        if (r.asSatisfiabilityResult().isSat() == Result::SAT)
+        if (r.getStatus() == Result::SAT)
         {
           cfilter.addRefinementPt(fassert, mvs);
         }
@@ -373,7 +338,7 @@ bool CegisCoreConnective::constructSolution(
       Trace("sygus-ccore-summary") << "...success" << std::endl;
       return true;
     }
-    if (Trace.isOn("sygus-ccore-summary"))
+    if (TraceIsOn("sygus-ccore-summary"))
     {
       std::stringstream ss;
       ccheck.debugPrintSummary(ss);
@@ -476,7 +441,7 @@ Node CegisCoreConnective::Component::getRefinementPt(
         visited.insert(id);
         Trace("sygus-ccore-ref") << "...eval " << std::endl;
         // check if it is true
-        Node en = p->evaluate(n, id, ctx);
+        Node en = p->evaluatePt(n, id, ctx);
         if (en.isConst() && en.getConst<bool>())
         {
           ss = ctx;
@@ -553,7 +518,7 @@ bool CegisCoreConnective::Component::addToAsserts(CegisCoreConnective* p,
     for (unsigned i = currIndex, psize = passerts.size(); i < psize; i++)
     {
       Node cn = passerts[i];
-      Node cne = p->evaluate(cn, mvId, mvs);
+      Node cne = p->evaluatePt(cn, mvId, mvs);
       if (cne.isConst() && !cne.getConst<bool>())
       {
         n = cn;
@@ -595,49 +560,19 @@ bool CegisCoreConnective::Component::addToAsserts(CegisCoreConnective* p,
   return true;
 }
 
-void CegisCoreConnective::getModel(SmtEngine& smt,
-                                   std::vector<Node>& vals) const
-{
-  for (const Node& v : d_vars)
-  {
-    Node mv = smt.getValue(v);
-    Trace("sygus-ccore-model") << v << " -> " << mv << " ";
-    vals.push_back(mv);
-  }
-}
-
-bool CegisCoreConnective::getUnsatCore(
-    SmtEngine& smt,
-    const std::unordered_set<Node>& queryAsserts,
-    std::vector<Node>& uasserts) const
-{
-  UnsatCore uc = smt.getUnsatCore();
-  bool hasQuery = false;
-  for (UnsatCore::const_iterator i = uc.begin(); i != uc.end(); ++i)
-  {
-    Node uassert = *i;
-    Trace("sygus-ccore-debug") << "  uc " << uassert << std::endl;
-    if (queryAsserts.find(uassert) != queryAsserts.end())
-    {
-      hasQuery = true;
-      continue;
-    }
-    uasserts.push_back(uassert);
-  }
-  return hasQuery;
-}
-
 Result CegisCoreConnective::checkSat(Node n, std::vector<Node>& mvs) const
 {
   Trace("sygus-ccore-debug") << "...check-sat " << n << "..." << std::endl;
-  Result r = checkWithSubsolver(n, d_vars, mvs);
+  n = rewrite(n);
+  SubsolverSetupInfo ssi(d_env);
+  Result r = checkWithSubsolver(n, d_vars, mvs, ssi);
   Trace("sygus-ccore-debug") << "...got " << r << std::endl;
   return r;
 }
 
-Node CegisCoreConnective::evaluate(Node n,
-                                   Node id,
-                                   const std::vector<Node>& mvs)
+Node CegisCoreConnective::evaluatePt(Node n,
+                                     Node id,
+                                     const std::vector<Node>& mvs)
 {
   Kind nk = n.getKind();
   if (nk == AND || nk == OR)
@@ -647,7 +582,7 @@ Node CegisCoreConnective::evaluate(Node n,
     // split AND/OR
     for (const Node& nc : n)
     {
-      Node enc = evaluate(nc, id, mvs);
+      Node enc = evaluatePt(nc, id, mvs);
       Assert(enc.isConst());
       if (enc.getConst<bool>() == expRes)
       {
@@ -666,12 +601,8 @@ Node CegisCoreConnective::evaluate(Node n,
     }
   }
   // use evaluator
-  Node cn = d_eval.eval(n, d_vars, mvs);
-  if (cn.isNull())
-  {
-    cn = n.substitute(d_vars.begin(), d_vars.end(), mvs.begin(), mvs.end());
-    cn = Rewriter::rewrite(cn);
-  }
+  Node cn = evaluate(n, d_vars, mvs);
+  Assert(!cn.isNull());
   if (!id.isNull())
   {
     ec[id] = cn;
@@ -737,8 +668,10 @@ Node CegisCoreConnective::constructSolutionFromPool(Component& ccheck,
   {
     addSuccess = false;
     // try a new core
-    std::unique_ptr<SmtEngine> checkSol;
-    initializeSubsolver(checkSol);
+    std::unique_ptr<SolverEngine> checkSol;
+    initializeSubsolver(checkSol, d_env);
+    checkSol->setOption("sygus", "false");
+    checkSol->setOption("produce-unsat-cores", "true");
     Trace("sygus-ccore") << "----- Check candidate " << an << std::endl;
     std::vector<Node> rasserts = asserts;
     rasserts.push_back(d_sc);
@@ -752,7 +685,7 @@ Node CegisCoreConnective::constructSolutionFromPool(Component& ccheck,
     Result r = checkSol->checkSat();
     Trace("sygus-ccore") << "----- check-sat returned " << r << std::endl;
     // In terms of Variant #2, this is the check "if (S ^ D) => B"
-    if (r.asSatisfiabilityResult().isSat() == Result::UNSAT)
+    if (r.getStatus() == Result::UNSAT)
     {
       // it entails the postcondition, now get the unsat core
       // In terms of Variant #2, this is the line
@@ -762,7 +695,8 @@ Node CegisCoreConnective::constructSolutionFromPool(Component& ccheck,
       std::unordered_set<Node> queryAsserts;
       queryAsserts.insert(ccheck.getFormula());
       queryAsserts.insert(d_sc);
-      bool hasQuery = getUnsatCore(*checkSol, queryAsserts, uasserts);
+      bool hasQuery =
+          getUnsatCoreFromSubsolver(*checkSol, queryAsserts, uasserts);
       // now, check the side condition
       bool falseCore = false;
       if (!d_sc.isNull())
@@ -777,8 +711,10 @@ Node CegisCoreConnective::constructSolutionFromPool(Component& ccheck,
         {
           // In terms of Variant #2, this is the check "if S ^ U is unsat"
           Trace("sygus-ccore") << "----- Check side condition" << std::endl;
-          std::unique_ptr<SmtEngine> checkSc;
-          initializeSubsolver(checkSc);
+          std::unique_ptr<SolverEngine> checkSc;
+          initializeSubsolver(checkSc, d_env);
+          checkSc->setOption("sygus", "false");
+          checkSc->setOption("produce-unsat-cores", "true");
           std::vector<Node> scasserts;
           scasserts.insert(scasserts.end(), uasserts.begin(), uasserts.end());
           scasserts.push_back(d_sc);
@@ -790,7 +726,7 @@ Node CegisCoreConnective::constructSolutionFromPool(Component& ccheck,
           Result rsc = checkSc->checkSat();
           Trace("sygus-ccore")
               << "----- check-sat returned " << rsc << std::endl;
-          if (rsc.asSatisfiabilityResult().isSat() == Result::UNSAT)
+          if (rsc.getStatus() == Result::UNSAT)
           {
             // In terms of Variant #2, this is the line
             //   "Let W be a subset of D such that S ^ W is unsat."
@@ -798,7 +734,7 @@ Node CegisCoreConnective::constructSolutionFromPool(Component& ccheck,
             uasserts.clear();
             std::unordered_set<Node> queryAsserts2;
             queryAsserts2.insert(d_sc);
-            getUnsatCore(*checkSc, queryAsserts2, uasserts);
+            getUnsatCoreFromSubsolver(*checkSc, queryAsserts2, uasserts);
             falseCore = true;
           }
         }
@@ -837,14 +773,14 @@ Node CegisCoreConnective::constructSolutionFromPool(Component& ccheck,
         return constructSolutionFromPool(ccheck, asserts, passerts);
       }
     }
-    else if (r.asSatisfiabilityResult().isSat() == Result::SAT)
+    else if (r.getStatus() == Result::SAT)
     {
       // it does not entail the postcondition, add an assertion that blocks
       // the current point
       mvs.clear();
-      getModel(*checkSol, mvs);
+      getModelFromSubsolver(*checkSol, d_vars, mvs);
       // should evaluate to true
-      Node ean = evaluate(an, Node::null(), mvs);
+      Node ean = evaluatePt(an, Node::null(), mvs);
       Assert(ean.isConst() && ean.getConst<bool>());
       Trace("sygus-ccore") << "--- Add refinement point " << mvs << std::endl;
       // In terms of Variant #2, this is the line:
@@ -862,4 +798,4 @@ Node CegisCoreConnective::constructSolutionFromPool(Component& ccheck,
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

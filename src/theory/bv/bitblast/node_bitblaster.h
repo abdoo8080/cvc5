@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,7 +19,7 @@
 
 #include "theory/bv/bitblast/bitblaster.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace bv {
 
@@ -28,12 +28,12 @@ namespace bv {
  *
  * Implements the bare minimum to bit-blast bit-vector atoms/terms.
  */
-class NodeBitblaster : public TBitblaster<Node>
+class NodeBitblaster : public TBitblaster<Node>, protected EnvObj
 {
   using Bits = std::vector<Node>;
 
  public:
-  NodeBitblaster(TheoryState* state);
+  NodeBitblaster(Env& env, TheoryState* state);
   ~NodeBitblaster() = default;
 
   /** Bit-blast term 'node' and return bit-blasted 'bits'. */
@@ -63,6 +63,13 @@ class NodeBitblaster : public TBitblaster<Node>
   /** Checks whether node is a variable introduced via `makeVariable`.*/
   bool isVariable(TNode node);
 
+  /**
+   * Bit-blast `node` and return the result without applying any rewrites.
+   *
+   * This method is used by BBProof and does not cache the result for `node`.
+   */
+  Node applyAtomBBStrategy(TNode node);
+
  private:
   /** Query SAT solver for assignment of node 'a'. */
   Node getModelFromSatSolver(TNode a, bool fullModel) override;
@@ -77,6 +84,6 @@ class NodeBitblaster : public TBitblaster<Node>
 
 }  // namespace bv
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Mathias Preiner, Andrew Reynolds
+ *   Mathias Preiner, Aina Niemetz, Andrew Reynolds
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -24,11 +24,12 @@
 #include "proof/eager_proof_generator.h"
 #include "prop/cnf_stream.h"
 #include "prop/sat_solver.h"
+#include "smt/env_obj.h"
 #include "theory/bv/bitblast/node_bitblaster.h"
 #include "theory/bv/bv_solver.h"
 #include "theory/bv/proof_checker.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 namespace theory {
 namespace bv {
@@ -42,9 +43,9 @@ class BBRegistrar;
 class BVSolverBitblast : public BVSolver
 {
  public:
-  BVSolverBitblast(TheoryState* state,
-                   TheoryInferenceManager& inferMgr,
-                   ProofNodeManager* pnm);
+  BVSolverBitblast(Env& env,
+                   TheoryState* state,
+                   TheoryInferenceManager& inferMgr);
   ~BVSolverBitblast() = default;
 
   bool needsEqualityEngine(EeSetupInfo& esi) override { return true; }
@@ -141,6 +142,6 @@ class BVSolverBitblast : public BVSolver
 
 }  // namespace bv
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

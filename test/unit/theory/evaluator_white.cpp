@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Aina Niemetz, Andres Noetzli
+ *   Aina Niemetz, Andrew Reynolds, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -25,10 +25,10 @@
 #include "theory/rewriter.h"
 #include "util/rational.h"
 
-namespace cvc5 {
+using namespace cvc5::internal::kind;
+using namespace cvc5::internal::theory;
 
-using namespace theory;
-
+namespace cvc5::internal {
 namespace test {
 
 class TestTheoryWhiteEvaluator : public TestSmt
@@ -59,10 +59,11 @@ TEST_F(TestTheoryWhiteEvaluator, simple)
   std::vector<Node> args = {w, x, y, z};
   std::vector<Node> vals = {c1, zero, one, c1};
 
-  Evaluator eval;
+  Rewriter* rr = d_slvEngine->getEnv().getRewriter();
+  Evaluator eval(rr);
   Node r = eval.eval(t, args, vals);
   ASSERT_EQ(r,
-            Rewriter::rewrite(t.substitute(
+            rr->rewrite(t.substitute(
                 args.begin(), args.end(), vals.begin(), vals.end())));
 }
 
@@ -90,10 +91,11 @@ TEST_F(TestTheoryWhiteEvaluator, loop)
 
   std::vector<Node> args = {x};
   std::vector<Node> vals = {c};
-  Evaluator eval;
+  Rewriter* rr = d_slvEngine->getEnv().getRewriter();
+  Evaluator eval(rr);
   Node r = eval.eval(t, args, vals);
   ASSERT_EQ(r,
-            Rewriter::rewrite(t.substitute(
+            rr->rewrite(t.substitute(
                 args.begin(), args.end(), vals.begin(), vals.end())));
 }
 
@@ -101,35 +103,36 @@ TEST_F(TestTheoryWhiteEvaluator, strIdOf)
 {
   Node a = d_nodeManager->mkConst(String("A"));
   Node empty = d_nodeManager->mkConst(String(""));
-  Node one = d_nodeManager->mkConst(Rational(1));
-  Node two = d_nodeManager->mkConst(Rational(2));
+  Node one = d_nodeManager->mkConstInt(Rational(1));
+  Node two = d_nodeManager->mkConstInt(Rational(2));
 
   std::vector<Node> args;
   std::vector<Node> vals;
-  Evaluator eval;
+  Rewriter* rr = d_slvEngine->getEnv().getRewriter();
+  Evaluator eval(rr);
 
   {
     Node n = d_nodeManager->mkNode(kind::STRING_INDEXOF, a, empty, one);
     Node r = eval.eval(n, args, vals);
-    ASSERT_EQ(r, Rewriter::rewrite(n));
+    ASSERT_EQ(r, rr->rewrite(n));
   }
 
   {
     Node n = d_nodeManager->mkNode(kind::STRING_INDEXOF, a, a, one);
     Node r = eval.eval(n, args, vals);
-    ASSERT_EQ(r, Rewriter::rewrite(n));
+    ASSERT_EQ(r, rr->rewrite(n));
   }
 
   {
     Node n = d_nodeManager->mkNode(kind::STRING_INDEXOF, a, empty, two);
     Node r = eval.eval(n, args, vals);
-    ASSERT_EQ(r, Rewriter::rewrite(n));
+    ASSERT_EQ(r, rr->rewrite(n));
   }
 
   {
     Node n = d_nodeManager->mkNode(kind::STRING_INDEXOF, a, a, two);
     Node r = eval.eval(n, args, vals);
-    ASSERT_EQ(r, Rewriter::rewrite(n));
+    ASSERT_EQ(r, rr->rewrite(n));
   }
 }
 
@@ -140,21 +143,22 @@ TEST_F(TestTheoryWhiteEvaluator, code)
 
   std::vector<Node> args;
   std::vector<Node> vals;
-  Evaluator eval;
+  Rewriter* rr = d_slvEngine->getEnv().getRewriter();
+  Evaluator eval(rr);
 
   // (str.code "A") ---> 65
   {
     Node n = d_nodeManager->mkNode(kind::STRING_TO_CODE, a);
     Node r = eval.eval(n, args, vals);
-    ASSERT_EQ(r, d_nodeManager->mkConst(Rational(65)));
+    ASSERT_EQ(r, d_nodeManager->mkConstInt(Rational(65)));
   }
 
   // (str.code "") ---> -1
   {
     Node n = d_nodeManager->mkNode(kind::STRING_TO_CODE, empty);
     Node r = eval.eval(n, args, vals);
-    ASSERT_EQ(r, d_nodeManager->mkConst(Rational(-1)));
+    ASSERT_EQ(r, d_nodeManager->mkConstInt(Rational(-1)));
   }
 }
 }  // namespace test
-}  // namespace cvc5
+}  // namespace cvc5::internal

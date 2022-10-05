@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Andres Noetzli
+ *   Andrew Reynolds, Mathias Preiner, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -27,7 +27,7 @@
 #include "expr/node.h"
 #include "preprocessing/preprocessing_pass.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace preprocessing {
 namespace passes {
 
@@ -73,10 +73,10 @@ namespace passes {
  *
  * Based on options, this preprocessing pass may apply a subset o the above
  * steps. In particular:
- * * If options::hoElim() is true, then step [2] is taken and extensionality
+ * * If hoElim is true, then step [2] is taken and extensionality
  * axioms are added in step [3].
- * * If options::hoElimStoreAx() is true, then store axioms are added in step 3.
- * The form of these axioms depends on whether options::hoElim() is true. If it
+ * * If hoElimStoreAx is true, then store axioms are added in step 3.
+ * The form of these axioms depends on whether hoElim is true. If it
  * is true, the axiom is given in terms of the uninterpreted functions that
  * encode function sorts. If it is false, then the store axiom is given in terms
  * of the original function sorts.
@@ -151,6 +151,6 @@ class HoElim : public PreprocessingPass
 
 }  // namespace passes
 }  // namespace preprocessing
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* __CVC5__PREPROCESSING__PASSES__HO_ELIM_PASS_H */

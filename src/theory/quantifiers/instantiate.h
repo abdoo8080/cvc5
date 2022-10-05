@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Morgan Deters
+ *   Andrew Reynolds, Mathias Preiner, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -28,7 +28,7 @@
 #include "theory/quantifiers/quant_util.h"
 #include "util/statistics_stats.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 class LazyCDProof;
 
@@ -65,7 +65,7 @@ class InstantiationRewriter
    * and its proof generator.
    */
   virtual TrustNode rewriteInstantiation(Node q,
-                                         std::vector<Node>& terms,
+                                         const std::vector<Node>& terms,
                                          Node inst,
                                          bool doVts) = 0;
 };
@@ -104,11 +104,11 @@ class Instantiate : public QuantifiersUtil
       context::CDHashMap<Node, std::shared_ptr<InstLemmaList>>;
 
  public:
-  Instantiate(QuantifiersState& qs,
+  Instantiate(Env& env,
+              QuantifiersState& qs,
               QuantifiersInferenceManager& qim,
               QuantifiersRegistry& qr,
-              TermRegistry& tr,
-              ProofNodeManager* pnm = nullptr);
+              TermRegistry& tr);
   ~Instantiate();
   /** reset */
   bool reset(Theory::Effort e) override;
@@ -141,8 +141,6 @@ class Instantiate : public QuantifiersUtil
    * manager
    * @param pfArg an additional node to add to the arguments of the INSTANTIATE
    * step
-   * @param mkRep whether to take the representatives of the terms in the
-   * range of the substitution m,
    * @param doVts whether we must apply virtual term substitution to the
    * instantiation lemma.
    *
@@ -162,7 +160,6 @@ class Instantiate : public QuantifiersUtil
                         std::vector<Node>& terms,
                         InferenceId id,
                         Node pfArg = Node::null(),
-                        bool mkRep = false,
                         bool doVts = false);
   /**
    * Same as above, but we also compute a vector failMask indicating which
@@ -192,9 +189,13 @@ class Instantiate : public QuantifiersUtil
                                std::vector<bool>& failMask,
                                InferenceId id,
                                Node pfArg = Node::null(),
-                               bool mkRep = false,
                                bool doVts = false,
                                bool expFull = true);
+  /**
+   * Ensure each term in terms is the chosen representative for its
+   * corresponding variable in q.
+   */
+  void processInstantiationRep(Node q, std::vector<Node>& terms);
   /** record instantiation
    *
    * Explicitly record that q has been instantiated with terms, with virtual
@@ -202,17 +203,14 @@ class Instantiate : public QuantifiersUtil
    * but does not enqueue an instantiation lemma.
    */
   void recordInstantiation(Node q,
-                           std::vector<Node>& terms,
+                           const std::vector<Node>& terms,
                            bool doVts = false);
   /** exists instantiation
    *
    * Returns true if and only if the instantiation already was added or
    * recorded by this class.
-   *   modEq : whether to check for duplication modulo equality
    */
-  bool existsInstantiation(Node q,
-                           std::vector<Node>& terms,
-                           bool modEq = false);
+  bool existsInstantiation(Node q, const std::vector<Node>& terms);
   //--------------------------------------general utilities
   /** get instantiation
    *
@@ -224,8 +222,8 @@ class Instantiate : public QuantifiersUtil
    * single INSTANTIATE step concluding the instantiated body of q from q.
    */
   Node getInstantiation(Node q,
-                        std::vector<Node>& vars,
-                        std::vector<Node>& terms,
+                        const std::vector<Node>& vars,
+                        const std::vector<Node>& terms,
                         InferenceId id = InferenceId::UNKNOWN,
                         Node pfArg = Node::null(),
                         bool doVts = false,
@@ -234,7 +232,9 @@ class Instantiate : public QuantifiersUtil
    *
    * Same as above but with vars equal to the bound variables of q.
    */
-  Node getInstantiation(Node q, std::vector<Node>& terms, bool doVts = false);
+  Node getInstantiation(Node q,
+                        const std::vector<Node>& terms,
+                        bool doVts = false);
   //--------------------------------------end general utilities
 
   /**
@@ -290,20 +290,19 @@ class Instantiate : public QuantifiersUtil
     IntStat d_inst_duplicate;
     IntStat d_inst_duplicate_eq;
     IntStat d_inst_duplicate_ent;
-    Statistics();
+    Statistics(StatisticsRegistry& sr);
   }; /* class Instantiate::Statistics */
   Statistics d_statistics;
 
- private:
-  /** record instantiation, return true if it was not a duplicate */
-  bool recordInstantiationInternal(Node q, std::vector<Node>& terms);
-  /** remove instantiation from the cache */
-  bool removeInstantiationInternal(Node q, std::vector<Node>& terms);
   /**
    * Ensure that n has type tn, return a term equivalent to it for that type
    * if possible.
    */
   static Node ensureType(Node n, TypeNode tn);
+
+ private:
+  /** record instantiation, return true if it was not a duplicate */
+  bool recordInstantiationInternal(Node q, const std::vector<Node>& terms);
   /** Get or make the instantiation list for quantified formula q */
   InstLemmaList* getOrMkInstLemmaList(TNode q);
 
@@ -315,8 +314,6 @@ class Instantiate : public QuantifiersUtil
   QuantifiersRegistry& d_qreg;
   /** Reference to the term registry */
   TermRegistry& d_treg;
-  /** pointer to the proof node manager */
-  ProofNodeManager* d_pnm;
   /** instantiation rewriter classes */
   std::vector<InstantiationRewriter*> d_instRewrite;
 
@@ -356,6 +353,6 @@ class Instantiate : public QuantifiersUtil
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__INSTANTIATE_H */

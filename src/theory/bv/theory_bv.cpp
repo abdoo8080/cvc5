@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Mathias Preiner, Andrew Reynolds, Haniel Barbosa
+ *   Mathias Preiner, Andrew Reynolds, Liana Hadarean
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,47 +18,41 @@
 #include "options/bv_options.h"
 #include "options/smt_options.h"
 #include "proof/proof_checker.h"
-#include "smt/smt_statistics_registry.h"
 #include "theory/bv/bv_solver_bitblast.h"
 #include "theory/bv/bv_solver_bitblast_internal.h"
-#include "theory/bv/bv_solver_layered.h"
+#include "theory/bv/theory_bv_rewrite_rules_normalization.h"
+#include "theory/bv/theory_bv_rewrite_rules_simplification.h"
 #include "theory/bv/theory_bv_utils.h"
 #include "theory/ee_setup_info.h"
 #include "theory/trust_substitutions.h"
+#include "theory/uf/equality_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace bv {
 
-TheoryBV::TheoryBV(context::Context* c,
-                   context::UserContext* u,
+TheoryBV::TheoryBV(Env& env,
                    OutputChannel& out,
                    Valuation valuation,
-                   const LogicInfo& logicInfo,
-                   ProofNodeManager* pnm,
                    std::string name)
-    : Theory(THEORY_BV, c, u, out, valuation, logicInfo, pnm, name),
+    : Theory(THEORY_BV, env, out, valuation, name),
       d_internal(nullptr),
       d_rewriter(),
-      d_state(c, u, valuation),
-      d_im(*this, d_state, nullptr, "theory::bv::"),
+      d_state(env, valuation),
+      d_im(env, *this, d_state, "theory::bv::"),
       d_notify(d_im),
-      d_invalidateModelCache(c, true),
-      d_stats("theory::bv::")
+      d_invalidateModelCache(context(), true),
+      d_stats(statisticsRegistry(), "theory::bv::")
 {
-  switch (options::bvSolver())
+  switch (options().bv.bvSolver)
   {
     case options::BVSolver::BITBLAST:
-      d_internal.reset(new BVSolverBitblast(&d_state, d_im, pnm));
-      break;
-
-    case options::BVSolver::LAYERED:
-      d_internal.reset(new BVSolverLayered(*this, c, u, pnm, name));
+      d_internal.reset(new BVSolverBitblast(env, &d_state, d_im));
       break;
 
     default:
-      AlwaysAssert(options::bvSolver() == options::BVSolver::BITBLAST_INTERNAL);
-      d_internal.reset(new BVSolverBitblastInternal(&d_state, d_im, pnm));
+      AlwaysAssert(options().bv.bvSolver == options::BVSolver::BITBLAST_INTERNAL);
+      d_internal.reset(new BVSolverBitblastInternal(d_env, &d_state, d_im));
   }
   d_theoryState = &d_state;
   d_inferManager = &d_im;
@@ -70,7 +64,7 @@ TheoryRewriter* TheoryBV::getTheoryRewriter() { return &d_rewriter; }
 
 ProofRuleChecker* TheoryBV::getProofChecker()
 {
-  if (options::bvSolver() == options::BVSolver::BITBLAST_INTERNAL)
+  if (options().bv.bvSolver == options::BVSolver::BITBLAST_INTERNAL)
   {
     return static_cast<BVSolverBitblastInternal*>(d_internal.get())
         ->getProofChecker();
@@ -224,7 +218,7 @@ Theory::PPAssertStatus TheoryBV::ppAssert(
      * x = c::sk2       if h == bw(x)-1, where bw(sk2) = l
      * x = sk1::c::sk2  otherwise, where bw(sk1) = bw(x)-1-h and bw(sk2) = l
      */
-    Node node = Rewriter::rewrite(in);
+    Node node = rewrite(in);
     if ((node[0].getKind() == kind::BITVECTOR_EXTRACT && node[1].isConst())
         || (node[1].getKind() == kind::BITVECTOR_EXTRACT
             && node[0].isConst()))
@@ -280,6 +274,37 @@ TrustNode TheoryBV::ppRewrite(TNode t, std::vector<SkolemLemma>& lems)
   {
     return texp;
   }
+
+  Trace("theory-bv-pp-rewrite") << "ppRewrite " << t << "\n";
+  Node res = t;
+  if (options().bv.bitwiseEq && RewriteRule<BitwiseEq>::applies(t))
+  {
+    res = rewrite(RewriteRule<BitwiseEq>::run<false>(t));
+  }
+  // useful on QF_BV/space/ndist
+  else if (RewriteRule<UltAddOne>::applies(t))
+  {
+    res = rewrite(RewriteRule<UltAddOne>::run<false>(t));
+  }
+  // Useful for BV/2017-Preiner-scholl-smt08, but not for QF_BV
+  else if (options().bv.rwExtendEq)
+  {
+    if (RewriteRule<SignExtendEqConst>::applies(t))
+    {
+      res = RewriteRule<SignExtendEqConst>::run<false>(t);
+    }
+    else if (RewriteRule<ZeroExtendEqConst>::applies(t))
+    {
+      res = RewriteRule<ZeroExtendEqConst>::run<false>(t);
+    }
+  }
+
+  Trace("theory-bv-pp-rewrite") << "to   " << res << "\n";
+  if (res != t)
+  {
+    return TrustNode::mkTrustRewrite(t, res, nullptr);
+  }
+
   return d_internal->ppRewrite(t);
 }
 
@@ -301,10 +326,10 @@ EqualityStatus TheoryBV::getEqualityStatus(TNode a, TNode b)
 
     if (value_a == value_b)
     {
-      Debug("theory-bv") << EQUALITY_TRUE_IN_MODEL << std::endl;
+      Trace("theory-bv") << EQUALITY_TRUE_IN_MODEL << std::endl;
       return EQUALITY_TRUE_IN_MODEL;
     }
-    Debug("theory-bv") << EQUALITY_FALSE_IN_MODEL << std::endl;
+    Trace("theory-bv") << EQUALITY_FALSE_IN_MODEL << std::endl;
     return EQUALITY_FALSE_IN_MODEL;
   }
   return status;
@@ -319,13 +344,48 @@ void TheoryBV::notifySharedTerm(TNode t)
 
 void TheoryBV::ppStaticLearn(TNode in, NodeBuilder& learned)
 {
-  d_internal->ppStaticLearn(in, learned);
-}
+  if (in.getKind() == kind::EQUAL)
+  {
+    // Only useful in combination with --bv-intro-pow2 on
+    // QF_BV/pspace/power2sum benchmarks.
+    //
+    // Matches for equality:
+    //
+    // (= (bvadd (bvshl 1 x) (bvshl 1 y)) (bvshl 1 z))
+    //
+    // and does case analysis on the sum of two power of twos.
+    if ((in[0].getKind() == kind::BITVECTOR_ADD
+         && in[1].getKind() == kind::BITVECTOR_SHL)
+        || (in[1].getKind() == kind::BITVECTOR_ADD
+            && in[0].getKind() == kind::BITVECTOR_SHL))
+    {
+      TNode p = in[0].getKind() == kind::BITVECTOR_ADD ? in[0] : in[1];
+      TNode s = in[0].getKind() == kind::BITVECTOR_ADD ? in[1] : in[0];
 
-bool TheoryBV::applyAbstraction(const std::vector<Node>& assertions,
-                                std::vector<Node>& new_assertions)
-{
-  return d_internal->applyAbstraction(assertions, new_assertions);
+      if (p.getNumChildren() == 2 && p[0].getKind() == kind::BITVECTOR_SHL
+          && p[1].getKind() == kind::BITVECTOR_SHL)
+      {
+        if (utils::isOne(s[0]) && utils::isOne(p[0][0])
+            && utils::isOne(p[1][0]))
+        {
+          Node zero = utils::mkZero(utils::getSize(s));
+          TNode b = p[0];
+          TNode c = p[1];
+          // (s : 1 << S) = (b : 1 << B) + (c : 1 << C)
+          Node b_eq_0 = b.eqNode(zero);
+          Node c_eq_0 = c.eqNode(zero);
+          Node b_eq_c = b.eqNode(c);
+
+          Node dis = NodeManager::currentNM()->mkNode(
+              kind::OR, b_eq_0, c_eq_0, b_eq_c);
+          Node imp = in.impNode(dis);
+          learned << imp;
+        }
+      }
+    }
+  }
+
+  d_internal->ppStaticLearn(in, learned);
 }
 
 Node TheoryBV::getValue(TNode node)
@@ -393,7 +453,7 @@ Node TheoryBV::getValue(TNode node)
         Assert(iit->second.isConst());
         nb << iit->second;
       }
-      it->second = Rewriter::rewrite(nb.constructNode());
+      it->second = rewrite(nb.constructNode());
     }
   } while (!visit.empty());
 
@@ -402,12 +462,12 @@ Node TheoryBV::getValue(TNode node)
   return it->second;
 }
 
-TheoryBV::Statistics::Statistics(const std::string& name)
-    : d_solveSubstitutions(
-        smtStatisticsRegistry().registerInt(name + "NumSolveSubstitutions"))
+TheoryBV::Statistics::Statistics(StatisticsRegistry& reg,
+                                 const std::string& name)
+    : d_solveSubstitutions(reg.registerInt(name + "NumSolveSubstitutions"))
 {
 }
 
 }  // namespace bv
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

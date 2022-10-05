@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -24,7 +24,7 @@
 #include "proof/annotation_proof_generator.h"
 #include "theory/inference_id.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 /** A class that tracks formulas to inference id annotations */
@@ -37,7 +37,16 @@ class InferenceIdProofAnnotator : public Annotator
   InferenceIdProofAnnotator(ProofNodeManager* pnm, context::Context* c);
   /** Set annotation, that formula f should be annotated by id */
   void setAnnotation(Node f, InferenceId id);
-  /** Annotate the proof node with the appropriate inference ID. */
+  /**
+   * Annotate the proof node with the appropriate inference ID. Given proof
+   * P proving F that was generated as a lemma with inference id `i`, this
+   * returns (ANNOTATION (ANNOTATION P : args i)). The outer ANNOTATION is
+   * used since commonly a proof node is "linked" into another, where its
+   * children and rule are copied into another. Using ANNOTATION (with no
+   * arguments) ensures the top-most ANNOTATION may be linked/copied
+   * multiple times; however its child (which counts `i`) will only appear
+   * once in the final proof.
+   */
   std::shared_ptr<ProofNode> annotate(std::shared_ptr<ProofNode> p) override;
 
  private:
@@ -50,6 +59,6 @@ class InferenceIdProofAnnotator : public Annotator
 };
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__INFERENCE_ID_PROOF_ANNOTATOR_H */

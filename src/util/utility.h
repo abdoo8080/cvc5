@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,9 +21,10 @@
 #include <algorithm>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <string>
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 /**
  * Using std::find_if(), finds the first iterator in [first,last)
@@ -61,6 +62,31 @@ void container_to_stream(std::ostream& out,
 }
 
 /**
+ * Generates a string representation of std::optional and inserts it into a
+ * stream.
+ *
+ * @param out The stream
+ * @param m The value
+ * @return The stream
+ */
+template <class T>
+std::ostream& operator<<(std::ostream& out, const std::optional<T>& m)
+{
+  out << "{";
+  if (m)
+  {
+    out << "Just ";
+    out << *m;
+  }
+  else
+  {
+    out << "Nothing";
+  }
+  out << "}";
+  return out;
+}
+
+/**
  * Opens a new temporary file with a given filename pattern and returns an
  * fstream to it. The directory that the file is created in is either TMPDIR or
  * /tmp/ if TMPDIR is not set.
@@ -76,6 +102,6 @@ void container_to_stream(std::ostream& out,
  */
 std::unique_ptr<std::fstream> openTmpFile(std::string* pattern);
 
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__UTILITY_H */

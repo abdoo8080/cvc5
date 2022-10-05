@@ -4,13 +4,13 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
  * ****************************************************************************
  *
- * Common header for unit tests that need an SmtEngine.
+ * Common header for unit tests that need an SolverEngine.
  */
 
 #ifndef CVC5__TEST__UNIT__TEST_SMT_H
@@ -21,8 +21,7 @@
 #include "expr/node_manager.h"
 #include "expr/skolem_manager.h"
 #include "proof/proof_checker.h"
-#include "smt/smt_engine.h"
-#include "smt/smt_engine_scope.h"
+#include "smt/solver_engine.h"
 #include "test.h"
 #include "theory/output_channel.h"
 #include "theory/rewriter.h"
@@ -30,9 +29,8 @@
 #include "theory/theory_state.h"
 #include "theory/valuation.h"
 #include "util/resource_manager.h"
-#include "util/unsafe_interrupt_exception.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace test {
 
 /* -------------------------------------------------------------------------- */
@@ -44,17 +42,15 @@ class TestSmt : public TestInternal
  protected:
   void SetUp() override
   {
-    d_nodeManager.reset(new NodeManager());
+    d_nodeManager = NodeManager::currentNM();
     d_skolemManager = d_nodeManager->getSkolemManager();
-    d_nmScope.reset(new NodeManagerScope(d_nodeManager.get()));
-    d_smtEngine.reset(new SmtEngine(d_nodeManager.get()));
-    d_smtEngine->finishInit();
+    d_slvEngine.reset(new SolverEngine);
+    d_slvEngine->finishInit();
   }
 
-  std::unique_ptr<NodeManagerScope> d_nmScope;
-  std::unique_ptr<NodeManager> d_nodeManager;
+  NodeManager* d_nodeManager;
   SkolemManager* d_skolemManager;
-  std::unique_ptr<SmtEngine> d_smtEngine;
+  std::unique_ptr<SolverEngine> d_slvEngine;
 };
 
 class TestSmtNoFinishInit : public TestInternal
@@ -62,16 +58,14 @@ class TestSmtNoFinishInit : public TestInternal
  protected:
   void SetUp() override
   {
-    d_nodeManager.reset(new NodeManager());
+    d_nodeManager = NodeManager::currentNM();
     d_skolemManager = d_nodeManager->getSkolemManager();
-    d_nmScope.reset(new NodeManagerScope(d_nodeManager.get()));
-    d_smtEngine.reset(new SmtEngine(d_nodeManager.get()));
+    d_slvEngine.reset(new SolverEngine);
   }
 
-  std::unique_ptr<NodeManagerScope> d_nmScope;
-  std::unique_ptr<NodeManager> d_nodeManager;
+  NodeManager* d_nodeManager;
   SkolemManager* d_skolemManager;
-  std::unique_ptr<SmtEngine> d_smtEngine;
+  std::unique_ptr<SolverEngine> d_slvEngine;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -106,7 +100,7 @@ inline std::ostream& operator<<(std::ostream& out, OutputChannelCallType type)
   }
 }
 
-class DummyOutputChannel : public cvc5::theory::OutputChannel
+class DummyOutputChannel : public theory::OutputChannel
 {
  public:
   DummyOutputChannel() {}
@@ -136,7 +130,6 @@ class DummyOutputChannel : public cvc5::theory::OutputChannel
 
   void requirePhase(TNode, bool) override {}
   void setIncomplete(theory::IncompleteId id) override {}
-  void handleUserAttribute(const char* attr, theory::Theory* t) override {}
 
   void clear() { d_callHistory.clear(); }
 
@@ -206,14 +199,9 @@ template <theory::TheoryId theoryId>
 class DummyTheory : public theory::Theory
 {
  public:
-  DummyTheory(context::Context* ctxt,
-              context::UserContext* uctxt,
-              theory::OutputChannel& out,
-              theory::Valuation valuation,
-              const LogicInfo& logicInfo,
-              ProofNodeManager* pnm)
-      : Theory(theoryId, ctxt, uctxt, out, valuation, logicInfo, pnm),
-        d_state(ctxt, uctxt, valuation)
+  DummyTheory(Env& env, theory::OutputChannel& out, theory::Valuation valuation)
+      : Theory(theoryId, env, out, valuation),
+        d_state(env, valuation)
   {
     // use a default theory state object
     d_theoryState = &d_state;
@@ -267,5 +255,5 @@ class DummyTheory : public theory::Theory
 
 /* -------------------------------------------------------------------------- */
 }  // namespace test
-}  // namespace cvc5
+}  // namespace cvc5::internal
 #endif

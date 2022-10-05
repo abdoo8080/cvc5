@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Yancheng Ou
+ *   Yancheng Ou, Aina Niemetz, Michael Chang
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,7 +18,7 @@
 #include "test_smt.h"
 #include "util/bitvector.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 using namespace theory;
 using namespace smt;
@@ -31,10 +31,10 @@ class TestTheoryWhiteBVOpt : public TestSmtNoFinishInit
   void SetUp() override
   {
     TestSmtNoFinishInit::SetUp();
-    d_smtEngine->setOption("produce-assertions", "true");
-    d_smtEngine->finishInit();
+    d_slvEngine->setOption("produce-assertions", "true");
+    d_slvEngine->finishInit();
 
-    d_optslv.reset(new OptimizationSolver(d_smtEngine.get()));
+    d_optslv.reset(new OptimizationSolver(d_slvEngine.get()));
     d_BV32Type.reset(new TypeNode(d_nodeManager->mkBitVectorType(32u)));
     d_BV16Type.reset(new TypeNode(d_nodeManager->mkBitVectorType(16u)));
   }
@@ -52,18 +52,18 @@ TEST_F(TestTheoryWhiteBVOpt, unsigned_min)
   Node b = d_nodeManager->mkConst(BitVector(32u, (unsigned)0xFFFFFFF1));
 
   // (unsigned)0x3FFFFFA1 <= x <= (unsigned)0xFFFFFFF1
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_ULE, a, x));
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_ULE, x, b));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_ULE, a, x));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_ULE, x, b));
 
   d_optslv->addObjective(x, OptimizationObjective::MINIMIZE, false);
 
   Result r = d_optslv->checkOpt();
 
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
 
   ASSERT_EQ(d_optslv->getValues()[0].getValue().getConst<BitVector>(),
             BitVector(32u, (uint32_t)0x3FFFFFA1));
-  d_smtEngine->resetAssertions();
+  d_slvEngine->resetAssertions();
 }
 
 TEST_F(TestTheoryWhiteBVOpt, signed_min)
@@ -73,21 +73,21 @@ TEST_F(TestTheoryWhiteBVOpt, signed_min)
   Node a = d_nodeManager->mkConst(BitVector(32u, (unsigned)0x80000000));
   Node b = d_nodeManager->mkConst(BitVector(32u, 2147483647u));
   // -2147483648 <= x <= 2147483647
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, a, x));
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, x, b));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, a, x));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, x, b));
 
   d_optslv->addObjective(x, OptimizationObjective::MINIMIZE, true);
 
   Result r = d_optslv->checkOpt();
 
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
 
   BitVector val = d_optslv->getValues()[0].getValue().getConst<BitVector>();
   std::cout << "opt value is: " << val << std::endl;
 
   // expect the minimum x = -1
   ASSERT_EQ(val, BitVector(32u, (uint32_t)0x80000000));
-  d_smtEngine->resetAssertions();
+  d_slvEngine->resetAssertions();
 }
 
 TEST_F(TestTheoryWhiteBVOpt, unsigned_max)
@@ -100,21 +100,21 @@ TEST_F(TestTheoryWhiteBVOpt, unsigned_max)
   // If the gap is too large, it will have a performance issue!!!
   // Need binary search!
   // (unsigned)1 <= x <= (unsigned)2
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_ULE, a, x));
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_ULE, x, b));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_ULE, a, x));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_ULE, x, b));
 
   d_optslv->addObjective(x, OptimizationObjective::MAXIMIZE, false);
 
   Result r = d_optslv->checkOpt();
 
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
 
   BitVector val = d_optslv->getValues()[0].getValue().getConst<BitVector>();
   std::cout << "opt value is: " << val << std::endl;
 
   ASSERT_EQ(d_optslv->getValues()[0].getValue().getConst<BitVector>(),
             BitVector(32u, 2u));
-  d_smtEngine->resetAssertions();
+  d_slvEngine->resetAssertions();
 }
 
 TEST_F(TestTheoryWhiteBVOpt, signed_max)
@@ -125,19 +125,19 @@ TEST_F(TestTheoryWhiteBVOpt, signed_max)
   Node b = d_nodeManager->mkConst(BitVector(32u, 10u));
 
   // -2147483648 <= x <= 10
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, a, x));
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, x, b));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, a, x));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, x, b));
 
   d_optslv->addObjective(x, OptimizationObjective::MAXIMIZE, true);
 
   Result r = d_optslv->checkOpt();
 
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
 
   // expect the maxmum x =
   ASSERT_EQ(d_optslv->getValues()[0].getValue().getConst<BitVector>(),
             BitVector(32u, 10u));
-  d_smtEngine->resetAssertions();
+  d_slvEngine->resetAssertions();
 }
 
 TEST_F(TestTheoryWhiteBVOpt, min_boundary)
@@ -146,23 +146,23 @@ TEST_F(TestTheoryWhiteBVOpt, min_boundary)
   Node y = d_nodeManager->mkVar(*d_BV32Type);
 
   // x <= 18
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(
       kind::BITVECTOR_ULE, d_nodeManager->mkConst(BitVector(32u, 18u)), x));
   // this perturbs the solver to trigger some boundary bug
   // that existed previously
-  d_smtEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, y, x));
+  d_slvEngine->assertFormula(d_nodeManager->mkNode(kind::BITVECTOR_SLE, y, x));
 
   d_optslv->addObjective(x, OptimizationObjective::MINIMIZE, false);
 
   Result r = d_optslv->checkOpt();
 
-  ASSERT_EQ(r.isSat(), Result::SAT);
+  ASSERT_EQ(r.getStatus(), Result::SAT);
 
   // expect the maximum x = 18
   ASSERT_EQ(d_optslv->getValues()[0].getValue().getConst<BitVector>(),
             BitVector(32u, 18u));
-  d_smtEngine->resetAssertions();
+  d_slvEngine->resetAssertions();
 }
 
 }  // namespace test
-}  // namespace cvc5
+}  // namespace cvc5::internal

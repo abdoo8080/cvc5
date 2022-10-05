@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,11 +21,12 @@
 #include <map>
 #include <memory>
 
+#include "smt/env_obj.h"
 #include "theory/ee_setup_info.h"
 #include "theory/theory.h"
 #include "theory/uf/equality_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 class TheoryEngine;
 
@@ -51,7 +52,7 @@ struct EeTheoryInfo
 };
 
 /** Virtual base class for equality engine managers */
-class EqEngineManager
+class EqEngineManager : protected EnvObj
 {
  public:
    /**
@@ -59,7 +60,7 @@ class EqEngineManager
    * @param sharedSolver The shared solver that is being used in combination
    * with this equality engine manager
     */
-  EqEngineManager(TheoryEngine& te, SharedSolver& shs);
+  EqEngineManager(Env& env, TheoryEngine& te, SharedSolver& shs);
   virtual ~EqEngineManager() {}
   /**
    * Initialize theories, called during TheoryEngine::finishInit after theory
@@ -96,6 +97,6 @@ class EqEngineManager
 };
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__EE_MANAGER__H */

@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -24,11 +24,12 @@
 #include "expr/node.h"
 #include "proof/proof_rule.h"
 #include "proof/trust_node.h"
+#include "smt/env_obj.h"
 #include "theory/inference_id.h"
 #include "theory/output_channel.h"
 #include "util/statistics_stats.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 class ProofNodeManager;
 class AnnotationProofGenerator;
@@ -69,7 +70,7 @@ class ProofEqEngine;
  * setEqualityEngine, and use it for handling variants of assertInternalFact
  * below that involve proofs.
  */
-class TheoryInferenceManager
+class TheoryInferenceManager : protected EnvObj
 {
   typedef context::CDHashSet<Node> NodeSet;
 
@@ -88,9 +89,9 @@ class TheoryInferenceManager
    * only lemmas that are unique after rewriting are sent to the theory engine
    * from this inference manager.
    */
-  TheoryInferenceManager(Theory& t,
+  TheoryInferenceManager(Env& env,
+                         Theory& t,
                          TheoryState& state,
-                         ProofNodeManager* pnm,
                          const std::string& statsName,
                          bool cacheLemmas = true);
   virtual ~TheoryInferenceManager();
@@ -447,8 +448,6 @@ class TheoryInferenceManager
   eq::ProofEqEngine* d_pfee;
   /** The proof equality engine we allocated */
   std::unique_ptr<eq::ProofEqEngine> d_pfeeAlloc;
-  /** The proof node manager of the theory */
-  ProofNodeManager* d_pnm;
   /** Proof generator for trusted THEORY_LEMMA steps */
   std::unique_ptr<EagerProofGenerator> d_defaultPg;
   /** The inference id proof annotator */
@@ -484,6 +483,6 @@ class TheoryInferenceManager
 };
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__THEORY_INFERENCE_MANAGER_H */

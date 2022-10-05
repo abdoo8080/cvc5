@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Yoni Zohar, Andres Noetzli, Aina Niemetz
+ *   Yoni Zohar, Andrew Reynolds, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,22 +20,25 @@
 #include "expr/node_traversal.h"
 #include "preprocessing/assertion_pipeline.h"
 #include "preprocessing/preprocessing_pass_context.h"
+#include "smt/env.h"
 #include "theory/rewriter.h"
 #include "theory/strings/arith_entail.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace preprocessing {
 namespace passes {
 
-using namespace cvc5::theory;
-ForeignTheoryRewrite::ForeignTheoryRewrite(PreprocessingPassContext* preprocContext)
-    : PreprocessingPass(preprocContext, "foreign-theory-rewrite"),
-      d_cache(preprocContext->getUserContext()){};
+using namespace cvc5::internal::theory;
 
-Node ForeignTheoryRewrite::simplify(Node n)
+ForeignTheoryRewriter::ForeignTheoryRewriter(Env& env)
+    : EnvObj(env), d_cache(userContext())
+{
+}
+
+Node ForeignTheoryRewriter::simplify(Node n)
 {
   std::vector<Node> toVisit;
-  n = Rewriter::rewrite(n);
+  n = rewrite(n);
   toVisit.push_back(n);
   // traverse n and rewrite until fixpoint
   while (!toVisit.empty())
@@ -86,7 +89,7 @@ Node ForeignTheoryRewrite::simplify(Node n)
   return d_cache[n];
 }
 
-Node ForeignTheoryRewrite::foreignRewrite(Node n)
+Node ForeignTheoryRewriter::foreignRewrite(Node n)
 {
   // n is a rewritten node, and so GT, LT, LEQ
   // should have been eliminated
@@ -101,18 +104,19 @@ Node ForeignTheoryRewrite::foreignRewrite(Node n)
   return n;
 }
 
-Node ForeignTheoryRewrite::rewriteStringsGeq(Node n)
+Node ForeignTheoryRewriter::rewriteStringsGeq(Node n)
 {
+  theory::strings::ArithEntail ae(d_env.getRewriter());
   // check if the node can be simplified to true
-  if (theory::strings::ArithEntail::check(n[0], n[1], false))
+  if (ae.check(n[0], n[1], false))
   {
     return NodeManager::currentNM()->mkConst(true);
   }
   return n;
 }
 
-Node ForeignTheoryRewrite::reconstructNode(Node originalNode,
-                                           std::vector<Node> newChildren)
+Node ForeignTheoryRewriter::reconstructNode(Node originalNode,
+                                            std::vector<Node> newChildren)
 {
   // Nodes with no children are reconstructed to themselves
   if (originalNode.getNumChildren() == 0)
@@ -136,18 +140,25 @@ Node ForeignTheoryRewrite::reconstructNode(Node originalNode,
   return builder.constructNode();
 }
 
+ForeignTheoryRewrite::ForeignTheoryRewrite(
+    PreprocessingPassContext* preprocContext)
+    : PreprocessingPass(preprocContext, "foreign-theory-rewrite"),
+      d_ftr(preprocContext->getEnv())
+{
+}
+
 PreprocessingPassResult ForeignTheoryRewrite::applyInternal(
     AssertionPipeline* assertionsToPreprocess)
 {
-  for (unsigned i = 0; i < assertionsToPreprocess->size(); ++i)
+  for (size_t i = 0, nasserts = assertionsToPreprocess->size(); i < nasserts;
+       ++i)
   {
     assertionsToPreprocess->replace(
-        i, Rewriter::rewrite(simplify((*assertionsToPreprocess)[i])));
+        i, rewrite(d_ftr.simplify((*assertionsToPreprocess)[i])));
   }
-
   return PreprocessingPassResult::NO_CONFLICT;
 }
 
 }  // namespace passes
 }  // namespace preprocessing
-}  // namespace cvc5
+}  // namespace cvc5::internal

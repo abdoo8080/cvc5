@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner
+ *   Andrew Reynolds, Aina Niemetz, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,9 +22,11 @@
 #include <vector>
 
 #include "expr/node.h"
+#include "expr/subs.h"
 #include "expr/type_node.h"
+#include "smt/env_obj.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
@@ -55,10 +57,10 @@ namespace quantifiers {
  * see Example 5 of Reynolds et al. SYNT 2017.
  *
  */
-class SingleInvocationPartition
+class SingleInvocationPartition : protected EnvObj
 {
  public:
-  SingleInvocationPartition() : d_has_input_funcs(false) {}
+  SingleInvocationPartition(Env& env);
   ~SingleInvocationPartition() {}
   /** initialize this partition for formula n, with input functions funcs
    *
@@ -284,15 +286,17 @@ class SingleInvocationPartition
   bool processConjunct(Node n,
                        std::map<Node, bool>& visited,
                        std::vector<Node>& args,
-                       std::vector<Node>& terms,
-                       std::vector<Node>& subs);
+                       Subs& sb);
 
   /** get the and node corresponding to d_conjuncts[index] */
   Node getConjunct(int index);
+  /** Quantified simplify (treat free variables in n as quantified and run
+   * rewriter) */
+  Node getQuantSimplify(TNode n) const;
 };
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__SINGLE_INV_PARTITION_H */

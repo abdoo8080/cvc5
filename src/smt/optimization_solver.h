@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,11 +22,13 @@
 #include "context/cdlist.h"
 #include "expr/node.h"
 #include "expr/type_node.h"
+#include "smt/env_obj.h"
 #include "util/result.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
-class SmtEngine;
+class Env;
+class SolverEngine;
 
 namespace smt {
 
@@ -62,19 +64,13 @@ class OptimizationResult
       : d_result(result), d_value(value), d_infinity(isInf)
   {
   }
-  OptimizationResult()
-      : d_result(Result::Sat::SAT_UNKNOWN,
-                 Result::UnknownExplanation::NO_STATUS),
-        d_value(),
-        d_infinity(FINITE)
-  {
-  }
+  OptimizationResult() : d_result(), d_value(), d_infinity(FINITE) {}
   ~OptimizationResult() = default;
 
   /**
    * Returns an enum indicating whether
    * the result is SAT or not.
-   * @return whether the result is SAT, UNSAT or SAT_UNKNOWN
+   * @return whether the result is SAT, UNSAT or NONE
    **/
   Result getResult() const { return d_result; }
 
@@ -83,7 +79,7 @@ class OptimizationResult
    * @return Node containing the optimal value,
    *   if result is infinite, this will be an empty node,
    *   if getResult() is UNSAT, it will return an empty node,
-   *   if getResult() is SAT_UNKNOWN, it will return something suboptimal
+   *   if getResult() is UNKNOWN, it will return something suboptimal
    *   or an empty node, depending on how the solver runs.
    **/
   Node getValue() const { return d_value; }
@@ -185,11 +181,11 @@ std::ostream& operator<<(std::ostream& out,
  * A solver for optimization queries.
  *
  * This class is responsible for responding to optmization queries. It
- * spawns a subsolver SmtEngine that captures the parent assertions and
+ * spawns a subsolver SolverEngine that captures the parent assertions and
  * implements a linear optimization loop. Supports activateObjective,
  * checkOpt, and objectiveGetValue in that order.
  */
-class OptimizationSolver
+class OptimizationSolver : protected EnvObj
 {
  public:
   /**
@@ -221,7 +217,7 @@ class OptimizationSolver
    * Constructor
    * @param parent the smt_solver that the user added their assertions to
    **/
-  OptimizationSolver(SmtEngine* parent);
+  OptimizationSolver(SolverEngine* parent);
   ~OptimizationSolver() = default;
 
   /**
@@ -254,22 +250,24 @@ class OptimizationSolver
  private:
   /**
    * Initialize an SMT subsolver for offline optimization purpose
+   * @param env the environment, which determines options and logic for the
+   * subsolver
    * @param parentSMTSolver the parental solver containing the assertions
    * @param needsTimeout specifies whether it needs timeout for each single
    *    query
    * @param timeout the timeout value, given in milliseconds (ms)
    * @return a unique_pointer of SMT subsolver
    **/
-  static std::unique_ptr<SmtEngine> createOptCheckerWithTimeout(
-      SmtEngine* parentSMTSolver,
+  static std::unique_ptr<SolverEngine> createOptCheckerWithTimeout(
+      SolverEngine* parentSMTSolver,
       bool needsTimeout = false,
       unsigned long timeout = 0);
 
   /**
    * Optimize multiple goals in Box order
    * @return SAT if all of the objectives are optimal (could be infinite);
-   *   UNSAT if at least one objective is UNSAT and no objective is SAT_UNKNOWN;
-   *   SAT_UNKNOWN if any of the objective is SAT_UNKNOWN.
+   *   UNSAT if at least one objective is UNSAT and no objective is UNKNOWN;
+   *   UNKNOWN if any of the objective is UNKNOWN.
    **/
   Result optimizeBox();
 
@@ -281,10 +279,10 @@ class OptimizationSolver
    *     the optimization will stop at that objective;
    *   UNSAT if any of the objectives is UNSAT
    *     and optimization will stop at that objective;
-   *   SAT_UNKNOWN if any of the objectives is UNKNOWN
+   *   UNKNOWN if any of the objectives is UNKNOWN
    *     and optimization will stop at that objective;
    *   If the optimization is stopped at an objective,
-   *     all objectives following that objective will be SAT_UNKNOWN.
+   *     all objectives following that objective will be UNKNOWN.
    **/
   Result optimizeLexicographicIterative();
 
@@ -302,16 +300,16 @@ class OptimizationSolver
    *
    * @return if it finds a new Pareto optimal result it will return SAT;
    *   if it exhausts the results in the Pareto front it will return UNSAT;
-   *   if the underlying SMT solver returns SAT_UNKNOWN,
-   *   it will return SAT_UNKNOWN.
+   *   if the underlying SMT solver returns UNKNOWN,
+   *   it will return UNKNOWN.
    **/
   Result optimizeParetoNaiveGIA();
 
   /** A pointer to the parent SMT engine **/
-  SmtEngine* d_parent;
+  SolverEngine* d_parent;
 
   /** A subsolver for offline optimization **/
-  std::unique_ptr<SmtEngine> d_optChecker;
+  std::unique_ptr<SolverEngine> d_optChecker;
 
   /** The objectives to optimize for **/
   context::CDList<OptimizationObjective> d_objectives;
@@ -321,6 +319,6 @@ class OptimizationSolver
 };
 
 }  // namespace smt
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__SMT__OPTIMIZATION_SOLVER_H */

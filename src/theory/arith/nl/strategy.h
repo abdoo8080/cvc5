@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Gereon Kremer
+ *   Gereon Kremer, Yoni Zohar, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,7 +19,9 @@
 #include <iosfwd>
 #include <vector>
 
-namespace cvc5 {
+#include "options/options.h"
+
+namespace cvc5::internal {
 namespace theory {
 namespace arith {
 namespace nl {
@@ -32,10 +34,10 @@ enum class InferStep
   /** Flush waiting lemmas to be pending */
   FLUSH_WAITING_LEMMAS,
 
-  /** Initialize the CAD solver */
-  CAD_INIT,
-  /** A full CAD check */
-  CAD_FULL,
+  /** Initialize the coverings solver */
+  COVERINGS_INIT,
+  /** A full coverings check */
+  COVERINGS_FULL,
 
   /** Initialize the IAND solver */
   IAND_INIT,
@@ -170,7 +172,7 @@ class Strategy
   /** Is this strategy initialized? */
   bool isStrategyInit() const;
   /** Initialize this strategy */
-  void initializeStrategy();
+  void initializeStrategy(const Options& options);
   /** Retrieve the strategy for the given effort e */
   StepGenerator getStrategy();
 
@@ -182,6 +184,6 @@ class Strategy
 }  // namespace nl
 }  // namespace arith
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__ARITH__NL__STRATEGY_H */

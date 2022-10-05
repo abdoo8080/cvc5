@@ -1,16 +1,17 @@
-/*********************                                                        */
-/*! \file lfsc_print_channel.h
- ** \verbatim
- ** Top contributors (to current version):
- **   Andrew Reynolds
- ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2020 by the authors listed in the file AUTHORS
- ** in the top-level source directory) and their institutional affiliations.
- ** All rights reserved.  See the file COPYING in the top-level source
- ** directory for licensing information.\endverbatim
- **
- ** \brief The module for printing Lfsc proof nodes
- **/
+/******************************************************************************
+ * Top contributors (to current version):
+ *   Andrew Reynolds
+ *
+ * This file is part of the cvc5 project.
+ *
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
+ * in the top-level source directory and their institutional affiliations.
+ * All rights reserved.  See the file COPYING in the top-level source
+ * directory for licensing information.
+ * ****************************************************************************
+ *
+ * Print channels for LFSC proofs.
+ */
 
 #include "cvc5_private.h"
 
@@ -24,29 +25,44 @@
 #include "printer/let_binding.h"
 #include "proof/lfsc/lfsc_util.h"
 #include "proof/proof_node.h"
-#include "rewriter/rewrite_proof_rule.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace proof {
 
+/**
+ * LFSC proofs are printed in two phases: the first phase computes the
+ * letification of terms in the proof as well as other information that is
+ * required for printing the preamble of the proof. The second phase prints the
+ * proof to an output stream. This is the base class for these two phases.
+ */
 class LfscPrintChannel
 {
  public:
-  LfscPrintChannel() : d_nodeCount(0), d_trustCount(0) {}
+  LfscPrintChannel() {}
   virtual ~LfscPrintChannel() {}
+  /** Print node n */
   virtual void printNode(TNode n) {}
+  /** Print type node n */
   virtual void printTypeNode(TypeNode tn) {}
+  /** Print a hole */
   virtual void printHole() {}
+  /**
+   * Print an application of the trusting the result res, whose source is the
+   * given proof rule.
+   */
   virtual void printTrust(TNode res, PfRule src) {}
+  /** Print the opening of the rule of proof rule pn, e.g. "(and_elim ". */
   virtual void printOpenRule(const ProofNode* pn) {}
+  /** Print the opening of LFSC rule lr, e.g. "(cong " */
   virtual void printOpenLfscRule(LfscRule lr) {}
+  /** Print the closing of # nparen proof rules */
   virtual void printCloseRule(size_t nparen = 1) {}
+  /** Print a letified proof with the given identifier */
   virtual void printProofId(size_t id) {}
+  /** Print a proof assumption with the given identifier */
   virtual void printAssumeId(size_t id) {}
+  /** Print an end line */
   virtual void printEndLine() {}
-  /** temproary debug */
-  size_t d_nodeCount;
-  size_t d_trustCount;
 };
 
 /** Prints the proof to output stream d_out */
@@ -77,7 +93,6 @@ class LfscPrintChannelOut : public LfscPrintChannel
   static void printId(std::ostream& out, size_t id);
   static void printProofId(std::ostream& out, size_t id);
   static void printAssumeId(std::ostream& out, size_t id);
-  static void printDslProofRuleId(std::ostream& out, rewriter::DslPfRule id);
   //------------------- end helper methods
  private:
   /**
@@ -102,17 +117,12 @@ class LfscPrintChannelPre : public LfscPrintChannel
   void printTrust(TNode res, PfRule src) override;
   void printOpenRule(const ProofNode* pn) override;
 
-  /** Get the DSL rewrites */
-  const std::unordered_set<rewriter::DslPfRule>& getDslRewrites() const;
-
  private:
   /** The let binding */
   LetBinding& d_lbind;
-  /** The DSL rules we have seen */
-  std::unordered_set<rewriter::DslPfRule> d_dprs;
 };
 
 }  // namespace proof
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

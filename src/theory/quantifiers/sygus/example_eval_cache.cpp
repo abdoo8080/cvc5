@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Aina Niemetz
+ *   Andrew Reynolds, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -15,33 +15,27 @@
 #include "theory/quantifiers/sygus/example_eval_cache.h"
 
 #include "theory/quantifiers/sygus/example_min_eval.h"
-#include "theory/quantifiers/sygus/synth_conjecture.h"
 
-using namespace cvc5;
-using namespace cvc5::kind;
+using namespace cvc5::internal;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
 ExampleEvalCache::ExampleEvalCache(TermDbSygus* tds,
-                                   SynthConjecture* p,
-                                   Node f,
                                    Node e)
     : d_tds(tds), d_stn(e.getType())
 {
-  ExampleInfer* ei = p->getExampleInfer();
-  Assert(ei->hasExamples(f));
-  for (unsigned i = 0, nex = ei->getNumExamples(f); i < nex; i++)
-  {
-    std::vector<Node> input;
-    ei->getExample(f, i, input);
-    d_examples.push_back(input);
-  }
   d_indexSearchVals = !d_tds->isVariableAgnosticEnumerator(e);
 }
 
 ExampleEvalCache::~ExampleEvalCache() {}
+
+void ExampleEvalCache::addExample(const std::vector<Node>& ex)
+{
+  d_examples.push_back(ex);
+}
 
 Node ExampleEvalCache::addSearchVal(TypeNode tn, Node bv)
 {
@@ -63,7 +57,7 @@ Node ExampleEvalCache::addSearchVal(TypeNode tn, Node bv)
   {
     clearEvaluationCache(bv);
   }
-  Assert(ret.getType().isComparableTo(bv.getType()));
+  Assert(ret.getType() == bv.getType());
   return ret;
 }
 
@@ -119,4 +113,4 @@ void ExampleEvalCache::clearEvaluationAll() { d_exOutCache.clear(); }
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

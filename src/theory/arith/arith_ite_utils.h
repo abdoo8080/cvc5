@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Tim King, Mathias Preiner, Aina Niemetz
+ *   Tim King, Aina Niemetz, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -28,9 +28,10 @@
 #include "context/cdinsert_hashmap.h"
 #include "context/cdo.h"
 #include "expr/node.h"
+#include "smt/env_obj.h"
 #include "util/integer.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace preprocessing {
 namespace util {
 class ContainsTermITEVisitor;
@@ -43,7 +44,8 @@ class SubstitutionMap;
 
 namespace arith {
 
-class ArithIteUtils {
+class ArithIteUtils : protected EnvObj
+{
   preprocessing::util::ContainsTermITEVisitor& d_contains;
   SubstitutionMap& d_subs;
 
@@ -62,7 +64,7 @@ class ArithIteUtils {
 
   Integer d_one;
 
-  context::CDO<unsigned> d_subcount;
+  context::CDO<uint64_t> d_subcount;
   typedef context::CDInsertHashMap<Node, Node> CDNodeMap;
   CDNodeMap d_skolems;
 
@@ -72,8 +74,8 @@ class ArithIteUtils {
   std::vector<Node> d_orBinEqs;
 
 public:
- ArithIteUtils(preprocessing::util::ContainsTermITEVisitor& contains,
-               context::Context* userContext,
+ ArithIteUtils(Env& env,
+               preprocessing::util::ContainsTermITEVisitor& contains,
                SubstitutionMap& subs);
  ~ArithIteUtils();
 
@@ -111,6 +113,6 @@ private:
 
 }  // namespace arith
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__ARITH__ARITH_ITE_UTILS_H */

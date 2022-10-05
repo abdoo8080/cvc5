@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Haniel Barbosa, Aina Niemetz
+ *   Andrew Reynolds, Gereon Kremer, Haniel Barbosa
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,17 +23,19 @@
 #include "theory/quantifiers/term_util.h"
 #include "util/random.h"
 
-using namespace cvc5;
-using namespace cvc5::kind;
+using namespace cvc5::internal;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
-SygusPbe::SygusPbe(QuantifiersInferenceManager& qim,
+SygusPbe::SygusPbe(Env& env,
+                   QuantifiersState& qs,
+                   QuantifiersInferenceManager& qim,
                    TermDbSygus* tds,
                    SynthConjecture* p)
-    : SygusModule(qim, tds, p)
+    : SygusModule(env, qs, qim, tds, p)
 {
   d_true = NodeManager::currentNM()->mkConst(true);
   d_false = NodeManager::currentNM()->mkConst(false);
@@ -49,7 +51,7 @@ bool SygusPbe::initialize(Node conj,
   Trace("sygus-pbe") << "Initialize PBE : " << n << std::endl;
   NodeManager* nm = NodeManager::currentNM();
 
-  if (!options::sygusUnifPbe())
+  if (!options().quantifiers.sygusUnifPbe)
   {
     // we are not doing unification
     return false;
@@ -70,7 +72,7 @@ bool SygusPbe::initialize(Node conj,
   for (const Node& c : candidates)
   {
     Assert(ei->hasExamples(c));
-    d_sygus_unif[c].reset(new SygusUnifIo(d_parent));
+    d_sygus_unif[c].reset(new SygusUnifIo(d_env, d_parent));
     Trace("sygus-pbe") << "Initialize unif utility for " << c << "..."
                        << std::endl;
     std::map<Node, std::vector<Node>> strategy_lemmas;
@@ -130,7 +132,7 @@ bool SygusPbe::initialize(Node conj,
         // Apply extended rewriting on the lemma. This helps utilities like
         // SygusEnumerator more easily recognize the shape of this lemma, e.g.
         // ( ~is-ite(x) or ( ~is-ite(x) ^ P ) ) --> ~is-ite(x).
-        lem = d_tds->getExtRewriter()->extendedRewrite(lem);
+        lem = extendedRewrite(lem);
         Trace("sygus-pbe") << "  static redundant op lemma : " << lem
                            << std::endl;
         // Register as a symmetry breaking lemma with the term database.
@@ -160,7 +162,10 @@ void SygusPbe::getTermList(const std::vector<Node>& candidates,
   }
 }
 
-bool SygusPbe::allowPartialModel() { return !options::sygusPbeMultiFair(); }
+bool SygusPbe::allowPartialModel()
+{
+  return !options().quantifiers.sygusPbeMultiFair;
+}
 
 bool SygusPbe::constructCandidates(const std::vector<Node>& enums,
                                    const std::vector<Node>& enum_values,
@@ -192,13 +197,13 @@ bool SygusPbe::constructCandidates(const std::vector<Node>& enums,
       }
     }
     // Assume two enumerators of types T1 and T2.
-    // If options::sygusPbeMultiFair() is true,
+    // If the sygusPbeMultiFair option is true,
     // we ensure that all values of type T1 and size n are enumerated before
     // any term of type T2 of size n+d, and vice versa, where d is
-    // set by options::sygusPbeMultiFairDiff(). If d is zero, then our
+    // set by the sygusPbeMultiFairDiff option. If d is zero, then our
     // enumeration is such that all terms of T1 or T2 of size n are considered
     // before any term of size n+1.
-    int diffAllow = options::sygusPbeMultiFairDiff();
+    int diffAllow = options().quantifiers.sygusPbeMultiFairDiff;
     std::vector<unsigned> enum_consider;
     for (unsigned i = 0, esize = enums.size(); i < esize; i++)
     {
@@ -206,7 +211,7 @@ bool SygusPbe::constructCandidates(const std::vector<Node>& enums,
       {
         Assert(szs[i] >= min_term_size);
         int diff = szs[i] - min_term_size;
-        if (!options::sygusPbeMultiFair() || diff <= diffAllow)
+        if (!options().quantifiers.sygusPbeMultiFair || diff <= diffAllow)
         {
           enum_consider.push_back(i);
         }
@@ -265,4 +270,4 @@ bool SygusPbe::constructCandidates(const std::vector<Node>& enums,
 
 }
 }
-}  // namespace cvc5
+}  // namespace cvc5::internal

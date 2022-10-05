@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Aina Niemetz
+ *   Andrew Reynolds, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,15 +19,19 @@
 #include "expr/node_algorithm.h"
 #include "expr/skolem_manager.h"
 #include "theory/quantifiers/term_util.h"
-#include "theory/rewriter.h"
 
-using namespace cvc5;
-using namespace cvc5::kind;
+using namespace cvc5::internal;
+using namespace cvc5::internal::kind;
 using namespace std;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
+
+SingleInvocationPartition::SingleInvocationPartition(Env& env)
+    : EnvObj(env), d_has_input_funcs(false)
+{
+}
 
 bool SingleInvocationPartition::init(Node n)
 {
@@ -221,7 +225,7 @@ bool SingleInvocationPartition::init(std::vector<Node>& funcs,
                                    d_input_funcs.end(),
                                    d_input_func_sks.begin(),
                                    d_input_func_sks.end());
-      cr = TermUtil::getQuantSimplify(cr);
+      cr = getQuantSimplify(cr);
       cr = cr.substitute(d_input_func_sks.begin(),
                          d_input_func_sks.end(),
                          d_input_funcs.begin(),
@@ -233,42 +237,37 @@ bool SingleInvocationPartition::init(std::vector<Node>& funcs,
       std::map<Node, bool> visited;
       // functions to arguments
       std::vector<Node> args;
-      std::vector<Node> terms;
-      std::vector<Node> subs;
+      Subs sb;
       bool singleInvocation = true;
       bool ngroundSingleInvocation = false;
-      if (processConjunct(cr, visited, args, terms, subs))
+      if (processConjunct(cr, visited, args, sb))
       {
-        for (unsigned j = 0; j < terms.size(); j++)
+        for (size_t j = 0, vsize = sb.d_vars.size(); j < vsize; j++)
         {
-          si_terms.push_back(subs[j]);
-          Node op = subs[j].hasOperator() ? subs[j].getOperator() : subs[j];
+          Node s = sb.d_subs[j];
+          si_terms.push_back(s);
+          Node op = s.hasOperator() ? s.getOperator() : s;
           Assert(d_func_fo_var.find(op) != d_func_fo_var.end());
           si_subs.push_back(d_func_fo_var[op]);
         }
         std::map<Node, Node> subs_map;
         std::map<Node, Node> subs_map_rev;
         // normalize the invocations
-        if (!terms.empty())
+        if (!sb.empty())
         {
-          Assert(terms.size() == subs.size());
-          cr = cr.substitute(
-              terms.begin(), terms.end(), subs.begin(), subs.end());
+          cr = sb.apply(cr);
         }
         std::vector<Node> children;
         children.push_back(cr);
-        terms.clear();
-        subs.clear();
+        sb.clear();
         Trace("si-prt") << "...single invocation, with arguments: "
                         << std::endl;
         for (unsigned j = 0; j < args.size(); j++)
         {
           Trace("si-prt") << args[j] << " ";
-          if (args[j].getKind() == BOUND_VARIABLE
-              && std::find(terms.begin(), terms.end(), args[j]) == terms.end())
+          if (args[j].getKind() == BOUND_VARIABLE && !sb.contains(args[j]))
           {
-            terms.push_back(args[j]);
-            subs.push_back(d_si_vars[j]);
+            sb.add(args[j], d_si_vars[j]);
           }
           else
           {
@@ -276,12 +275,8 @@ bool SingleInvocationPartition::init(std::vector<Node>& funcs,
           }
         }
         Trace("si-prt") << std::endl;
-        cr = children.size() == 1
-                 ? children[0]
-                 : NodeManager::currentNM()->mkNode(OR, children);
-        Assert(terms.size() == subs.size());
-        cr =
-            cr.substitute(terms.begin(), terms.end(), subs.begin(), subs.end());
+        cr = nm->mkOr(children);
+        cr = sb.apply(cr);
         Trace("si-prt-debug") << "...normalized invocations to " << cr
                               << std::endl;
         // now must check if it has other bound variables
@@ -345,7 +340,6 @@ bool SingleInvocationPartition::init(std::vector<Node>& funcs,
         cr = cr.substitute(
             termsNs.begin(), termsNs.end(), subsNs.begin(), subsNs.end());
       }
-      cr = Rewriter::rewrite(cr);
       Trace("si-prt") << ".....got si=" << singleInvocation
                       << ", result : " << cr << std::endl;
       d_conjuncts[2].push_back(cr);
@@ -358,7 +352,6 @@ bool SingleInvocationPartition::init(std::vector<Node>& funcs,
         Assert(si_terms.size() == si_subs.size());
         cr = cr.substitute(
             si_terms.begin(), si_terms.end(), si_subs.begin(), si_subs.end());
-        cr = Rewriter::rewrite(cr);
         Trace("si-prt") << ".....si version=" << cr << std::endl;
         d_conjuncts[0].push_back(cr);
       }
@@ -417,8 +410,7 @@ bool SingleInvocationPartition::collectConjuncts(Node n,
 bool SingleInvocationPartition::processConjunct(Node n,
                                                 std::map<Node, bool>& visited,
                                                 std::vector<Node>& args,
-                                                std::vector<Node>& terms,
-                                                std::vector<Node>& subs)
+                                                Subs& sb)
 {
   std::map<Node, bool>::iterator it = visited.find(n);
   if (it != visited.end())
@@ -430,7 +422,7 @@ bool SingleInvocationPartition::processConjunct(Node n,
     bool ret = true;
     for (unsigned i = 0; i < n.getNumChildren(); i++)
     {
-      if (!processConjunct(n[i], visited, args, terms, subs))
+      if (!processConjunct(n[i], visited, args, sb))
       {
         ret = false;
       }
@@ -445,7 +437,20 @@ bool SingleInvocationPartition::processConjunct(Node n,
         if (std::find(d_input_funcs.begin(), d_input_funcs.end(), f)
             != d_input_funcs.end())
         {
-          success = true;
+          // If n is an application of a function-to-synthesize f, or is
+          // itself a function-to-synthesize, then n must be fully applied.
+          // This catches cases where n is a function-to-synthesize that occurs
+          // in a higher-order context.
+          // If the type of n is functional, then it is not fully applied.
+          if (n.getType().isFunction())
+          {
+            ret = false;
+            success = false;
+          }
+          else
+          {
+            success = true;
+          }
         }
       }
       else
@@ -458,7 +463,8 @@ bool SingleInvocationPartition::processConjunct(Node n,
       }
       if (success)
       {
-        if (std::find(terms.begin(), terms.end(), n) == terms.end())
+        Trace("si-prt-debug") << "Process " << n << std::endl;
+        if (!sb.contains(n))
         {
           // check if it matches the type requirement
           if (isAntiSkolemizableType(f))
@@ -487,8 +493,7 @@ bool SingleInvocationPartition::processConjunct(Node n,
             }
             if (ret)
             {
-              terms.push_back(n);
-              subs.push_back(d_func_inv[f]);
+              sb.add(n, d_func_inv[f]);
             }
           }
           else
@@ -500,7 +505,6 @@ bool SingleInvocationPartition::processConjunct(Node n,
         }
       }
     }
-    //}
     visited[n] = ret;
     return ret;
   }
@@ -615,6 +619,21 @@ void SingleInvocationPartition::debugPrint(const char* c)
   Trace(c) << std::endl;
 }
 
+Node SingleInvocationPartition::getQuantSimplify(TNode n) const
+{
+  std::unordered_set<Node> fvs;
+  expr::getFreeVariables(n, fvs);
+  if (fvs.empty())
+  {
+    return rewrite(n);
+  }
+  std::vector<Node> bvs(fvs.begin(), fvs.end());
+  NodeManager* nm = NodeManager::currentNM();
+  Node q = nm->mkNode(FORALL, nm->mkNode(BOUND_VAR_LIST, bvs), n);
+  q = rewrite(q);
+  return TermUtil::getRemoveQuantifiers(q);
+}
+
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

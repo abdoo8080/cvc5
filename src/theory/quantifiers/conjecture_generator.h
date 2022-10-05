@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,10 +21,11 @@
 #include "context/cdhashmap.h"
 #include "expr/node_trie.h"
 #include "expr/term_canonize.h"
+#include "smt/env_obj.h"
 #include "theory/quantifiers/quant_module.h"
 #include "theory/type_enumerator.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
@@ -273,9 +274,9 @@ class ConjectureGenerator : public QuantifiersModule
   NotifyClass d_notify;
   class EqcInfo{
   public:
-    EqcInfo( context::Context* c );
-    //representative
-    context::CDO< Node > d_rep;
+   EqcInfo(context::Context* c);
+   // representative
+   context::CDO<Node> d_rep;
   };
   /** get or make eqc info */
   EqcInfo* getOrMakeEqcInfo( TNode n, bool doMake = false );
@@ -437,7 +438,8 @@ private:  //information about ground equivalence classes
   unsigned flushWaitingConjectures( unsigned& addedLemmas, int ldepth, int rdepth );
 
  public:
-  ConjectureGenerator(QuantifiersState& qs,
+  ConjectureGenerator(Env& env,
+                      QuantifiersState& qs,
                       QuantifiersInferenceManager& qim,
                       QuantifiersRegistry& qr,
                       TermRegistry& tr);
@@ -467,6 +469,6 @@ private:  //information about ground equivalence classes
 
 }
 }
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

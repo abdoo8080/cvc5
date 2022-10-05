@@ -31,8 +31,11 @@ Compilation on macOS
 On macOS, we recommend using `Homebrew <https://brew.sh/>`_ to install the
 dependencies.  We also have a Homebrew Tap available at
 https://github.com/CVC4/homebrew-cvc4 .
-To build a static binary for macOS, use:
-``./configure.sh --static --no-static-binary``.
+Note that linking system libraries statically is
+`strongly discouraged <https://developer.apple.com/library/archive/qa/qa1118/_index.html>`_
+on macOS. Using ``./configure.sh --static`` will thus produce a binary
+that uses static versions of all our dependencies, but is still a dynamically
+linked binary.
 
 
 Cross-compiling for Windows
@@ -171,19 +174,6 @@ cvc5 with GLPK support, you are licensing cvc5 under that same license. (Usually
 cvc5's license is more permissive; see above discussion.)
 
 
-ABC library (Improved Bit-Vector Support)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-`ABC <http://www.eecs.berkeley.edu/~alanmi/abc/>`_ (A System for Sequential
-Synthesis and Verification) is a library for synthesis and verification of logic
-circuits. This dependency may improve performance of the eager bit-vector
-solver. When enabled, the bit-blasted formula is encoded into
-and-inverter-graphs (AIG) and ABC is used to simplify these AIGs.
-
-ABC can be installed using the ``contrib/get-abc`` script. Configure cvc5 with
-``configure.sh --abc`` to build with this dependency.
-
-
 Editline library (Improved Interactive Experience)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -197,8 +187,9 @@ Google Test Unit Testing Framework (Unit Tests)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 `Google Test <https://github.com/google/googletest>`_ is required to optionally
-run cvc5's unit tests (included with the distribution). See :ref:`Testing cvc5
-<testing-cvc5>` below for more details.
+run cvc5's unit tests (included with the distribution). 
+See `Testing cvc5 <#testing-cvc5>`_
+below for more details.
 
 
 Language bindings
@@ -233,18 +224,17 @@ Building the API documentation of cvc5 requires the following dependencies:
 
 - `Doxygen <https://www.doxygen.nl>`_
 - `Sphinx <https://www.sphinx-doc.org>`_,
+  `sphinx-rtd-theme <https://sphinx-rtd-theme.readthedocs.io/>`_,
   `sphinx-tabs <https://sphinx-tabs.readthedocs.io/>`_,
-  `sphinxcontrib-bibtex <https://sphinxcontrib-bibtex.readthedocs.io>`_
+  `sphinxcontrib-bibtex <https://sphinxcontrib-bibtex.readthedocs.io>`_,
+  `sphinxcontrib-programoutput <https://sphinxcontrib-programoutput.readthedocs.io>`_
 - `Breathe <https://breathe.readthedocs.io>`_
 
-To build the documentation, configure cvc5 with ``./configure.sh --docs``.
-Building cvc5 will then include building the API documentation.
+To build the documentation, configure cvc5 with ``./configure.sh --docs`` and
+run ``make docs`` from within the build directory.
 
 The API documentation can then be found at
 ``<build_dir>/docs/sphinx/index.html``.
-
-To only build the documentation, change to the build directory and call
-``make docs``.
 
 To build the documentation for GitHub pages, change to the build directory and
 call ``make docs-gh``. The content of directory ``<build_dir>/docs/sphinx-gh``
@@ -413,7 +403,7 @@ linked LGPL libraries perform the following steps:
 
 .. code::
   
-  wget https://github.com/CVC4/CVC4/archive/<commit-sha>.tar.gz
+  wget https://github.com/cvc5/cvc5/archive/<commit-sha>.tar.gz
 
 4. Extract the source code
 

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner
+ *   Andrew Reynolds, Mathias Preiner, Mudathir Mohamed
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -17,30 +17,26 @@
 
 #include "theory/uf/equality_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
-TheoryState::TheoryState(context::Context* c,
-                         context::UserContext* u,
-                         Valuation val)
-    : d_context(c),
-      d_ucontext(u),
-      d_valuation(val),
-      d_ee(nullptr),
-      d_conflict(c, false)
+TheoryState::TheoryState(Env& env, Valuation val)
+    : EnvObj(env), d_valuation(val), d_ee(nullptr), d_conflict(context(), false)
 {
 }
 
 void TheoryState::setEqualityEngine(eq::EqualityEngine* ee) { d_ee = ee; }
 
-context::Context* TheoryState::getSatContext() const { return d_context; }
-
-context::UserContext* TheoryState::getUserContext() const { return d_ucontext; }
-
-bool TheoryState::hasTerm(TNode a) const
+bool TheoryState::hasTerm(TNode t) const
 {
   Assert(d_ee != nullptr);
-  return d_ee->hasTerm(a);
+  return d_ee->hasTerm(t);
+}
+
+void TheoryState::addTerm(TNode t)
+{
+  Assert(d_ee != nullptr);
+  d_ee->addTerm(t);
 }
 
 TNode TheoryState::getRepresentative(TNode t) const
@@ -172,12 +168,7 @@ context::CDList<Assertion>::const_iterator TheoryState::factsEnd(TheoryId tid)
   return d_valuation.factsEnd(tid);
 }
 
-bool TheoryState::isFiniteType(TypeNode tn) const
-{
-  return d_valuation.isFiniteType(tn);
-}
-
 Valuation& TheoryState::getValuation() { return d_valuation; }
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

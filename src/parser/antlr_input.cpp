@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Christopher L. Conway, Kshitij Bansal, Tim King
+ *   Kshitij Bansal, Christopher L. Conway, Tim King
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,9 +23,7 @@
 #include "parser/antlr_line_buffered_input.h"
 #include "parser/bounded_token_buffer.h"
 #include "parser/bounded_token_factory.h"
-#include "parser/cvc/cvc_input.h"
 #include "parser/input.h"
-#include "parser/memory_mapped_input_buffer.h"
 #include "parser/parser.h"
 #include "parser/parser_exception.h"
 #include "parser/smt2/smt2_input.h"
@@ -33,9 +31,6 @@
 #include "parser/tptp/tptp_input.h"
 
 using namespace std;
-using namespace cvc5;
-using namespace cvc5::parser;
-using namespace cvc5::kind;
 
 namespace cvc5 {
 namespace parser {
@@ -129,24 +124,11 @@ pANTLR3_INPUT_STREAM AntlrInputStream::getAntlr3InputStream() const {
   return d_input;
 }
 
-
-
-AntlrInputStream*
-AntlrInputStream::newFileInputStream(const std::string& name,
-                                     bool useMmap)
+AntlrInputStream* AntlrInputStream::newFileInputStream(const std::string& name)
 {
-#ifdef _WIN32
-  if(useMmap) {
-    useMmap = false;
-  }
-#endif
-  pANTLR3_INPUT_STREAM input = NULL;
-  if(useMmap) {
-    input = MemoryMappedInputBufferNew(name);
-  } else {
-    input = newAntlr3FileStream(name);
-  }
-  if(input == NULL) {
+  pANTLR3_INPUT_STREAM input = newAntlr3FileStream(name);
+  if (input == nullptr)
+  {
     throw InputStreamException("Couldn't open file: " + name);
   }
   return new AntlrInputStream(name, input, false, NULL, NULL);
@@ -185,38 +167,26 @@ AntlrInputStream::newStringInputStream(const std::string& input,
   return new AntlrInputStream(name, inputStream, false, input_duplicate, NULL);
 }
 
-AntlrInput* AntlrInput::newInput(InputLanguage lang, AntlrInputStream& inputStream) {
-  using namespace language::input;
-
-  AntlrInput* input;
-
-  switch(lang) {
-    case LANG_CVC:
-    {
-      input = new CvcInput(inputStream);
-      break;
-    }
-
-  case LANG_SYGUS_V2: input = new SygusInput(inputStream); break;
-
-  case LANG_TPTP:
-    input = new TptpInput(inputStream);
-    break;
-
-  default:
-    if (language::isInputLang_smt2(lang))
-    {
-      input = new Smt2Input(inputStream);
-    }
-    else
-    {
-      std::stringstream ss;
-      ss << "unable to detect input file format, try --lang ";
-      throw InputStreamException(ss.str());
-    }
+AntlrInput* AntlrInput::newInput(const std::string& lang,
+                                 AntlrInputStream& inputStream)
+{
+  if (lang == "LANG_SYGUS_V2")
+  {
+    return new SygusInput(inputStream);
   }
-
-  return input;
+  else if (lang == "LANG_TPTP")
+  {
+    return new TptpInput(inputStream);
+  }
+  else if (lang == "LANG_SMTLIB_V2_6")
+  {
+    return new Smt2Input(inputStream);
+  }
+  else
+  {
+    throw InputStreamException(
+        "unable to detect input file format, try --lang ");
+  }
 }
 
 AntlrInput::AntlrInput(AntlrInputStream& inputStream, unsigned int lookahead) :
@@ -402,9 +372,9 @@ std::string parseErrorHelper(const char* lineStart,
         // we found the right place
         string word = slice.substr(caretPos, (caretPosOrig - caretPos + 1));
         size_t matchLoc = wholeWordMatch(message, word, isSimpleChar);
-        Debug("friendlyparser") << "[friendlyparser] matchLoc = " << matchLoc << endl;
+        Trace("friendlyparser") << "[friendlyparser] matchLoc = " << matchLoc << endl;
         if( matchLoc != string::npos ) {
-          Debug("friendlyparser") << "[friendlyparser] Feeling good." << std::endl;
+          Trace("friendlyparser") << "[friendlyparser] Feeling good." << std::endl;
         }
       }
     } else {
@@ -425,10 +395,10 @@ std::string parseErrorHelper(const char* lineStart,
           }
           string word = slice.substr(nearestWordSt, (nearestWordEn - nearestWordSt + 1));
           size_t matchLoc = wholeWordMatch(message, word, isSimpleChar);
-          Debug("friendlyparser") << "[friendlyparser] nearest word = " << word << std::endl;
-          Debug("friendlyparser") << "[friendlyparser] matchLoc = " << matchLoc << endl;
+          Trace("friendlyparser") << "[friendlyparser] nearest word = " << word << std::endl;
+          Trace("friendlyparser") << "[friendlyparser] matchLoc = " << matchLoc << endl;
           if( matchLoc != string::npos ) {
-            Debug("friendlyparser") << "[friendlyparser] strong evidence that caret should be at "
+            Trace("friendlyparser") << "[friendlyparser] strong evidence that caret should be at "
                                     << nearestWordSt << std::endl;
             foundCaretPos = true;
           }
@@ -466,7 +436,7 @@ void AntlrInput::parseError(const std::string& message, bool eofException)
       d_lexer->getCharPositionInLine(d_lexer),
       message);
 
-  Debug("parser") << "Throwing exception: "
+  Trace("parser") << "Throwing exception: "
       << (const char*)d_lexer->rec->state->tokSource->fileName->chars << ":"
       << d_lexer->getLine(d_lexer) << "."
       << d_lexer->getCharPositionInLine(d_lexer) << ": "

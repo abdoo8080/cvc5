@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner
+ *   Andrew Reynolds
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,14 +18,19 @@
 #include "theory/datatypes/sygus_datatype_utils.h"
 #include "theory/quantifiers/sygus/example_eval_cache.h"
 #include "theory/quantifiers/sygus/sygus_stats.h"
+#include "theory/quantifiers/sygus/term_database_sygus.h"
 #include "theory/quantifiers/sygus_sampler.h"
+#include "theory/rewriter.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
-SygusEnumeratorCallback::SygusEnumeratorCallback(Node e, SygusStatistics* s)
-    : d_enum(e), d_stats(s)
+SygusEnumeratorCallback::SygusEnumeratorCallback(Env& env,
+                                                 Node e,
+                                                 TermDbSygus* tds,
+                                                 SygusStatistics* s)
+    : EnvObj(env), d_enum(e), d_tds(tds), d_stats(s)
 {
   d_tn = e.getType();
 }
@@ -33,7 +38,7 @@ SygusEnumeratorCallback::SygusEnumeratorCallback(Node e, SygusStatistics* s)
 bool SygusEnumeratorCallback::addTerm(Node n, std::unordered_set<Node>& bterms)
 {
   Node bn = datatypes::utils::sygusToBuiltin(n);
-  Node bnr = d_extr.extendedRewrite(bn);
+  Node bnr = d_tds == nullptr ? extendedRewrite(bn) : d_tds->rewriteNode(bn);
   if (d_stats != nullptr)
   {
     ++(d_stats->d_enumTermsRewrite);
@@ -45,7 +50,7 @@ bool SygusEnumeratorCallback::addTerm(Node n, std::unordered_set<Node>& bterms)
   // First, must be unique up to rewriting
   if (bterms.find(bnr) != bterms.end())
   {
-    Trace("sygus-enum-exc") << "Exclude: " << bn << std::endl;
+    Trace("sygus-enum-exc") << "Exclude (by rewriting): " << bn << std::endl;
     return false;
   }
   // insert to builtin term cache, regardless of whether it is redundant
@@ -54,8 +59,6 @@ bool SygusEnumeratorCallback::addTerm(Node n, std::unordered_set<Node>& bterms)
   // callback-specific add term
   if (!addTermInternal(n, bn, bnr))
   {
-    Trace("sygus-enum-exc")
-        << "Exclude: " << bn << " due to callback" << std::endl;
     return false;
   }
   Trace("sygus-enum-terms") << "tc(" << d_tn << "): term " << bn << std::endl;
@@ -63,8 +66,17 @@ bool SygusEnumeratorCallback::addTerm(Node n, std::unordered_set<Node>& bterms)
 }
 
 SygusEnumeratorCallbackDefault::SygusEnumeratorCallbackDefault(
-    Node e, SygusStatistics* s, ExampleEvalCache* eec, SygusSampler* ssrv)
-    : SygusEnumeratorCallback(e, s), d_eec(eec), d_samplerRrV(ssrv)
+    Env& env,
+    Node e,
+    TermDbSygus* tds,
+    SygusStatistics* s,
+    ExampleEvalCache* eec,
+    SygusSampler* ssrv,
+    std::ostream* out)
+    : SygusEnumeratorCallback(env, e, tds, s),
+      d_eec(eec),
+      d_samplerRrV(ssrv),
+      d_out(out)
 {
 }
 void SygusEnumeratorCallbackDefault::notifyTermInternal(Node n,
@@ -73,7 +85,8 @@ void SygusEnumeratorCallbackDefault::notifyTermInternal(Node n,
 {
   if (d_samplerRrV != nullptr)
   {
-    d_samplerRrV->checkEquivalent(bn, bnr);
+    Assert(d_out != nullptr);
+    d_samplerRrV->checkEquivalent(bn, bnr, *d_out);
   }
 }
 
@@ -104,4 +117,4 @@ bool SygusEnumeratorCallbackDefault::addTermInternal(Node n, Node bn, Node bnr)
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

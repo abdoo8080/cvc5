@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -26,12 +26,12 @@
 
 #include "base/output.h"
 #include "expr/node.h"
-#include "expr/uninterpreted_constant.h"
 #include "util/bitvector.h"
 #include "util/rational.h"
 #include "util/string.h"
+#include "util/uninterpreted_sort_value.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 /**
@@ -47,7 +47,7 @@ struct EvalResult
     BITVECTOR,
     RATIONAL,
     STRING,
-    UCONST,
+    UVALUE,
     INVALID
   } d_tag;
 
@@ -58,7 +58,7 @@ struct EvalResult
     BitVector d_bv;
     Rational d_rat;
     String d_str;
-    UninterpretedConstant d_uc;
+    UninterpretedSortValue d_av;
   };
 
   EvalResult(const EvalResult& other);
@@ -67,7 +67,7 @@ struct EvalResult
   EvalResult(const BitVector& bv) : d_tag(BITVECTOR), d_bv(bv) {}
   EvalResult(const Rational& i) : d_tag(RATIONAL), d_rat(i) {}
   EvalResult(const String& str) : d_tag(STRING), d_str(str) {}
-  EvalResult(const UninterpretedConstant& u) : d_tag(UCONST), d_uc(u) {}
+  EvalResult(const UninterpretedSortValue& av) : d_tag(UVALUE), d_av(av) {}
 
   EvalResult& operator=(const EvalResult& other);
 
@@ -75,10 +75,13 @@ struct EvalResult
 
   /**
    * Converts the result to a Node. If the result is not valid, this function
-   * returns the null node.
+   * returns the null node. This method takes a type to distinguish integer
+   * and real constants, which are both represented as RATIONAL results.
    */
-  Node toNode() const;
+  Node toNode(const TypeNode& tn) const;
 };
+
+class Rewriter;
 
 /**
  * The class that performs the actual evaluation of a term under a
@@ -88,6 +91,11 @@ struct EvalResult
 class Evaluator
 {
  public:
+  /**
+   * @param rr (optional) the rewriter to use when a node cannot be evaluated.
+   * @param strAlphaCard The assumed cardinality of the alphabet for strings.
+   */
+  Evaluator(Rewriter* rr, uint32_t strAlphaCard = 196608);
   /**
    * Evaluates node `n` under the substitution described by the variable names
    * `args` and the corresponding values `vals`. This method uses evaluation
@@ -101,24 +109,22 @@ class Evaluator
    * rewriter for computing the result of this method.
    *
    * The result of this call is either equivalent to:
-   * (1) Rewriter::rewrite(n.substitute(args,vars))
+   * (1) rewrite(n.substitute(args,vars))
    * (2) Node::null().
-   * If useRewriter is true, then we are always in the first case. If
-   * useRewriter is false, then we may be in case (2) if computing the
+   * If d_rr is non-null, then we are always in the first case. If
+   * useRewriter is null, then we may be in case (2) if computing the
    * rewritten, substituted form of n could not be determined by evaluation.
    */
   Node eval(TNode n,
             const std::vector<Node>& args,
-            const std::vector<Node>& vals,
-            bool useRewriter = true) const;
+            const std::vector<Node>& vals) const;
   /**
    * Same as above, but with a precomputed visited map.
    */
   Node eval(TNode n,
             const std::vector<Node>& args,
             const std::vector<Node>& vals,
-            const std::unordered_map<Node, Node>& visited,
-            bool useRewriter = true) const;
+            const std::unordered_map<Node, Node>& visited) const;
 
  private:
   /**
@@ -141,8 +147,7 @@ class Evaluator
                           const std::vector<Node>& args,
                           const std::vector<Node>& vals,
                           std::unordered_map<TNode, Node>& evalAsNode,
-                          std::unordered_map<TNode, EvalResult>& results,
-                          bool useRewriter) const;
+                          std::unordered_map<TNode, EvalResult>& results) const;
   /** reconstruct
    *
    * This function reconstructs the result of evaluating n using a combination
@@ -155,9 +160,24 @@ class Evaluator
   Node reconstruct(TNode n,
                    std::unordered_map<TNode, EvalResult>& eresults,
                    std::unordered_map<TNode, Node>& evalAsNode) const;
+  /**
+   * Process unhandled, called when n cannot be evaluated. This updates
+   * evalAsNode and results with the proper entries for this case. The term
+   * nv is the (Node) value of n if it exists, otherwise if needsReconstruct
+   * is true, the value of n is reconstructed based on evalAsNode and results.
+   */
+  void processUnhandled(TNode n,
+                        TNode nv,
+                        std::unordered_map<TNode, Node>& evalAsNode,
+                        std::unordered_map<TNode, EvalResult>& results,
+                        bool needsReconstruct) const;
+  /** The (optional) rewriter to be used */
+  Rewriter* d_rr;
+  /** The cardinality of the alphabet of strings */
+  uint32_t d_alphaCard;
 };
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__EVALUATOR_H */

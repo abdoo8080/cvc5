@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,9 +20,10 @@
 
 #include "expr/node.h"
 #include "proof/proof_set.h"
+#include "smt/env.h"
 #include "theory/arith/nl/ext/monomial.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 class CDProof;
 
@@ -35,12 +36,10 @@ namespace nl {
 
 class NlModel;
 
-struct ExtState
+class ExtState : protected EnvObj
 {
-  ExtState(InferenceManager& im,
-           NlModel& model,
-           ProofNodeManager* pnm,
-           context::UserContext* c);
+ public:
+  ExtState(Env& env, InferenceManager& im, NlModel& model);
 
   void init(const std::vector<Node>& xts);
 
@@ -64,13 +63,6 @@ struct ExtState
   /** Reference to the non-linear model object */
   NlModel& d_model;
   /**
-   * Pointer to the current proof node manager. nullptr, if proofs are
-   * disabled.
-   */
-  ProofNodeManager* d_pnm;
-  /** The user context. */
-  context::UserContext* d_ctx;
-  /**
    * A CDProofSet that hands out CDProof objects for lemmas.
    */
   std::unique_ptr<CDProofSet<CDProof>> d_proof;
@@ -92,6 +84,6 @@ struct ExtState
 }  // namespace nl
 }  // namespace arith
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

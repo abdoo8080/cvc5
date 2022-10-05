@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,30 +21,37 @@
 #include "context/cdhashset.h"
 #include "expr/node.h"
 #include "proof/trust_node.h"
+#include "smt/env_obj.h"
 #include "theory/arith/arith_state.h"
 #include "theory/ee_setup_info.h"
 #include "theory/uf/equality_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace arith {
 
 class InferenceManager;
 
+namespace linear {
+class ArithCongruenceManager;
+}
+
 /**
  * The arithmetic equality solver. This class manages arithmetic equalities
- * in the default way via an equality engine.
+ * in the default way via an equality engine, or defers to the congruence
+ * manager of linear arithmetic if setCongruenceManager is called on a
+ * non-null congruence manager.
  *
  * Since arithmetic has multiple ways of propagating literals, it tracks
  * the literals that it propagates and only explains the literals that
  * originated from this class.
  */
-class EqualitySolver
+class EqualitySolver : protected EnvObj
 {
   using NodeSet = context::CDHashSet<Node>;
 
  public:
-  EqualitySolver(ArithState& astate, InferenceManager& aim);
+  EqualitySolver(Env& env, ArithState& astate, InferenceManager& aim);
   ~EqualitySolver() {}
   //--------------------------------- initialization
   /**
@@ -68,6 +75,9 @@ class EqualitySolver
    * by this solver).
    */
   TrustNode explain(TNode lit);
+
+  /** Set the congruence manager, which will be notified of propagations */
+  void setCongruenceManager(linear::ArithCongruenceManager* acm);
 
  private:
   /** Notification class from the equality engine */
@@ -106,10 +116,12 @@ class EqualitySolver
   eq::EqualityEngine* d_ee;
   /** The literals we have propagated */
   NodeSet d_propLits;
+  /** Pointer to the congruence manager, for notifications of propagations */
+  linear::ArithCongruenceManager* d_acm;
 };
 
 }  // namespace arith
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

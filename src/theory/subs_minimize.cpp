@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,12 +22,12 @@
 #include "util/rational.h"
 
 using namespace std;
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
-SubstitutionMinimize::SubstitutionMinimize() {}
+SubstitutionMinimize::SubstitutionMinimize(Env& env) : EnvObj(env) {}
 
 bool SubstitutionMinimize::find(Node t,
                                 Node target,
@@ -119,7 +119,7 @@ bool SubstitutionMinimize::findWithImplied(Node t,
       // try the current substitution
       Node tcs = tc.substitute(
           reqVars.begin(), reqVars.end(), reqSubs.begin(), reqSubs.end());
-      Node tcsr = Rewriter::rewrite(tcs);
+      Node tcsr = rewrite(tcs);
       std::vector<Node> tcsrConj;
       getConjuncts(tcsr, tcsrConj);
       for (const Node& tcc : tcsrConj)
@@ -246,7 +246,7 @@ bool SubstitutionMinimize::findInternal(Node n,
           nb << it->second;
         }
         ret = nb.constructNode();
-        ret = Rewriter::rewrite(ret);
+        ret = rewrite(ret);
       }
       value[cur] = ret;
     }
@@ -258,6 +258,14 @@ bool SubstitutionMinimize::findInternal(Node n,
   if (value[n] != target)
   {
     Trace("subs-min") << "... not equal to target " << target << std::endl;
+    // depends on all variables
+    for (const std::pair<const TNode, Node>& v : value)
+    {
+      if (v.first.isVar())
+      {
+        reqVars.push_back(v.first);
+      }
+    }
     return false;
   }
 
@@ -290,12 +298,16 @@ bool SubstitutionMinimize::findInternal(Node n,
       {
         // only recurse on relevant branch
         Node bval = value[cur[0]];
-        Assert(!bval.isNull() && bval.isConst());
-        unsigned cindex = bval.getConst<bool>() ? 1 : 2;
-        visit.push_back(cur[0]);
-        visit.push_back(cur[cindex]);
+        if (!bval.isNull() && bval.isConst())
+        {
+          unsigned cindex = bval.getConst<bool>() ? 1 : 2;
+          visit.push_back(cur[0]);
+          visit.push_back(cur[cindex]);
+          continue;
+        }
+        // otherwise, we handle it normally below
       }
-      else if (cur.getNumChildren() > 0)
+      if (cur.getNumChildren() > 0)
       {
         Kind ck = cur.getKind();
         bool alreadyJustified = false;
@@ -323,7 +335,7 @@ bool SubstitutionMinimize::findInternal(Node n,
               // i to visit, and update curr below.
               if (scurr != curr)
               {
-                curr = Rewriter::rewrite(scurr);
+                curr = rewrite(scurr);
                 visit.push_back(cur[i]);
               }
             }
@@ -467,4 +479,4 @@ bool SubstitutionMinimize::isSingularArg(Node n, Kind k, unsigned arg)
 }
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

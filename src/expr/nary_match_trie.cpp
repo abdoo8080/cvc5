@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,9 +18,9 @@
 #include <sstream>
 #include "expr/nary_term_util.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace expr {
 
 class NaryMatchFrame
@@ -104,8 +104,7 @@ bool NaryMatchTrie::getMatches(Node n, NotifyMatch* ntm) const
         }
         if (next.hasOperator())
         {
-          std::vector<Node> nextc(next.begin(), next.end());
-          syms.insert(syms.end(), nextc.rbegin(), nextc.rend());
+          syms.insert(syms.end(), next.rbegin(), next.rend());
         }
         // new frame
         visit.push_back(NaryMatchFrame(syms, &itc->second));
@@ -136,7 +135,14 @@ bool NaryMatchTrie::getMatches(Node n, NotifyMatch* ntm) const
           {
             Assert(!syms.empty());
             Node s = syms.back();
-            if (s.isNull())
+            // we currently reject the term if it does not have the same
+            // type as the list variable. This rejects certain corner cases of
+            // arithmetic operators which are permissive for subtyping.
+            // For example, if x is a list variable of type Real, y is a list
+            // variable of type Real, then (+ x y) does *not* match
+            // (+ 1.0 2 1.5), despite { x -> (+ 1.0 2), y -> 1.5 } being
+            // a well-typed match.
+            if (s.isNull() || s.getType() != var.getType())
             {
               foundChildren = false;
               break;
@@ -166,9 +172,13 @@ bool NaryMatchTrie::getMatches(Node n, NotifyMatch* ntm) const
           {
             currChildren.push_back(next);
             syms.pop_back();
-            // check subtyping in the (non-list) case
-            if (!var.getType().isSubtypeOf(next.getType()))
+            Trace("match-debug")
+                << "Compare types " << var << " " << next << " "
+                << var.getType() << " " << next.getType() << std::endl;
+            // check types in the (non-list) case
+            if (var.getType() != next.getType())
             {
+              Trace("match-debug") << "...fail" << std::endl;
               next = Node::null();
             }
           }
@@ -189,6 +199,8 @@ bool NaryMatchTrie::getMatches(Node n, NotifyMatch* ntm) const
           else
           {
             // add to binding
+            Trace("match-debug")
+                << "Set " << var << " -> " << next << std::endl;
             vars.push_back(var);
             subs.push_back(next);
             smap[var] = next;
@@ -244,8 +256,7 @@ void NaryMatchTrie::addTerm(Node n)
         visit.push_back(Node::null());
       }
       // note children are processed left to right
-      std::vector<Node> cc(cn.begin(), cn.end());
-      visit.insert(visit.end(), cc.rbegin(), cc.rend());
+      visit.insert(visit.end(), cn.rbegin(), cn.rend());
     }
     else
     {
@@ -303,4 +314,4 @@ std::string NaryMatchTrie::debugPrint() const
 }
 
 }  // namespace expr
-}  // namespace cvc5
+}  // namespace cvc5::internal

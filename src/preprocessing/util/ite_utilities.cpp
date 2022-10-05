@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -25,13 +25,11 @@
 #include "expr/skolem_manager.h"
 #include "preprocessing/assertion_pipeline.h"
 #include "preprocessing/passes/rewrite.h"
-#include "smt/smt_statistics_registry.h"
-#include "theory/rewriter.h"
 #include "theory/theory.h"
 #include "util/rational.h"
 
 using namespace std;
-namespace cvc5 {
+namespace cvc5::internal {
 namespace preprocessing {
 namespace util {
 
@@ -87,8 +85,9 @@ struct CTIVStackElement
 
 }  // namespace ite
 
-ITEUtilities::ITEUtilities()
-    : d_containsVisitor(new ContainsTermITEVisitor()),
+ITEUtilities::ITEUtilities(Env& env)
+    : EnvObj(env),
+      d_containsVisitor(new ContainsTermITEVisitor()),
       d_compressor(NULL),
       d_simplifier(NULL),
       d_careSimp(NULL)
@@ -116,7 +115,7 @@ Node ITEUtilities::simpITE(TNode assertion)
 {
   if (d_simplifier == NULL)
   {
-    d_simplifier = new ITESimplifier(d_containsVisitor.get());
+    d_simplifier = new ITESimplifier(d_env, d_containsVisitor.get());
   }
   return d_simplifier->simpITE(assertion);
 }
@@ -138,7 +137,7 @@ bool ITEUtilities::compress(AssertionPipeline* assertionsToPreprocess)
 {
   if (d_compressor == NULL)
   {
-    d_compressor = new ITECompressor(d_containsVisitor.get());
+    d_compressor = new ITECompressor(d_env, d_containsVisitor.get());
   }
   return d_compressor->compress(assertionsToPreprocess);
 }
@@ -288,8 +287,12 @@ void IncomingArcCounter::computeReachability(
 void IncomingArcCounter::clear() { d_reachCount.clear(); }
 
 /** ITECompressor. */
-ITECompressor::ITECompressor(ContainsTermITEVisitor* contains)
-    : d_contains(contains), d_assertions(NULL), d_incoming(true, true)
+ITECompressor::ITECompressor(Env& env, ContainsTermITEVisitor* contains)
+    : EnvObj(env),
+      d_contains(contains),
+      d_assertions(NULL),
+      d_incoming(true, true),
+      d_statistics(env.getStatisticsRegistry())
 {
   Assert(d_contains != NULL);
 
@@ -307,16 +310,15 @@ void ITECompressor::reset()
 
 void ITECompressor::garbageCollect() { reset(); }
 
-ITECompressor::Statistics::Statistics()
-    : d_compressCalls(
-        smtStatisticsRegistry().registerInt("ite-simp::compressCalls")),
-      d_skolemsAdded(smtStatisticsRegistry().registerInt("ite-simp::skolems"))
+ITECompressor::Statistics::Statistics(StatisticsRegistry& reg)
+    : d_compressCalls(reg.registerInt("ite-simp::compressCalls")),
+      d_skolemsAdded(reg.registerInt("ite-simp::skolems"))
 {
 }
 
 Node ITECompressor::push_back_boolean(Node original, Node compressed)
 {
-  Node rewritten = theory::Rewriter::rewrite(compressed);
+  Node rewritten = rewrite(compressed);
   // There is a bug if the rewritter takes a pure boolean expression
   // and changes its theory
   if (rewritten.isConst())
@@ -528,17 +530,17 @@ bool ITECompressor::compress(AssertionPipeline* assertionsToPreprocess)
   d_incoming.computeReachability(assertionsToPreprocess->ref());
 
   ++(d_statistics.d_compressCalls);
-  Chat() << "Computed reachability" << endl;
+  verbose(2) << "Computed reachability" << endl;
 
   bool nofalses = true;
   const std::vector<Node>& assertions = assertionsToPreprocess->ref();
   size_t original_size = assertions.size();
-  Chat() << "compressing " << original_size << endl;
+  verbose(2) << "compressing " << original_size << endl;
   for (size_t i = 0; i < original_size && nofalses; ++i)
   {
     Node assertion = assertions[i];
     Node compressed = compressBoolean(assertion);
-    Node rewritten = theory::Rewriter::rewrite(compressed);
+    Node rewritten = rewrite(compressed);
     // replace
     assertionsToPreprocess->replace(i, rewritten);
     Assert(!d_contains->containsTermITE(rewritten));
@@ -637,8 +639,9 @@ uint32_t TermITEHeightCounter::termITEHeight(TNode e)
   return returnValue;
 }
 
-ITESimplifier::ITESimplifier(ContainsTermITEVisitor* contains)
-    : d_containsVisitor(contains),
+ITESimplifier::ITESimplifier(Env& env, ContainsTermITEVisitor* contains)
+    : EnvObj(env),
+      d_containsVisitor(contains),
       d_termITEHeight(),
       d_constantLeaves(),
       d_allocatedConstantLeaves(),
@@ -649,7 +652,8 @@ ITESimplifier::ITESimplifier(ContainsTermITEVisitor* contains)
       d_leavesConstCache(),
       d_simpConstCache(),
       d_simpContextCache(),
-      d_simpITECache()
+      d_simpITECache(),
+      d_statistics(env.getStatisticsRegistry())
 {
   Assert(d_containsVisitor != NULL);
   d_true = NodeManager::currentNM()->mkConst<bool>(true);
@@ -665,12 +669,12 @@ ITESimplifier::~ITESimplifier()
 
 bool ITESimplifier::leavesAreConst(TNode e)
 {
-  return leavesAreConst(e, theory::Theory::theoryOf(e));
+  return leavesAreConst(e, d_env.theoryOf(e));
 }
 
 void ITESimplifier::clearSimpITECaches()
 {
-  Chat() << "clear ite caches " << endl;
+  verbose(2) << "clear ite caches " << endl;
   for (size_t i = 0, N = d_allocatedConstantLeaves.size(); i < N; ++i)
   {
     NodeVec* curr = d_allocatedConstantLeaves[i];
@@ -693,27 +697,21 @@ void ITESimplifier::clearSimpITECaches()
 bool ITESimplifier::doneALotOfWorkHeuristic() const
 {
   static const size_t SIZE_BOUND = 1000;
-  Chat() << "d_citeEqConstApplications size " << d_citeEqConstApplications
+  verbose(2) << "d_citeEqConstApplications size " << d_citeEqConstApplications
          << endl;
   return (d_citeEqConstApplications > SIZE_BOUND);
 }
 
-ITESimplifier::Statistics::Statistics()
+ITESimplifier::Statistics::Statistics(StatisticsRegistry& reg)
     : d_maxNonConstantsFolded(
-        smtStatisticsRegistry().registerInt("ite-simp::maxNonConstantsFolded")),
-      d_unexpected(smtStatisticsRegistry().registerInt("ite-simp::unexpected")),
-      d_unsimplified(
-          smtStatisticsRegistry().registerInt("ite-simp::unsimplified")),
-      d_exactMatchFold(
-          smtStatisticsRegistry().registerInt("ite-simp::exactMatchFold")),
-      d_binaryPredFold(
-          smtStatisticsRegistry().registerInt("ite-simp::binaryPredFold")),
-      d_specialEqualityFolds(smtStatisticsRegistry().registerInt(
-          "ite-simp::specialEqualityFolds")),
-      d_simpITEVisits(
-          smtStatisticsRegistry().registerInt("ite-simp::simpITE.visits")),
-      d_inSmaller(smtStatisticsRegistry().registerHistogram<uint32_t>(
-          "ite-simp::inSmaller"))
+        reg.registerInt("ite-simp::maxNonConstantsFolded")),
+      d_unexpected(reg.registerInt("ite-simp::unexpected")),
+      d_unsimplified(reg.registerInt("ite-simp::unsimplified")),
+      d_exactMatchFold(reg.registerInt("ite-simp::exactMatchFold")),
+      d_binaryPredFold(reg.registerInt("ite-simp::binaryPredFold")),
+      d_specialEqualityFolds(reg.registerInt("ite-simp::specialEqualityFolds")),
+      d_simpITEVisits(reg.registerInt("ite-simp::simpITE.visits")),
+      d_inSmaller(reg.registerHistogram<uint32_t>("ite-simp::inSmaller"))
 {
 }
 
@@ -979,7 +977,7 @@ Node ITESimplifier::attemptLiftEquality(TNode atom)
         {
           d_statistics.d_maxNonConstantsFolded.maxAssign(
               search.nonConstants.size());
-          Debug("ite::simpite") << "used " << search.nonConstants.size()
+          Trace("ite::simpite") << "used " << search.nonConstants.size()
                                 << " nonconstants" << endl;
           NodeManager* nm = NodeManager::currentNM();
           Node simpVar = getSimpVar(notIte.getType());
@@ -1076,13 +1074,13 @@ Node ITESimplifier::constantIteEqualsConstant(TNode cite, TNode constant)
 {
   static int instance = 0;
   ++instance;
-  Debug("ite::constantIteEqualsConstant")
+  Trace("ite::constantIteEqualsConstant")
       << instance << "constantIteEqualsConstant(" << cite << ", " << constant
       << ")" << endl;
   if (cite.isConst())
   {
     Node res = (cite == constant) ? d_true : d_false;
-    Debug("ite::constantIteEqualsConstant") << instance << "->" << res << endl;
+    Trace("ite::constantIteEqualsConstant") << instance << "->" << res << endl;
     return res;
   }
   std::pair<Node, Node> pair = make_pair(cite, constant);
@@ -1091,7 +1089,7 @@ Node ITESimplifier::constantIteEqualsConstant(TNode cite, TNode constant)
       d_constantIteEqualsConstantCache.find(pair);
   if (eq_pos != d_constantIteEqualsConstantCache.end())
   {
-    Debug("ite::constantIteEqualsConstant")
+    Trace("ite::constantIteEqualsConstant")
         << instance << "->" << (*eq_pos).second << endl;
     return (*eq_pos).second;
   }
@@ -1106,7 +1104,7 @@ Node ITESimplifier::constantIteEqualsConstant(TNode cite, TNode constant)
     {
       // probably unreachable
       d_constantIteEqualsConstantCache[pair] = d_true;
-      Debug("ite::constantIteEqualsConstant")
+      Trace("ite::constantIteEqualsConstant")
           << instance << "->" << d_true << endl;
       return d_true;
     }
@@ -1129,7 +1127,7 @@ Node ITESimplifier::constantIteEqualsConstant(TNode cite, TNode constant)
       }
       ++itesMade;
       d_constantIteEqualsConstantCache[pair] = boolIte;
-      // Debug("ite::constantIteEqualsConstant") << instance << "->" << boolIte
+      // Trace("ite::constantIteEqualsConstant") << instance << "->" << boolIte
       // << endl;
       return boolIte;
     }
@@ -1137,7 +1135,7 @@ Node ITESimplifier::constantIteEqualsConstant(TNode cite, TNode constant)
   else
   {
     d_constantIteEqualsConstantCache[pair] = d_false;
-    Debug("ite::constantIteEqualsConstant")
+    Trace("ite::constantIteEqualsConstant")
         << instance << "->" << d_false << endl;
     return d_false;
   }
@@ -1158,7 +1156,7 @@ Node ITESimplifier::intersectConstantIte(TNode lcite, TNode rcite)
     unsigned preNumBranches = numBranches;
     unsigned preNumFalseBranches = numFalseBranches;
     Node bterm = constantIteEqualsConstant(cite, constant);
-    Debug("intersectConstantIte") << (numBranches - preNumBranches) << " "
+    Trace("intersectConstantIte") << (numBranches - preNumBranches) << " "
                                   << (numFalseBranches - preNumFalseBranches)
                                   << " " << (itesMade - preItesMade) << endl;
     return bterm;
@@ -1259,7 +1257,7 @@ Node ITESimplifier::attemptConstantRemoval(TNode atom)
 bool ITESimplifier::leavesAreConst(TNode e, theory::TheoryId tid)
 {
   Assert((e.getKind() == kind::ITE && !e.getType().isBoolean())
-         || theory::Theory::theoryOf(e) != theory::THEORY_BOOL);
+         || d_env.theoryOf(e) != theory::THEORY_BOOL);
   if (e.isConst())
   {
     return true;
@@ -1325,15 +1323,14 @@ Node ITESimplifier::simpConstants(TNode simpContext,
     }
     // Mark the substitution and continue
     Node result = builder;
-    result = theory::Rewriter::rewrite(result);
+    result = rewrite(result);
     d_simpConstCache[pair<Node, Node>(simpContext, iteNode)] = result;
     return result;
   }
 
   if (!containsTermITE(iteNode))
   {
-    Node n =
-        theory::Rewriter::rewrite(simpContext.substitute(simpVar, iteNode));
+    Node n = rewrite(simpContext.substitute(simpVar, iteNode));
     d_simpConstCache[pair<Node, Node>(simpContext, iteNode)] = n;
     return n;
   }
@@ -1453,14 +1450,14 @@ uint32_t countReachable(TNode x, Kind k)
 
 Node ITESimplifier::simpITEAtom(TNode atom)
 {
-  static int CVC5_UNUSED instance = 0;
-  Debug("ite::atom") << "still simplifying " << (++instance) << endl;
+  CVC5_UNUSED static int instance = 0;
+  Trace("ite::atom") << "still simplifying " << (++instance) << endl;
   Node attempt = transformAtom(atom);
-  Debug("ite::atom") << "  finished " << instance << endl;
+  Trace("ite::atom") << "  finished " << instance << endl;
   if (!attempt.isNull())
   {
-    Node rewritten = theory::Rewriter::rewrite(attempt);
-    Debug("ite::print-success")
+    Node rewritten = rewrite(attempt);
+    Trace("ite::print-success")
         << instance << " "
         << "rewriting " << countReachable(rewritten, kind::ITE) << " from "
         << countReachable(atom, kind::ITE) << endl
@@ -1481,29 +1478,29 @@ Node ITESimplifier::simpITEAtom(TNode atom)
       {
         Assert(leavesAreConst(simpContext) && !containsTermITE(simpContext));
         ++(d_statistics.d_unexpected);
-        Debug("ite::simpite") << instance << " "
+        Trace("ite::simpite") << instance << " "
                               << "how about?" << atom << endl;
-        Debug("ite::simpite") << instance << " "
+        Trace("ite::simpite") << instance << " "
                               << "\t" << simpContext << endl;
-        return theory::Rewriter::rewrite(simpContext);
+        return rewrite(simpContext);
       }
       Node n = simpConstants(simpContext, iteNode, simpVar);
       if (!n.isNull())
       {
         ++(d_statistics.d_unexpected);
-        Debug("ite::simpite") << instance << " "
+        Trace("ite::simpite") << instance << " "
                               << "here?" << atom << endl;
-        Debug("ite::simpite") << instance << " "
+        Trace("ite::simpite") << instance << " "
                               << "\t" << n << endl;
         return n;
       }
     }
   }
-  if (Debug.isOn("ite::simpite"))
+  if (TraceIsOn("ite::simpite"))
   {
     if (countReachable(atom, kind::ITE) > 0)
     {
-      Debug("ite::simpite") << instance << " "
+      Trace("ite::simpite") << instance << " "
                             << "remaining " << atom << endl;
     }
   }
@@ -1541,7 +1538,7 @@ Node ITESimplifier::simpITE(TNode assertion)
     // If node has no ITE's or already in the cache we're done, pop from the
     // stack
     if (current.getNumChildren() == 0
-        || (theory::Theory::theoryOf(current) != theory::THEORY_BOOL
+        || (d_env.theoryOf(current) != theory::THEORY_BOOL
             && !containsTermITE(current)))
     {
       d_simpITECache[current] = current;
@@ -1577,7 +1574,7 @@ Node ITESimplifier::simpITE(TNode assertion)
       Node result = builder;
 
       // If this is an atom, we process it
-      if (theory::Theory::theoryOf(result) != theory::THEORY_BOOL
+      if (d_env.theoryOf(result) != theory::THEORY_BOOL
           && result.getType().isBoolean())
       {
         result = simpITEAtom(result);
@@ -1588,7 +1585,7 @@ Node ITESimplifier::simpITE(TNode assertion)
       //   //cout << instance << " " << result << current << endl;
       // }
 
-      result = theory::Rewriter::rewrite(result);
+      result = rewrite(result);
       d_simpITECache[current] = result;
       ++(d_statistics.d_simpITEVisits);
       toVisit.pop_back();
@@ -1886,4 +1883,4 @@ ITECareSimplifier::CareSetPtr ITECareSimplifier::CareSetPtr::mkNew(
 
 }  // namespace util
 }  // namespace preprocessing
-}  // namespace cvc5
+}  // namespace cvc5::internal

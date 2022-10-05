@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Dejan Jovanovic, Andrew Reynolds
+ *   Dejan Jovanovic, Andrew Reynolds, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,12 +18,13 @@
 
 #pragma once
 
-#include "context/context.h"
-#include "theory/shared_terms_database.h"
-
 #include <unordered_map>
 
-namespace cvc5 {
+#include "context/context.h"
+#include "smt/env_obj.h"
+#include "theory/shared_terms_database.h"
+
+namespace cvc5::internal {
 
 class TheoryEngine;
 
@@ -38,8 +39,8 @@ class TheoryEngine;
  * Computation of the set of theories in the original term are computed in the alreadyVisited method
  * so as no to skip any theories.
  */
-class PreRegisterVisitor {
-
+class PreRegisterVisitor : protected EnvObj
+{
   /** The engine */
   TheoryEngine* d_engine;
 
@@ -59,10 +60,7 @@ class PreRegisterVisitor {
   /** required to instantiate template for NodeVisitor */
   using return_type = void;
 
-  PreRegisterVisitor(TheoryEngine* engine, context::Context* c)
-      : d_engine(engine), d_visited(c)
-  {
-  }
+  PreRegisterVisitor(Env& env, TheoryEngine* engine);
 
   /**
    * Returns true is current has already been pre-registered with both current
@@ -102,7 +100,8 @@ class PreRegisterVisitor {
    * If there is no theory sharing, this coincides with visitedTheories.
    * Otherwise, visitedTheories may be a subset of preregTheories.
    */
-  static void preRegister(TheoryEngine* te,
+  static void preRegister(Env& env,
+                          TheoryEngine* te,
                           theory::TheoryIdSet& visitedTheories,
                           TNode current,
                           TNode parent,
@@ -121,13 +120,13 @@ class PreRegisterVisitor {
                                     theory::TheoryIdSet preregTheories);
 };
 
-
 /**
  * The reason why we need to make this outside of the pre-registration loop is because we need a shared term x to 
  * be associated with every atom that contains it. For example, if given f(x) >= 0 and f(x) + 1 >= 0, although f(x) has
  * been visited already, we need to visit it again, since we need to associate it with both atoms.
  */
-class SharedTermsVisitor {
+class SharedTermsVisitor : protected EnvObj
+{
   using TNodeVisitedMap = std::unordered_map<TNode, theory::TheoryIdSet>;
   using TNodeToTheorySetMap = context::CDHashMap<TNode, theory::TheoryIdSet>;
   /**
@@ -144,12 +143,9 @@ class SharedTermsVisitor {
   /** required to instantiate template for NodeVisitor */
   using return_type = void;
 
-  SharedTermsVisitor(TheoryEngine* te,
-                     SharedTermsDatabase& sharedTerms,
-                     context::Context* c)
-      : d_engine(te), d_sharedTerms(sharedTerms), d_preregistered(c)
-  {
-  }
+  SharedTermsVisitor(Env& env,
+                     TheoryEngine* te,
+                     SharedTermsDatabase& sharedTerms);
 
   /**
    * Returns true is current has already been pre-registered with both current and parent theories.
@@ -187,4 +183,4 @@ class SharedTermsVisitor {
   TNodeToTheorySetMap d_preregistered;
 };
 
-}  // namespace cvc5
+}  // namespace cvc5::internal

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Christopher L. Conway, Tim King, Morgan Deters
+ *   Christopher L. Conway, Tim King, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -26,7 +26,6 @@
 using namespace std;
 using namespace cvc5;
 using namespace cvc5::parser;
-using namespace cvc5::kind;
 
 namespace cvc5 {
 namespace parser {
@@ -51,16 +50,14 @@ InputStream *Input::getInputStream() {
   return d_inputStream;
 }
 
-Input* Input::newFileInput(InputLanguage lang,
-                           const std::string& filename,
-                           bool useMmap)
+Input* Input::newFileInput(const std::string& lang, const std::string& filename)
 {
-  AntlrInputStream *inputStream = 
-    AntlrInputStream::newFileInputStream(filename, useMmap);
+  AntlrInputStream* inputStream =
+      AntlrInputStream::newFileInputStream(filename);
   return AntlrInput::newInput(lang, *inputStream);
 }
 
-Input* Input::newStreamInput(InputLanguage lang,
+Input* Input::newStreamInput(const std::string& lang,
                              std::istream& input,
                              const std::string& name)
 {
@@ -69,7 +66,7 @@ Input* Input::newStreamInput(InputLanguage lang,
   return AntlrInput::newInput(lang, *inputStream);
 }
 
-Input* Input::newStringInput(InputLanguage lang,
+Input* Input::newStringInput(const std::string& lang,
                              const std::string& str,
                              const std::string& name)
 {

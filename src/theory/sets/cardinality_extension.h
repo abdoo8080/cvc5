@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mudathir Mohamed
+ *   Andrew Reynolds, Mudathir Mohamed, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,13 +20,14 @@
 
 #include "context/cdhashset.h"
 #include "context/context.h"
+#include "smt/env_obj.h"
 #include "theory/sets/inference_manager.h"
 #include "theory/sets/solver_state.h"
 #include "theory/sets/term_registry.h"
 #include "theory/type_set.h"
 #include "theory/uf/equality_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace sets {
 
@@ -34,7 +35,7 @@ namespace sets {
  * This class implements a variant of the procedure from Bansal et al, IJCAR
  * 2016. It is used during a full effort check in the following way:
  *    reset(); { registerTerm(n,lemmas); | n in CardTerms }  check();
- * where CardTerms is the set of all applications of CARD in the current
+ * where CardTerms is the set of all applications of SET_CARD in the current
  * context.
  *
  * The remaining public methods are used during model construction, i.e.
@@ -60,7 +61,7 @@ namespace sets {
  * normal forms, where the normal form for Set terms is a set of (equivalence
  * class representatives of) Venn regions that do not contain the empty set.
  */
-class CardinalityExtension
+class CardinalityExtension : protected EnvObj
 {
   typedef context::CDHashSet<Node> NodeSet;
 
@@ -69,7 +70,8 @@ class CardinalityExtension
    * Constructs a new instance of the cardinality solver w.r.t. the provided
    * contexts.
    */
-  CardinalityExtension(SolverState& s,
+  CardinalityExtension(Env& env,
+                       SolverState& s,
                        InferenceManager& im,
                        TermRegistry& treg);
 
@@ -83,7 +85,7 @@ class CardinalityExtension
   /** register term
    *
    * Register that the term n exists in the current context, where n is an
-   * application of CARD.
+   * application of SET_CARD.
    */
   void registerTerm(Node n);
   /** check
@@ -364,8 +366,8 @@ class CardinalityExtension
    */
   std::map<Node, std::vector<std::pair<Node, Node>>> d_cardParent;
   /**
-   * Maps equivalence classes + set terms in that equivalence class to their
-   * "flat form" (see checkNormalForms).
+   * Maps equivalence classes + "base" terms of set terms in that equivalence
+   * class to their "flat form" (see checkNormalForms).
    */
   std::map<Node, std::map<Node, std::vector<Node> > > d_ff;
   /** Maps equivalence classes to their "normal form" (see checkNormalForms). */
@@ -416,6 +418,6 @@ class CardinalityExtension
 
 }  // namespace sets
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

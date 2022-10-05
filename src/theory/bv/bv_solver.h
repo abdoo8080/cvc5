@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Mathias Preiner, Andrew Reynolds, Andres Noetzli
+ *   Mathias Preiner, Andrew Reynolds, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,17 +20,18 @@
 #ifndef CVC5__THEORY__BV__BV_SOLVER_H
 #define CVC5__THEORY__BV__BV_SOLVER_H
 
+#include "smt/env_obj.h"
 #include "theory/theory.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace bv {
 
-class BVSolver
+class BVSolver : protected EnvObj
 {
  public:
-  BVSolver(TheoryState& state, TheoryInferenceManager& inferMgr)
-      : d_state(state), d_im(inferMgr){};
+  BVSolver(Env& env, TheoryState& state, TheoryInferenceManager& inferMgr)
+      : EnvObj(env), d_state(state), d_im(inferMgr){};
 
   virtual ~BVSolver() {}
 
@@ -110,15 +111,6 @@ class BVSolver
    */
   virtual Node getValue(TNode node, bool initialize) { return Node::null(); }
 
-  /** Called by abstraction preprocessing pass. */
-  virtual bool applyAbstraction(const std::vector<Node>& assertions,
-                                std::vector<Node>& new_assertions)
-  {
-    new_assertions.insert(
-        new_assertions.end(), assertions.begin(), assertions.end());
-    return false;
-  };
-
  protected:
   TheoryState& d_state;
   TheoryInferenceManager& d_im;
@@ -126,6 +118,6 @@ class BVSolver
 
 }  // namespace bv
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__BV__BV_SOLVER_H */

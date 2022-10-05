@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -17,21 +17,19 @@
 
 #include "preprocessing/assertion_pipeline.h"
 #include "preprocessing/preprocessing_pass_context.h"
-#include "smt/smt_engine.h"
-#include "smt/smt_engine_scope.h"
-#include "smt/smt_statistics_registry.h"
+#include "smt/solver_engine.h"
 #include "theory/quantifiers/quantifiers_attributes.h"
-#include "theory/quantifiers/quantifiers_rewriter.h"
+#include "theory/quantifiers/quantifiers_preprocess.h"
 #include "theory/quantifiers/sygus/sygus_grammar_cons.h"
 #include "theory/quantifiers/sygus/sygus_utils.h"
 #include "theory/rewriter.h"
 #include "theory/smt_engine_subsolver.h"
 
 using namespace std;
-using namespace cvc5::kind;
-using namespace cvc5::theory;
+using namespace cvc5::internal::kind;
+using namespace cvc5::internal::theory;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace preprocessing {
 namespace passes {
 
@@ -65,7 +63,7 @@ PreprocessingPassResult SygusInference::applyInternal(
           prev.substitute(funs.begin(), funs.end(), sols.begin(), sols.end());
       if (curr != prev)
       {
-        curr = theory::Rewriter::rewrite(curr);
+        curr = rewrite(curr);
         Trace("sygus-infer-debug")
             << "...rewrote " << prev << " to " << curr << std::endl;
         assertionsToPreprocess->replace(i, curr);
@@ -118,6 +116,7 @@ bool SygusInference::solveSygus(const std::vector<Node>& assertions,
 
   // process eassertions
   std::vector<Node> processed_assertions;
+  quantifiers::QuantifiersPreprocess qp(d_env);
   for (const Node& as : eassertions)
   {
     // substitution for this assertion
@@ -126,12 +125,12 @@ bool SygusInference::solveSygus(const std::vector<Node>& assertions,
     std::map<TypeNode, unsigned> type_count;
     Node pas = as;
     // rewrite
-    pas = theory::Rewriter::rewrite(pas);
+    pas = rewrite(pas);
     Trace("sygus-infer") << "assertion : " << pas << std::endl;
     if (pas.getKind() == FORALL)
     {
       // preprocess the quantified formula
-      TrustNode trn = quantifiers::QuantifiersRewriter::preprocess(pas);
+      TrustNode trn = qp.preprocess(pas);
       if (!trn.isNull())
       {
         pas = trn.getNode();
@@ -294,20 +293,19 @@ bool SygusInference::solveSygus(const std::vector<Node>& assertions,
   Trace("sygus-infer") << "*** Return sygus inference : " << body << std::endl;
 
   // make a separate smt call
-  std::unique_ptr<SmtEngine> rrSygus;
-  theory::initializeSubsolver(rrSygus);
+  std::unique_ptr<SolverEngine> rrSygus;
+  theory::initializeSubsolver(rrSygus, d_env);
   rrSygus->assertFormula(body);
   Trace("sygus-infer") << "*** Check sat..." << std::endl;
   Result r = rrSygus->checkSat();
   Trace("sygus-infer") << "...result : " << r << std::endl;
-  if (r.asSatisfiabilityResult().isSat() != Result::UNSAT)
+  // get the synthesis solutions
+  std::map<Node, Node> synth_sols;
+  if (!rrSygus->getSubsolverSynthSolutions(synth_sols))
   {
     // failed, conjecture was infeasible
     return false;
   }
-  // get the synthesis solutions
-  std::map<Node, Node> synth_sols;
-  rrSygus->getSynthSolutions(synth_sols);
 
   std::vector<Node> final_ff;
   std::vector<Node> final_ff_sol;
@@ -336,4 +334,4 @@ bool SygusInference::solveSygus(const std::vector<Node>& assertions,
 
 }  // namespace passes
 }  // namespace preprocessing
-}  // namespace cvc5
+}  // namespace cvc5::internal

@@ -1,10 +1,10 @@
 ###############################################################################
 # Top contributors (to current version):
-#   Aina Niemetz
+#   Mathias Preiner, Gereon Kremer, Aina Niemetz
 #
 # This file is part of the cvc5 project.
 #
-# Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+# Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
 # in the top-level source directory and their institutional affiliations.
 # All rights reserved.  See the file COPYING in the top-level source
 # directory for licensing information.
@@ -20,6 +20,7 @@ cvc5_add_unit_test_black(kind_black expr)
 cvc5_add_unit_test_black(kind_map_black expr)
 cvc5_add_unit_test_black(node_black expr)
 cvc5_add_unit_test_black(node_algorithm_black expr)
+cvc5_add_unit_test_black(node_algorithms_black expr)
 cvc5_add_unit_test_black(node_builder_black expr)
 cvc5_add_unit_test_black(node_manager_black expr)
 cvc5_add_unit_test_white(node_manager_white expr)

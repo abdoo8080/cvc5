@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,10 +23,15 @@
 #include "expr/node.h"
 #include "proof/proof_rule.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 class ProofChecker;
 class ProofNode;
+class Options;
+
+namespace theory {
+class Rewriter;
+}
 
 /**
  * A manager for proof node objects. This is a trusted interface for creating
@@ -54,7 +59,9 @@ class ProofNode;
 class ProofNodeManager
 {
  public:
-  ProofNodeManager(ProofChecker* pc = nullptr);
+  ProofNodeManager(const Options& opts,
+                   theory::Rewriter* rr,
+                   ProofChecker* pc = nullptr);
   ~ProofNodeManager() {}
   /**
    * This constructs a ProofNode with the given arguments. The expected
@@ -84,6 +91,12 @@ class ProofNodeManager
    * @return The ASSUME proof of fact.
    */
   std::shared_ptr<ProofNode> mkAssume(Node fact);
+  /**
+   * Make symm, which accounts for whether the child is already a SYMM
+   * node, in which case we return its child.
+   */
+  std::shared_ptr<ProofNode> mkSymm(std::shared_ptr<ProofNode> child,
+                                    Node expected = Node::null());
   /**
    * Make transitivity proof, where children contains one or more proofs of
    * equalities that form an ordered chain. In other words, the vector children
@@ -157,6 +170,10 @@ class ProofNodeManager
    * unchanged.
    */
   bool updateNode(ProofNode* pn, ProofNode* pnr);
+  /**
+   * Ensure that pn is checked, regardless of the proof check format.
+   */
+  void ensureChecked(ProofNode* pn);
   /** Get the underlying proof checker */
   ProofChecker* getChecker() const;
   /**
@@ -166,9 +183,18 @@ class ProofNodeManager
    * @param pn The proof node to clone
    * @return the cloned proof node.
    */
-  std::shared_ptr<ProofNode> clone(std::shared_ptr<ProofNode> pn);
+  std::shared_ptr<ProofNode> clone(std::shared_ptr<ProofNode> pn) const;
+  /**
+   * Cancel double SYMM. Returns a proof node that is not a double application
+   * of SYMM, e.g. for (SYMM (SYMM (r P))), this returns (r P) where r != SYMM.
+   */
+  static ProofNode* cancelDoubleSymm(ProofNode* pn);
 
  private:
+  /** Reference to the options */
+  const Options& d_opts;
+  /** The rewriter */
+  theory::Rewriter* d_rewriter;
   /** The (optional) proof checker */
   ProofChecker* d_checker;
   /** the true node */
@@ -182,11 +208,15 @@ class ProofNodeManager
    * This throws an assertion error if we fail to check such a proof node, or
    * if expected is provided (non-null) and is different what is proven by the
    * other arguments.
+   *
+   * The flag didCheck is set to true if the underlying proof checker was
+   * invoked. This may be false if e.g. the proof checking mode is lazy.
    */
   Node checkInternal(PfRule id,
                      const std::vector<std::shared_ptr<ProofNode>>& children,
                      const std::vector<Node>& args,
-                     Node expected);
+                     Node expected,
+                     bool& didCheck);
   /**
    * Update node internal, return true if successful. This is called by
    * the update node methods above. The argument needsCheck is whether we
@@ -201,6 +231,6 @@ class ProofNodeManager
       bool needsCheck);
 };
 
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__PROOF__PROOF_NODE_H */

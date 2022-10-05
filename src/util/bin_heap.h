@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Tim King, Morgan Deters, Mathias Preiner
+ *   Tim King, Morgan Deters, Yancheng Ou
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -29,7 +29,7 @@
 #include "base/check.h"
 #include "base/exception.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 /**
  * BinaryHeap that orders its elements greatest-first (i.e., in the opposite
@@ -95,7 +95,27 @@ public:
 
   }; /* BinaryHeap<>::handle */
 
-  class const_iterator : public std::iterator<std::input_iterator_tag, Elem> {
+  class const_iterator {
+  public:
+    /* The following types are required by trait std::iterator_traits */
+
+    /** Iterator tag */
+    using iterator_category = std::forward_iterator_tag;
+
+    /** The type of the item */
+    using value_type = Elem;
+
+    /** The pointer type of the item */
+    using pointer = const Elem*;
+
+    /** The reference type of the item */
+    using reference = const Elem&;
+
+    /** The type returned when two iterators are subtracted */
+    using difference_type = std::ptrdiff_t;
+
+    /* End of std::iterator_traits required types */
+
   private:
     typename ElementVector::const_iterator d_iter;
     friend class BinaryHeap;
@@ -363,6 +383,6 @@ private:
 template <class Elem, class CmpFcn>
 const size_t BinaryHeap<Elem,CmpFcn>::MAX_SIZE = (std::numeric_limits<size_t>::max()-2)/2;
 
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__BIN_HEAP_H */

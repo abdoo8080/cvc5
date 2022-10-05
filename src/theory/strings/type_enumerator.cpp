@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,7 +19,7 @@
 #include "theory/strings/theory_strings_utils.h"
 #include "util/string.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace strings {
 
@@ -225,9 +225,37 @@ void SeqEnumLen::mkCurr()
       Sequence(d_type.getSequenceElementType(), seq));
 }
 
+SEnumLenSet::SEnumLenSet(TypeEnumeratorProperties* tep) : d_tep(tep) {}
+
+SEnumLen* SEnumLenSet::getEnumerator(size_t len, TypeNode tn)
+{
+  std::pair<size_t, TypeNode> key(len, tn);
+  std::map<std::pair<size_t, TypeNode>, std::unique_ptr<SEnumLen> >::iterator
+      it = d_sels.find(key);
+  if (it != d_sels.end())
+  {
+    return it->second.get();
+  }
+  if (tn.isString())  // string-only
+  {
+    d_sels[key].reset(
+        new StringEnumLen(len,
+                          len,
+                          d_tep ? d_tep->getStringsAlphabetCard()
+                                : utils::getDefaultAlphabetCardinality()));
+  }
+  else
+  {
+    d_sels[key].reset(new SeqEnumLen(tn, d_tep, len, len));
+  }
+  return d_sels[key].get();
+}
+
 StringEnumerator::StringEnumerator(TypeNode type, TypeEnumeratorProperties* tep)
     : TypeEnumeratorBase<StringEnumerator>(type),
-      d_wenum(0, utils::getAlphabetCardinality())
+      d_wenum(0,
+              tep ? tep->getStringsAlphabetCard()
+                  : utils::getDefaultAlphabetCardinality())
 {
   Assert(type.getKind() == kind::TYPE_CONSTANT
          && type.getConst<TypeConstant>() == STRING_TYPE);
@@ -273,4 +301,4 @@ bool SequenceEnumerator::isFinished() { return d_wenum.isFinished(); }
 
 }  // namespace strings
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

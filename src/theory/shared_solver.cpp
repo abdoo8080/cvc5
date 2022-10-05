@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,7 +21,7 @@
 #include "theory/theory_engine.h"
 #include "theory/theory_inference_manager.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 // Always creates shared terms database. In all cases, shared terms
@@ -30,12 +30,13 @@ namespace theory {
 // In distributed equality engine management, shared terms database also
 // maintains an equality engine. In central equality engine management,
 // it does not.
-SharedSolver::SharedSolver(TheoryEngine& te, ProofNodeManager* pnm)
-    : d_te(te),
-      d_logicInfo(te.getLogicInfo()),
-      d_sharedTerms(&d_te, d_te.getSatContext(), d_te.getUserContext(), pnm),
-      d_preRegistrationVisitor(&te, d_te.getSatContext()),
-      d_sharedTermsVisitor(&te, d_sharedTerms, d_te.getSatContext()),
+SharedSolver::SharedSolver(Env& env, TheoryEngine& te)
+    : EnvObj(env),
+      d_te(te),
+      d_logicInfo(logicInfo()),
+      d_sharedTerms(env, &d_te),
+      d_preRegistrationVisitor(env, &te),
+      d_sharedTermsVisitor(env, &te, d_sharedTerms),
       d_im(te.theoryOf(THEORY_BUILTIN)->getInferenceManager())
 {
 }
@@ -156,4 +157,4 @@ void SharedSolver::sendConflict(TrustNode trn, InferenceId id)
 }
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

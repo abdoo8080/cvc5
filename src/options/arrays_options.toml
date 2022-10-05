@@ -3,7 +3,7 @@ name   = "Arrays Theory"
 
 [[option]]
   name       = "arraysOptimizeLinear"
-  category   = "regular"
+  category   = "expert"
   long       = "arrays-optimize-linear"
   type       = "bool"
   default    = "true"
@@ -11,19 +11,11 @@ name   = "Arrays Theory"
 
 [[option]]
   name       = "arraysWeakEquivalence"
-  category   = "regular"
+  category   = "expert"
   long       = "arrays-weak-equiv"
   type       = "bool"
   default    = "false"
   help       = "use algorithm from Christ/Hoenicke (SMT 2014)"
-
-[[option]]
-  name       = "arraysModelBased"
-  category   = "regular"
-  long       = "arrays-model-based"
-  type       = "bool"
-  default    = "false"
-  help       = "turn on model-based array solver"
 
 [[option]]
   name       = "arraysEagerIndexSplitting"
@@ -35,23 +27,15 @@ name   = "Arrays Theory"
 
 [[option]]
   name       = "arraysEagerLemmas"
-  category   = "regular"
+  category   = "expert"
   long       = "arrays-eager-lemmas"
   type       = "bool"
   default    = "false"
   help       = "turn on eager lemma generation for arrays"
 
 [[option]]
-  name       = "arraysConfig"
-  category   = "regular"
-  long       = "arrays-config=N"
-  type       = "int64_t"
-  default    = "0"
-  help       = "set different array option configurations - for developers only"
-
-[[option]]
   name       = "arraysReduceSharing"
-  category   = "regular"
+  category   = "expert"
   long       = "arrays-reduce-sharing"
   type       = "bool"
   default    = "false"
@@ -59,7 +43,7 @@ name   = "Arrays Theory"
 
 [[option]]
   name       = "arraysPropagate"
-  category   = "regular"
+  category   = "expert"
   long       = "arrays-prop=N"
   type       = "int64_t"
   default    = "2"
@@ -67,7 +51,7 @@ name   = "Arrays Theory"
 
 [[option]]
   name       = "arraysExp"
-  category   = "experimental"
+  category   = "expert"
   long       = "arrays-exp"
   type       = "bool"
   default    = "false"

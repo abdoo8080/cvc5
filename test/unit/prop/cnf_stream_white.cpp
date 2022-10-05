@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -27,9 +27,9 @@
 #include "theory/theory.h"
 #include "theory/theory_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
-using namespace context;
+using namespace cvc5::context;
 using namespace prop;
 using namespace smt;
 using namespace theory;
@@ -107,16 +107,13 @@ class TestPropWhiteCnfStream : public TestSmt
   void SetUp() override
   {
     TestSmt::SetUp();
-    d_theoryEngine = d_smtEngine->getTheoryEngine();
     d_satSolver.reset(new FakeSatSolver());
-    d_cnfContext.reset(new context::Context());
+    d_cnfContext.reset(new Context());
     d_cnfRegistrar.reset(new prop::NullRegistrar);
-    d_cnfStream.reset(
-        new cvc5::prop::CnfStream(d_satSolver.get(),
-                                  d_cnfRegistrar.get(),
-                                  d_cnfContext.get(),
-                                  &d_smtEngine->getEnv(),
-                                  d_smtEngine->getResourceManager()));
+    d_cnfStream.reset(new prop::CnfStream(d_slvEngine->getEnv(),
+                                          d_satSolver.get(),
+                                          d_cnfRegistrar.get(),
+                                          d_cnfContext.get()));
   }
 
   void TearDown() override
@@ -130,8 +127,6 @@ class TestPropWhiteCnfStream : public TestSmt
 
   /** The SAT solver proxy */
   std::unique_ptr<FakeSatSolver> d_satSolver;
-  /** The theory engine */
-  TheoryEngine* d_theoryEngine;
   /** The CNF converter in use */
   std::unique_ptr<CnfStream> d_cnfStream;
   /** The context of the CnfStream. */
@@ -150,7 +145,6 @@ class TestPropWhiteCnfStream : public TestSmt
 
 TEST_F(TestPropWhiteCnfStream, and)
 {
-  NodeManagerScope nms(d_nodeManager.get());
   Node a = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node b = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node c = d_nodeManager->mkVar(d_nodeManager->booleanType());
@@ -161,7 +155,6 @@ TEST_F(TestPropWhiteCnfStream, and)
 
 TEST_F(TestPropWhiteCnfStream, complex_expr)
 {
-  NodeManagerScope nms(d_nodeManager.get());
   Node a = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node b = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node c = d_nodeManager->mkVar(d_nodeManager->booleanType());
@@ -184,21 +177,18 @@ TEST_F(TestPropWhiteCnfStream, complex_expr)
 
 TEST_F(TestPropWhiteCnfStream, true)
 {
-  NodeManagerScope nms(d_nodeManager.get());
   d_cnfStream->convertAndAssert(d_nodeManager->mkConst(true), false, false);
   ASSERT_TRUE(d_satSolver->addClauseCalled());
 }
 
 TEST_F(TestPropWhiteCnfStream, false)
 {
-  NodeManagerScope nms(d_nodeManager.get());
   d_cnfStream->convertAndAssert(d_nodeManager->mkConst(false), false, false);
   ASSERT_TRUE(d_satSolver->addClauseCalled());
 }
 
 TEST_F(TestPropWhiteCnfStream, iff)
 {
-  NodeManagerScope nms(d_nodeManager.get());
   Node a = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node b = d_nodeManager->mkVar(d_nodeManager->booleanType());
   d_cnfStream->convertAndAssert(
@@ -208,7 +198,6 @@ TEST_F(TestPropWhiteCnfStream, iff)
 
 TEST_F(TestPropWhiteCnfStream, implies)
 {
-  NodeManagerScope nms(d_nodeManager.get());
   Node a = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node b = d_nodeManager->mkVar(d_nodeManager->booleanType());
   d_cnfStream->convertAndAssert(
@@ -218,7 +207,6 @@ TEST_F(TestPropWhiteCnfStream, implies)
 
 TEST_F(TestPropWhiteCnfStream, not )
 {
-  NodeManagerScope nms(d_nodeManager.get());
   Node a = d_nodeManager->mkVar(d_nodeManager->booleanType());
   d_cnfStream->convertAndAssert(
       d_nodeManager->mkNode(kind::NOT, a), false, false);
@@ -227,7 +215,6 @@ TEST_F(TestPropWhiteCnfStream, not )
 
 TEST_F(TestPropWhiteCnfStream, or)
 {
-  NodeManagerScope nms(d_nodeManager.get());
   Node a = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node b = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node c = d_nodeManager->mkVar(d_nodeManager->booleanType());
@@ -238,7 +225,6 @@ TEST_F(TestPropWhiteCnfStream, or)
 
 TEST_F(TestPropWhiteCnfStream, var)
 {
-  NodeManagerScope nms(d_nodeManager.get());
   Node a = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node b = d_nodeManager->mkVar(d_nodeManager->booleanType());
   d_cnfStream->convertAndAssert(a, false, false);
@@ -250,7 +236,6 @@ TEST_F(TestPropWhiteCnfStream, var)
 
 TEST_F(TestPropWhiteCnfStream, xor)
 {
-  NodeManagerScope nms(d_nodeManager.get());
   Node a = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node b = d_nodeManager->mkVar(d_nodeManager->booleanType());
   d_cnfStream->convertAndAssert(
@@ -260,7 +245,6 @@ TEST_F(TestPropWhiteCnfStream, xor)
 
 TEST_F(TestPropWhiteCnfStream, ensure_literal)
 {
-  NodeManagerScope nms(d_nodeManager.get());
   Node a = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node b = d_nodeManager->mkVar(d_nodeManager->booleanType());
   Node a_and_b = d_nodeManager->mkNode(kind::AND, a, b);
@@ -270,4 +254,4 @@ TEST_F(TestPropWhiteCnfStream, ensure_literal)
   ASSERT_TRUE(d_cnfStream->hasLiteral(a_and_b));
 }
 }  // namespace test
-}  // namespace cvc5
+}  // namespace cvc5::internal

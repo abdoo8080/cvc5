@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Andres Noetzli, Mikolas Janota
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -17,7 +17,7 @@
 
 #include "theory/quantifiers/quantifiers_state.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
@@ -36,7 +36,10 @@ void TermPoolQuantInfo::initialize()
   d_skolemAddToPool.clear();
 }
 
-TermPools::TermPools(QuantifiersState& qs) : d_qs(qs) {}
+TermPools::TermPools(Env& env, QuantifiersState& qs)
+    : QuantifiersUtil(env), d_qs(qs)
+{
+}
 
 bool TermPools::reset(Theory::Effort e)
 {
@@ -81,7 +84,7 @@ void TermPools::registerPool(Node p, const std::vector<Node>& initValue)
   d.initialize();
   for (const Node& i : initValue)
   {
-    Assert(i.getType().isComparableTo(p.getType().getSetElementType()));
+    Assert(i.getType() == p.getType().getSetElementType());
     d.add(i);
   }
 }
@@ -103,9 +106,9 @@ void TermPools::getTermsForPool(Node p, std::vector<Node>& terms)
     for (const Node& t : dom.d_terms)
     {
       Node r = d_qs.getRepresentative(t);
-      if (reps.find(r) == reps.end())
+      const auto i = reps.insert(r);
+      if (i.second)
       {
-        reps.insert(r);
         dom.d_currTerms.push_back(t);
       }
     }
@@ -157,4 +160,4 @@ void TermPools::processInternal(Node q,
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

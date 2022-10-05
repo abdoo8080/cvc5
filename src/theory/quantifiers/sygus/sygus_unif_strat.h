@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Haniel Barbosa, Mathias Preiner
+ *   Andrew Reynolds, Haniel Barbosa, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,9 +19,11 @@
 #define CVC5__THEORY__QUANTIFIERS__SYGUS_UNIF_STRAT_H
 
 #include <map>
-#include "expr/node.h"
 
-namespace cvc5 {
+#include "expr/node.h"
+#include "smt/env_obj.h"
+
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
@@ -276,10 +278,10 @@ struct StrategyRestrictions
  * the grammar of the function to synthesize f. This tree is represented by
  * the above classes.
  */
-class SygusUnifStrategy
+class SygusUnifStrategy : protected EnvObj
 {
  public:
-  SygusUnifStrategy() : d_tds(nullptr) {}
+  SygusUnifStrategy(Env& env) : EnvObj(env), d_tds(nullptr) {}
   /** initialize
    *
    * This initializes this class with function-to-synthesize f. We also call
@@ -429,6 +431,6 @@ class SygusUnifStrategy
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__SYGUS_UNIF_H */

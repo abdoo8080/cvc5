@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -36,7 +36,7 @@
 #include "theory/theory_inference_manager.h"
 #include "theory/uf/equality_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace strings {
 
@@ -77,12 +77,12 @@ class InferenceManager : public InferenceManagerBuffered
   friend class InferInfo;
 
  public:
-  InferenceManager(Theory& t,
+  InferenceManager(Env& env,
+                   Theory& t,
                    SolverState& s,
                    TermRegistry& tr,
                    ExtTheory& e,
-                   SequencesStatistics& statistics,
-                   ProofNodeManager* pnm);
+                   SequencesStatistics& statistics);
   ~InferenceManager() {}
 
   /**
@@ -248,8 +248,15 @@ class InferenceManager : public InferenceManagerBuffered
   ExtTheory& d_extt;
   /** Reference to the statistics for the theory of strings/sequences. */
   SequencesStatistics& d_statistics;
-  /** Conversion from inferences to proofs */
+  /** Conversion from inferences to proofs for facts */
   std::unique_ptr<InferProofCons> d_ipc;
+  /**
+   * Conversion from inferences to proofs for lemmas and conflicts. This is
+   * separate from the above proof generator to avoid rare cases where the
+   * conclusion of a lemma is a duplicate of the conclusion of another lemma,
+   * or is a fact in the current equality engine.
+   */
+  std::unique_ptr<InferProofCons> d_ipcl;
   /** Common constants */
   Node d_true;
   Node d_false;
@@ -259,6 +266,6 @@ class InferenceManager : public InferenceManagerBuffered
 
 }  // namespace strings
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

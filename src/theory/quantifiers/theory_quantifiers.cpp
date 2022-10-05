@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Morgan Deters, Tim King
+ *   Andrew Reynolds, Morgan Deters, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,34 +23,27 @@
 #include "theory/trust_substitutions.h"
 #include "theory/valuation.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 using namespace cvc5::context;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
-TheoryQuantifiers::TheoryQuantifiers(Context* c,
-                                     context::UserContext* u,
+TheoryQuantifiers::TheoryQuantifiers(Env& env,
                                      OutputChannel& out,
-                                     Valuation valuation,
-                                     const LogicInfo& logicInfo,
-                                     ProofNodeManager* pnm)
-    : Theory(THEORY_QUANTIFIERS, c, u, out, valuation, logicInfo, pnm),
-      d_qstate(c, u, valuation, logicInfo),
-      d_qreg(),
-      d_treg(d_qstate, d_qreg),
-      d_qim(*this, d_qstate, d_qreg, d_treg, pnm),
+                                     Valuation valuation)
+    : Theory(THEORY_QUANTIFIERS, env, out, valuation),
+      d_rewriter(env.getRewriter(), options()),
+      d_qstate(env, valuation, logicInfo()),
+      d_qreg(env),
+      d_treg(env, d_qstate, d_qreg),
+      d_qim(env, *this, d_qstate, d_qreg, d_treg),
       d_qengine(nullptr)
 {
-  out.handleUserAttribute( "fun-def", this );
-  out.handleUserAttribute("qid", this);
-  out.handleUserAttribute( "quant-inst-max-level", this );
-  out.handleUserAttribute( "quant-elim", this );
-  out.handleUserAttribute( "quant-elim-partial", this );
-
   // construct the quantifiers engine
-  d_qengine.reset(new QuantifiersEngine(d_qstate, d_qreg, d_treg, d_qim, pnm));
+  d_qengine.reset(
+      new QuantifiersEngine(env, d_qstate, d_qreg, d_treg, d_qim, d_pnm));
 
   // indicate we are using the quantifiers theory state object
   d_theoryState = &d_qstate;
@@ -61,9 +54,9 @@ TheoryQuantifiers::TheoryQuantifiers(Context* c,
   // post-construction.
   d_quantEngine = d_qengine.get();
 
-  if (options::macrosQuant())
+  if (options().quantifiers.macrosQuant)
   {
-    d_qmacros.reset(new QuantifiersMacros(d_qreg));
+    d_qmacros.reset(new QuantifiersMacros(env, d_qreg));
   }
 }
 
@@ -96,18 +89,18 @@ void TheoryQuantifiers::preRegisterTerm(TNode n)
   {
     return;
   }
-  Debug("quantifiers-prereg")
+  Trace("quantifiers-prereg")
       << "TheoryQuantifiers::preRegisterTerm() " << n << std::endl;
   // Preregister the quantified formula.
   // This initializes the modules used for handling n in this user context.
   getQuantifiersEngine()->preRegisterQuantifier(n);
-  Debug("quantifiers-prereg")
+  Trace("quantifiers-prereg")
       << "TheoryQuantifiers::preRegisterTerm() done " << n << std::endl;
 }
 
 
 void TheoryQuantifiers::presolve() {
-  Debug("quantifiers-presolve") << "TheoryQuantifiers::presolve()" << std::endl;
+  Trace("quantifiers-presolve") << "TheoryQuantifiers::presolve()" << std::endl;
   if( getQuantifiersEngine() ){
     getQuantifiersEngine()->presolve();
   }
@@ -119,7 +112,7 @@ Theory::PPAssertStatus TheoryQuantifiers::ppAssert(
   if (d_qmacros != nullptr)
   {
     bool reqGround =
-        options::macrosQuantMode() != options::MacrosQuantMode::ALL;
+        options().quantifiers.macrosQuantMode != options::MacrosQuantMode::ALL;
     Node eq = d_qmacros->solve(tin.getProven(), reqGround);
     if (!eq.isNull())
     {
@@ -148,7 +141,7 @@ bool TheoryQuantifiers::collectModelValues(TheoryModel* m,
   for(assertions_iterator i = facts_begin(); i != facts_end(); ++i) {
     if ((*i).d_assertion.getKind() == NOT)
     {
-      Debug("quantifiers::collectModelInfo")
+      Trace("quantifiers::collectModelInfo")
           << "got quant FALSE: " << (*i).d_assertion[0] << std::endl;
       if (!m->assertPredicate((*i).d_assertion[0], false))
       {
@@ -157,7 +150,7 @@ bool TheoryQuantifiers::collectModelValues(TheoryModel* m,
     }
     else
     {
-      Debug("quantifiers::collectModelInfo")
+      Trace("quantifiers::collectModelInfo")
           << "got quant TRUE : " << *i << std::endl;
       if (!m->assertPredicate(*i, true))
       {
@@ -190,10 +183,6 @@ bool TheoryQuantifiers::preNotifyFact(
   return true;
 }
 
-void TheoryQuantifiers::setUserAttribute(const std::string& attr, Node n, std::vector<Node> node_values, std::string str_value){
-  QuantAttributes::setUserAttribute( attr, n, node_values, str_value );
-}
-
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

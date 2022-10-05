@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Gereon Kremer
+ *   Andrew Reynolds, Aina Niemetz, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,13 +18,14 @@
 #ifndef CVC5__THEORY__COMBINATION_ENGINE__H
 #define CVC5__THEORY__COMBINATION_ENGINE__H
 
-#include <vector>
 #include <memory>
+#include <vector>
 
+#include "smt/env_obj.h"
 #include "theory/ee_manager.h"
 #include "theory/valuation.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 class TheoryEngine;
 class Env;
@@ -42,13 +43,12 @@ class SharedSolver;
  * mode, and
  * (2) Implementing the main combination method (combineTheories).
  */
-class CombinationEngine
+class CombinationEngine : protected EnvObj
 {
  public:
-  CombinationEngine(TheoryEngine& te,
-                    Env& env,
-                    const std::vector<Theory*>& paraTheories,
-                    ProofNodeManager* pnm);
+  CombinationEngine(Env& env,
+                    TheoryEngine& te,
+                    const std::vector<Theory*>& paraTheories);
   virtual ~CombinationEngine();
 
   /** Finish initialization */
@@ -107,12 +107,8 @@ class CombinationEngine
   virtual eq::EqualityEngineNotify* getModelEqualityEngineNotify();
   /** Reference to the theory engine */
   TheoryEngine& d_te;
-  /** Reference to the environment */
-  Env& d_env;
   /** Valuation for the engine */
   Valuation d_valuation;
-  /** The proof node manager */
-  ProofNodeManager* d_pnm;
   /** Logic info of theory engine (cached) */
   const LogicInfo& d_logicInfo;
   /** List of parametric theories of theory engine */
@@ -140,6 +136,6 @@ class CombinationEngine
 };
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__COMBINATION_DISTRIBUTED__H */

@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,7 +23,7 @@
 
 #include "expr/node.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace expr {
 
 /** Mark variable as list */
@@ -41,7 +41,15 @@ bool hasListVar(TNode n);
  */
 bool getListVarContext(TNode n, std::map<Node, Kind>& context);
 
-/** get the null terminator */
+/**
+ * Get the null terminator for kind k and type node tn.
+ *
+ * Examples of null terminators:
+ *   false for (OR, bool)
+ *   true for (AND, bool)
+ *   (as seq.empty (Seq Int)) for (STRING_CONCAT, (Seq Int)
+ *   #x0 for (BITVECTOR_OR, (_ BitVec 4))
+ */
 Node getNullTerminator(Kind k, TypeNode tn);
 
 /**
@@ -61,6 +69,6 @@ Node narySubstitute(Node src,
 bool naryMatch(Node n1, Node n2, std::unordered_map<Node, Node>& subs);
 
 }  // namespace expr
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC4__EXPR__NARY_TERM_UTIL__H */

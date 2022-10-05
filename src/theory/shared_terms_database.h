@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -24,17 +24,19 @@
 #include "expr/node.h"
 #include "proof/proof_node_manager.h"
 #include "proof/trust_node.h"
+#include "smt/env_obj.h"
 #include "theory/ee_setup_info.h"
 #include "theory/theory_id.h"
 #include "theory/uf/equality_engine.h"
 #include "theory/uf/proof_equality_engine.h"
 #include "util/statistics_stats.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 class TheoryEngine;
 
-class SharedTermsDatabase : public context::ContextNotifyObj {
+class SharedTermsDatabase : protected EnvObj, public context::ContextNotifyObj
+{
  public:
   /** A container for a list of shared terms */
   typedef std::vector<TNode> shared_terms_list;
@@ -43,6 +45,7 @@ class SharedTermsDatabase : public context::ContextNotifyObj {
   typedef shared_terms_list::const_iterator shared_terms_iterator;
 
  private:
+
   /** Some statistics */
   IntStat d_statSharedTerms;
 
@@ -158,10 +161,7 @@ class SharedTermsDatabase : public context::ContextNotifyObj {
    * @param pnm The proof node manager to use, which is non-null if proofs
    * are enabled.
    */
-  SharedTermsDatabase(TheoryEngine* theoryEngine,
-                      context::Context* context,
-                      context::UserContext* userContext,
-                      ProofNodeManager* pnm);
+  SharedTermsDatabase(Env& env, TheoryEngine* theoryEngine);
 
   //-------------------------------------------- initialization
   /** Called to set the equality engine. */
@@ -265,10 +265,6 @@ class SharedTermsDatabase : public context::ContextNotifyObj {
    * This method gets called on backtracks from the context manager.
    */
   void contextNotifyPop() override { backtrack(); }
-  /** The SAT search context. */
-  context::Context* d_satContext;
-  /** The user level assertion context. */
-  context::UserContext* d_userContext;
   /** Equality engine */
   theory::eq::EqualityEngine* d_equalityEngine;
   /** Proof equality engine, if we allocated one */
@@ -279,4 +275,4 @@ class SharedTermsDatabase : public context::ContextNotifyObj {
   ProofNodeManager* d_pnm;
 };
 
-}  // namespace cvc5
+}  // namespace cvc5::internal

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Aina Niemetz
+ *   Andrew Reynolds, Mathias Preiner, Haniel Barbosa
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,15 +22,13 @@
 #include "expr/node_algorithm.h"
 #include "expr/sygus_datatype.h"
 #include "smt/env.h"
-#include "smt/smt_engine.h"
-#include "smt/smt_engine_scope.h"
 #include "theory/evaluator.h"
 #include "theory/rewriter.h"
 
-using namespace cvc5;
-using namespace cvc5::kind;
+using namespace cvc5::internal;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace datatypes {
 namespace utils {
@@ -113,12 +111,6 @@ Kind getOperatorKindForSygusBuiltin(Node op)
   return NodeManager::getKindForFunction(op);
 }
 
-struct SygusOpRewrittenAttributeId
-{
-};
-typedef expr::Attribute<SygusOpRewrittenAttributeId, Node>
-    SygusOpRewrittenAttribute;
-
 Kind getEliminateKind(Kind ok)
 {
   Kind nk = ok;
@@ -156,42 +148,31 @@ Node mkSygusTerm(const DType& dt,
   {
     // Get the normalized version of the sygus operator. We do this by
     // expanding definitions, rewriting it, and eliminating partial operators.
-    if (!op.hasAttribute(SygusOpRewrittenAttribute()))
+    if (op.isConst())
     {
-      if (op.isConst())
+      // If it is a builtin operator, convert to total version if necessary.
+      // First, get the kind for the operator.
+      Kind ok = NodeManager::operatorToKind(op);
+      Trace("sygus-grammar-normalize-debug")
+          << "...builtin kind is " << ok << std::endl;
+      Kind nk = getEliminateKind(ok);
+      if (nk != ok)
       {
-        // If it is a builtin operator, convert to total version if necessary.
-        // First, get the kind for the operator.
-        Kind ok = NodeManager::operatorToKind(op);
         Trace("sygus-grammar-normalize-debug")
-            << "...builtin kind is " << ok << std::endl;
-        Kind nk = getEliminateKind(ok);
-        if (nk != ok)
-        {
-          Trace("sygus-grammar-normalize-debug")
-              << "...replace by builtin operator " << nk << std::endl;
-          opn = NodeManager::currentNM()->operatorOf(nk);
-        }
-      }
-      else
-      {
-        // Only expand definitions if the operator is not constant, since
-        // calling expandDefinitions on them should be a no-op. This check
-        // ensures we don't try to expand e.g. bitvector extract operators,
-        // whose type is undefined, and thus should not be passed to
-        // expandDefinitions.
-        opn = smt::currentSmtEngine()->expandDefinitions(op);
-        opn = Rewriter::rewrite(opn);
-        SygusOpRewrittenAttribute sora;
-        op.setAttribute(sora, opn);
+            << "...replace by builtin operator " << nk << std::endl;
+        opn = NodeManager::currentNM()->operatorOf(nk);
       }
     }
     else
     {
-      opn = op.getAttribute(SygusOpRewrittenAttribute());
+      // Get the expanded definition form, if it has been marked. This ensures
+      // that user-defined functions have been eliminated from op.
+      opn = getExpandedDefinitionForm(op);
     }
   }
-  return mkSygusTerm(opn, children, doBetaReduction);
+  Node ret = mkSygusTerm(opn, children, doBetaReduction);
+  Assert(ret.getType() == dt.getSygusType());
+  return ret;
 }
 
 Node mkSygusTerm(Node op,
@@ -393,124 +374,6 @@ Node sygusToBuiltin(Node n, bool isExternal)
   return visited[n];
 }
 
-Node sygusToBuiltinEval(Node n, const std::vector<Node>& args)
-{
-  NodeManager* nm = NodeManager::currentNM();
-  Evaluator eval;
-  // constant arguments?
-  bool constArgs = true;
-  for (const Node& a : args)
-  {
-    if (!a.isConst())
-    {
-      constArgs = false;
-      break;
-    }
-  }
-  std::vector<Node> eargs;
-  bool svarsInit = false;
-  std::vector<Node> svars;
-  std::unordered_map<TNode, Node> visited;
-  std::unordered_map<TNode, Node>::iterator it;
-  std::vector<TNode> visit;
-  TNode cur;
-  unsigned index;
-  visit.push_back(n);
-  do
-  {
-    cur = visit.back();
-    visit.pop_back();
-    it = visited.find(cur);
-    if (it == visited.end())
-    {
-      TypeNode tn = cur.getType();
-      if (!tn.isDatatype() || !tn.getDType().isSygus())
-      {
-        visited[cur] = cur;
-      }
-      else if (cur.isConst())
-      {
-        // convert to builtin term
-        Node bt = sygusToBuiltin(cur);
-        // run the evaluator if possible
-        if (!svarsInit)
-        {
-          svarsInit = true;
-          TypeNode type = cur.getType();
-          Node varList = type.getDType().getSygusVarList();
-          for (const Node& v : varList)
-          {
-            svars.push_back(v);
-          }
-        }
-        Assert(args.size() == svars.size());
-        // try evaluation if we have constant arguments
-        Node ret = constArgs ? eval.eval(bt, svars, args) : Node::null();
-        if (ret.isNull())
-        {
-          // if evaluation was not available, use a substitution
-          ret = bt.substitute(
-              svars.begin(), svars.end(), args.begin(), args.end());
-        }
-        visited[cur] = ret;
-      }
-      else
-      {
-        if (cur.getKind() == APPLY_CONSTRUCTOR)
-        {
-          visited[cur] = Node::null();
-          visit.push_back(cur);
-          for (const Node& cn : cur)
-          {
-            visit.push_back(cn);
-          }
-        }
-        else
-        {
-          // it is the evaluation of this term on the arguments
-          if (eargs.empty())
-          {
-            eargs.push_back(cur);
-            eargs.insert(eargs.end(), args.begin(), args.end());
-          }
-          else
-          {
-            eargs[0] = cur;
-          }
-          visited[cur] = nm->mkNode(DT_SYGUS_EVAL, eargs);
-        }
-      }
-    }
-    else if (it->second.isNull())
-    {
-      Node ret = cur;
-      Assert(cur.getKind() == APPLY_CONSTRUCTOR);
-      const DType& dt = cur.getType().getDType();
-      // non sygus-datatype terms are also themselves
-      if (dt.isSygus())
-      {
-        std::vector<Node> children;
-        for (const Node& cn : cur)
-        {
-          it = visited.find(cn);
-          Assert(it != visited.end());
-          Assert(!it->second.isNull());
-          children.push_back(it->second);
-        }
-        index = indexOf(cur.getOperator());
-        // apply to children, which constructs the builtin term
-        ret = mkSygusTerm(dt, index, children);
-        // now apply it to arguments in args
-        ret = applySygusArgs(dt, dt[index].getSygusOp(), ret, args);
-      }
-      visited[cur] = ret;
-    }
-  } while (!visit.empty());
-  Assert(visited.find(n) != visited.end());
-  Assert(!visited.find(n)->second.isNull());
-  return visited[n];
-}
-
 Node builtinVarToSygus(Node v)
 {
   BuiltinVarToSygusAttribute bvtsa;
@@ -596,7 +459,6 @@ TypeNode substituteAndGeneralizeSygusType(TypeNode sdt,
 
   // must convert all constructors to version with variables in "vars"
   std::vector<SygusDatatype> sdts;
-  std::set<TypeNode> unres;
 
   Trace("dtsygus-gen-debug") << "Process sygus type:" << std::endl;
   Trace("dtsygus-gen-debug") << sdtd.getName() << std::endl;
@@ -608,9 +470,7 @@ TypeNode substituteAndGeneralizeSygusType(TypeNode sdt,
   dtToProcess.push_back(sdt);
   std::stringstream ssutn0;
   ssutn0 << sdtd.getName() << "_s";
-  TypeNode abdTNew =
-      nm->mkSort(ssutn0.str(), NodeManager::SORT_FLAG_PLACEHOLDER);
-  unres.insert(abdTNew);
+  TypeNode abdTNew = nm->mkUnresolvedDatatypeSort(ssutn0.str());
   dtProcessed[sdt] = abdTNew;
 
   // We must convert all symbols in the sygus datatype type sdt to
@@ -650,11 +510,9 @@ TypeNode substituteAndGeneralizeSygusType(TypeNode sdt,
           {
             std::stringstream ssutn;
             ssutn << argt.getDType().getName() << "_s";
-            argtNew =
-                nm->mkSort(ssutn.str(), NodeManager::SORT_FLAG_PLACEHOLDER);
+            argtNew = nm->mkUnresolvedDatatypeSort(ssutn.str());
             Trace("dtsygus-gen-debug") << "    ...unresolved type " << argtNew
                                        << " for " << argt << std::endl;
-            unres.insert(argtNew);
             dtProcessed[argt] = argtNew;
             dtNextToProcess.push_back(argt);
           }
@@ -690,10 +548,9 @@ TypeNode substituteAndGeneralizeSygusType(TypeNode sdt,
     datatypes.push_back(sdts[i].getDatatype());
   }
   // make the datatype types
-  std::vector<TypeNode> datatypeTypes = nm->mkMutualDatatypeTypes(
-      datatypes, unres, NodeManager::DATATYPE_FLAG_PLACEHOLDER);
+  std::vector<TypeNode> datatypeTypes = nm->mkMutualDatatypeTypes(datatypes);
   TypeNode sdtS = datatypeTypes[0];
-  if (Trace.isOn("dtsygus-gen-debug"))
+  if (TraceIsOn("dtsygus-gen-debug"))
   {
     Trace("dtsygus-gen-debug") << "Made datatype types:" << std::endl;
     for (unsigned j = 0, ndts = datatypeTypes.size(); j < ndts; j++)
@@ -736,7 +593,29 @@ unsigned getSygusTermSize(Node n)
   return weight + sum;
 }
 
+/**
+ * Map terms to the result of expand definitions calling smt::expandDefinitions
+ * on it.
+ */
+struct SygusExpDefFormAttributeId
+{
+};
+typedef expr::Attribute<SygusExpDefFormAttributeId, Node>
+    SygusExpDefFormAttribute;
+
+void setExpandedDefinitionForm(Node op, Node eop)
+{
+  op.setAttribute(SygusExpDefFormAttribute(), eop);
+}
+
+Node getExpandedDefinitionForm(Node op)
+{
+  Node eop = op.getAttribute(SygusExpDefFormAttribute());
+  // if not set, assume original
+  return eop.isNull() ? op : eop;
+}
+
 }  // namespace utils
 }  // namespace datatypes
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

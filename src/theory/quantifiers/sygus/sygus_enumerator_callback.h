@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner
+ *   Andrew Reynolds
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,25 +21,30 @@
 #include <unordered_set>
 
 #include "expr/node.h"
+#include "smt/env_obj.h"
 #include "theory/quantifiers/extended_rewrite.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
 class ExampleEvalCache;
 class SygusStatistics;
 class SygusSampler;
+class TermDbSygus;
 
 /**
  * Base class for callbacks in the fast enumerator. This allows a user to
  * provide custom criteria for whether or not enumerated values should be
  * considered.
  */
-class SygusEnumeratorCallback
+class SygusEnumeratorCallback : protected EnvObj
 {
  public:
-  SygusEnumeratorCallback(Node e, SygusStatistics* s = nullptr);
+  SygusEnumeratorCallback(Env& env,
+                          Node e,
+                          TermDbSygus* tds = nullptr,
+                          SygusStatistics* s = nullptr);
   virtual ~SygusEnumeratorCallback() {}
   /**
    * Add term, return true if the term should be considered in the enumeration.
@@ -50,7 +55,7 @@ class SygusEnumeratorCallback
    * @param bterms The (rewritten, builtin) terms we have already enumerated
    * @return true if n should be considered in the enumeration.
    */
-  virtual bool addTerm(Node n, std::unordered_set<Node>& bterms) = 0;
+  virtual bool addTerm(Node n, std::unordered_set<Node>& bterms);
 
  protected:
   /**
@@ -60,7 +65,7 @@ class SygusEnumeratorCallback
    * @param bn The builtin version of the enumerated term
    * @param bnr The (extended) rewritten form of bn
    */
-  virtual void notifyTermInternal(Node n, Node bn, Node bnr) = 0;
+  virtual void notifyTermInternal(Node n, Node bn, Node bnr) {}
   /**
    * Callback-specific add term
    *
@@ -69,13 +74,13 @@ class SygusEnumeratorCallback
    * @param bnr The (extended) rewritten form of bn
    * @return true if the term should be considered in the enumeration.
    */
-  virtual bool addTermInternal(Node n, Node bn, Node bnr) = 0;
+  virtual bool addTermInternal(Node n, Node bn, Node bnr) { return true; }
   /** The enumerator */
   Node d_enum;
   /** The type of enum */
   TypeNode d_tn;
-  /** extended rewriter */
-  ExtendedRewriter d_extr;
+  /** Term database sygus */
+  TermDbSygus* d_tds;
   /** pointer to the statistics */
   SygusStatistics* d_stats;
 };
@@ -83,10 +88,13 @@ class SygusEnumeratorCallback
 class SygusEnumeratorCallbackDefault : public SygusEnumeratorCallback
 {
  public:
-  SygusEnumeratorCallbackDefault(Node e,
+  SygusEnumeratorCallbackDefault(Env& env,
+                                 Node e,
+                                 TermDbSygus* tds = nullptr,
                                  SygusStatistics* s = nullptr,
                                  ExampleEvalCache* eec = nullptr,
-                                 SygusSampler* ssrv = nullptr);
+                                 SygusSampler* ssrv = nullptr,
+                                 std::ostream* out = nullptr);
   virtual ~SygusEnumeratorCallbackDefault() {}
 
  protected:
@@ -101,10 +109,12 @@ class SygusEnumeratorCallbackDefault : public SygusEnumeratorCallback
   ExampleEvalCache* d_eec;
   /** sampler (for --sygus-rr-verify) */
   SygusSampler* d_samplerRrV;
+  /** The output stream to print unsound rewrites for above */
+  std::ostream* d_out;
 };
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__SYGUS__SYGUS_ENUMERATOR_CALLBACK_H */

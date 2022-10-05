@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Tim King
+ *   Andrew Reynolds, Mathias Preiner, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,11 +21,12 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "smt/env_obj.h"
 #include "theory/theory_model.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
-class TheoryEngine;
+class Env;
 
 namespace theory {
 
@@ -42,13 +43,13 @@ namespace theory {
  * this will set up the data structures in TheoryModel to represent
  * a model for the current set of assertions.
  */
-class TheoryEngineModelBuilder
+class TheoryEngineModelBuilder : protected EnvObj
 {
   typedef std::unordered_map<Node, Node> NodeMap;
   typedef std::unordered_set<Node> NodeSet;
 
  public:
-  TheoryEngineModelBuilder();
+  TheoryEngineModelBuilder(Env& env);
   virtual ~TheoryEngineModelBuilder() {}
   /**
    * Should be called only on models m after they have been prepared
@@ -207,8 +208,8 @@ class TheoryEngineModelBuilder
    * Assign all unassigned functions in the model m (those returned by
    * TheoryModel::getFunctionsToAssign),
    * using the two functions above. Currently:
-   * If ufHo is disabled, we call assignFunction for all functions.
-   * If ufHo is enabled, we call assignHoFunction.
+   * If HO logic is disabled, we call assignFunction for all functions.
+   * If HO logic is enabled, we call assignHoFunction.
    */
   void assignFunctions(TheoryModel* m);
 
@@ -291,18 +292,16 @@ class TheoryEngineModelBuilder
                           Node eqc);
   /** is codatatype value match
    *
-   * This returns true if v is r{ eqc -> t } for some t.
-   * If this function returns true, then t above is
-   * stored in eqc_m.
+   * Takes as arguments a codatatype value v, and a codatatype term r of the
+   * same sort.
+   *
+   * It returns true if it is possible that the value of r will be forced to
+   * be equal to v during model construction. A return value of false indicates
+   * that it is safe to use value v to avoid merging with r.
    */
-  bool isCdtValueMatch(Node v, Node r, Node eqc, Node& eqc_m);
+  static bool isCdtValueMatch(Node v, Node r);
   //------------------------------------end for codatatypes
 
-  /**
-   * Is the given type constrained to be finite? This depends on whether
-   * finite model finding is enabled.
-   */
-  bool isFiniteType(TypeNode tn) const;
   //---------------------------------for debugging finite model finding
   /** does type tn involve an uninterpreted sort? */
   bool involvesUSort(TypeNode tn) const;
@@ -315,10 +314,9 @@ class TheoryEngineModelBuilder
                             Node v,
                             std::map<Node, bool>& visited);
   //---------------------------------end for debugging finite model finding
-
 }; /* class TheoryEngineModelBuilder */
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__THEORY_MODEL_BUILDER_H */

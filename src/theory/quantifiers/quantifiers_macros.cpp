@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Yoni Zohar, Haniel Barbosa
+ *   Andrew Reynolds, Mathias Preiner, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -25,13 +25,16 @@
 #include "theory/quantifiers/term_util.h"
 #include "theory/rewriter.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
-QuantifiersMacros::QuantifiersMacros(QuantifiersRegistry& qr) : d_qreg(qr) {}
+QuantifiersMacros::QuantifiersMacros(Env& env, QuantifiersRegistry& qr)
+    : EnvObj(env), d_qreg(qr)
+{
+}
 
 Node QuantifiersMacros::solve(Node lit, bool reqGround)
 {
@@ -87,8 +90,9 @@ Node QuantifiersMacros::solve(Node lit, bool reqGround)
         Trace("macros-debug")
             << "...does not contain bad (recursive) operator." << std::endl;
         // must be ground UF term if mode is GROUND_UF
-        if (options::macrosQuantMode() != options::MacrosQuantMode::GROUND_UF
-            || preservesTriggerVariables(body, n_def))
+        if (options().quantifiers.macrosQuantMode
+                != options::MacrosQuantMode::GROUND_UF
+            || preservesTriggerVariables(lit, n_def))
         {
           Trace("macros-debug")
               << "...respects ground-uf constraint." << std::endl;
@@ -139,13 +143,15 @@ bool QuantifiersMacros::containsBadOp(Node n, Node op, bool reqGround)
 
 bool QuantifiersMacros::preservesTriggerVariables(Node q, Node n)
 {
+  Assert(q.getKind() == FORALL) << "Expected quantified formula, got " << q;
   Node icn = d_qreg.substituteBoundVariablesToInstConstants(n, q);
   Trace("macros-debug2") << "Get free variables in " << icn << std::endl;
   std::vector<Node> var;
   quantifiers::TermUtil::computeInstConstContainsForQuant(q, icn, var);
   Trace("macros-debug2") << "Get trigger variables for " << icn << std::endl;
   std::vector<Node> trigger_var;
-  inst::PatternTermSelector::getTriggerVariables(icn, q, trigger_var);
+  inst::PatternTermSelector::getTriggerVariables(
+      d_env.getOptions(), icn, q, trigger_var);
   Trace("macros-debug2") << "Done." << std::endl;
   // only if all variables are also trigger variables
   return trigger_var.size() >= var.size();
@@ -193,7 +199,7 @@ void QuantifiersMacros::getMacroCandidates(Node n,
         candidates.push_back(n);
       }
     }
-    else if (n.getKind() == PLUS)
+    else if (n.getKind() == ADD)
     {
       for (size_t i = 0; i < n.getNumChildren(); i++)
       {
@@ -273,7 +279,7 @@ Node QuantifiersMacros::solveEq(Node n, Node ndef)
   }
   TNode op = n.getOperator();
   TNode fdeft = fdef;
-  Assert(op.getType().isComparableTo(fdef.getType()));
+  Assert(op.getType() == fdef.getType());
   return op.eqNode(fdef);
 }
 
@@ -286,4 +292,4 @@ Node QuantifiersMacros::returnMacro(Node fdef, Node lit) const
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

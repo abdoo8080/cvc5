@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Gereon Kremer
+ *   Andrew Reynolds, Aina Niemetz, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,10 +19,13 @@
 #define CVC5__THEORY__QUANTIFIERS__SYGUS_REPAIR_CONST_H
 
 #include <unordered_set>
+
 #include "expr/node.h"
+#include "smt/env_obj.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
+class Env;
 class LogicInfo;
 
 namespace theory {
@@ -41,14 +44,14 @@ class TermDbSygus;
  *   forall x. P( (\x. t[x,c']), x )  [***]
  * is satisfiable, where notice that the above formula after beta-reduction may
  * be one in pure first-order logic in a decidable theory (say linear
- * arithmetic). To check this, we invoke a separate instance of the SmtEngine
+ * arithmetic). To check this, we invoke a separate instance of the SolverEngine
  * within repairSolution(...) below, which if satisfiable gives us the
  * valuation for c'.
  */
-class SygusRepairConst
+class SygusRepairConst : protected EnvObj
 {
  public:
-  SygusRepairConst(TermDbSygus* tds);
+  SygusRepairConst(Env& env, TermDbSygus* tds);
   ~SygusRepairConst() {}
   /** initialize
    *
@@ -188,7 +191,7 @@ class SygusRepairConst
    * sk_vars.
    */
   Node fitToLogic(Node body,
-                  LogicInfo& logic,
+                  const LogicInfo& logic,
                   Node n,
                   const std::vector<Node>& candidates,
                   std::vector<Node>& candidate_skeletons,
@@ -205,11 +208,11 @@ class SygusRepairConst
    * exvar to x.
    * If n is in the given logic, this method returns true.
    */
-  bool getFitToLogicExcludeVar(LogicInfo& logic, Node n, Node& exvar);
+  bool getFitToLogicExcludeVar(const LogicInfo& logic, Node n, Node& exvar);
 };
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANTIFIERS__SYGUS_REPAIR_CONST_H */

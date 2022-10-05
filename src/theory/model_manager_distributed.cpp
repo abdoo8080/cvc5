@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Gereon Kremer, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,13 +20,13 @@
 #include "theory/theory_model.h"
 #include "theory/theory_model_builder.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
-ModelManagerDistributed::ModelManagerDistributed(TheoryEngine& te,
-                                                 Env& env,
+ModelManagerDistributed::ModelManagerDistributed(Env& env,
+                                                 TheoryEngine& te,
                                                  EqEngineManager& eem)
-    : ModelManager(te, env, eem)
+    : ModelManager(env, te, eem)
 {
 }
 
@@ -81,11 +81,19 @@ bool ModelManagerDistributed::prepareModel()
       continue;
     }
     Theory* t = d_te.theoryOf(theoryId);
+    if (theoryId == TheoryId::THEORY_BOOL
+        || theoryId == TheoryId::THEORY_BUILTIN)
+    {
+      Trace("model-builder")
+          << "  Skipping theory " << theoryId
+          << " as it does not contribute to the model anyway" << std::endl;
+      continue;
+    }
     Trace("model-builder") << "  CollectModelInfo on theory: " << theoryId
                            << std::endl;
     // collect the asserted terms
     std::set<Node> termSet;
-    collectAssertedTerms(theoryId, termSet);
+    t->collectAssertedTermsForModel(termSet);
     // also get relevant terms
     t->computeRelevantTerms(termSet);
     if (!t->collectModelInfo(d_model.get(), termSet))
@@ -118,4 +126,4 @@ bool ModelManagerDistributed::finishBuildModel() const
 }
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

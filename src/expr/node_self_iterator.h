@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Morgan Deters, Mathias Preiner, Andres Noetzli
+ *   Morgan Deters, Yancheng Ou, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,14 +23,33 @@
 #include "base/check.h"
 #include "expr/node.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace expr {
 
-class NodeSelfIterator : public std::iterator<std::input_iterator_tag, Node> {
+class NodeSelfIterator {
   Node d_node;
   Node::const_iterator d_child;
 
 public:
+  /* The following types are required by trait std::iterator_traits */
+
+  /** Iterator tag */
+  using iterator_category = std::forward_iterator_tag;
+
+  /** The type of the item */
+  using value_type = Node;
+
+  /** The pointer type of the item */
+  using pointer = Node*;
+
+  /** The reference type of the item */
+  using reference = Node&;
+
+  /** The type returned when two iterators are subtracted */
+  using difference_type = std::ptrdiff_t;
+
+  /* End of std::iterator_traits required types */
+
   static NodeSelfIterator self(TNode n);
   static NodeSelfIterator selfEnd(TNode n);
 
@@ -122,6 +141,6 @@ inline bool NodeSelfIterator::operator!=(NodeSelfIterator i) const {
 }
 
 }  // namespace expr
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__EXPR__NODE_SELF_ITERATOR_H */

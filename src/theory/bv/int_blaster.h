@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Yoni Zohar
+ *   Yoni Zohar, Aina Niemetz, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,11 +21,11 @@
 #include "context/cdhashmap.h"
 #include "context/cdhashset.h"
 #include "context/cdo.h"
-#include "context/context.h"
 #include "options/smt_options.h"
+#include "smt/env_obj.h"
 #include "theory/arith/nl/iand_utils.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 /*
 ** Converts bit-vector formulas to integer formulas.
@@ -74,6 +74,11 @@ namespace cvc5 {
 ** Tr(a=b) = Tr(a)=Tr(b)
 ** Tr((bvult a b)) = Tr(a) < Tr(b)
 ** Similar transformations are done for bvule, bvugt, and bvuge.
+** Tr((bvslt a b)) = Tr(uts(a)) < Tr(uts(b)),
+** where uts is a function that transforms unsigned
+** to signed representations. See more details
+** in the documentation of the function uts.
+** Similar transformations are done for the remaining comparators.
 **
 ** Bit-vector operators that are not listed above are either
 ** eliminated using the BV rewriter,
@@ -86,7 +91,7 @@ namespace cvc5 {
 ** op.
 **
 **/
-class IntBlaster
+class IntBlaster : protected EnvObj
 {
   using CDNodeMap = context::CDHashMap<Node, Node>;
 
@@ -96,14 +101,14 @@ class IntBlaster
    * @param context user context
    * @param mode bv-to-int translation mode
    * @param granularity bv-to-int translation granularity
-   * @param introduceFreshIntVars determines whether bit-vector variables are
    * translated to integer variables, or are directly casted using `bv2nat`
    * operator. not purely bit-vector nodes.
    */
-  IntBlaster(context::Context* context,
+  IntBlaster(Env& env,
              options::SolveBVAsIntMode mode,
-             uint64_t granluarity = 1,
-             bool introduceFreshIntVars = true);
+             uint64_t granluarity = 1);
+
+  ~IntBlaster();
 
   /**
    * The result is an integer term and is computed
@@ -153,6 +158,32 @@ class IntBlaster
 
   /** Returns a node that represents the bitwise negation of n. */
   Node createBVNotNode(Node n, uint64_t bvsize);
+
+  /** Returns a node that represents the arithmetic negation of n. */
+  Node createBVNegNode(Node n, uint64_t bvsize);
+
+  /** Returns a node that represents the bitwise and of x and y, based on the
+   * provided option. */
+  Node createBVAndNode(Node x,
+                       Node y,
+                       uint64_t bvsize,
+                       std::vector<Node>& lemmas);
+
+  /** Returns a node that represents the bitwise or of x and y, by translation
+   * to sum and bitwise and. */
+  Node createBVOrNode(Node x,
+                      Node y,
+                      uint64_t bvsize,
+                      std::vector<Node>& lemmas);
+
+  /** Returns a node that represents the sum of x and y. */
+  Node createBVAddNode(Node x, Node y, uint64_t bvsize);
+
+  /** Returns a node that represents the difference of x and y. */
+  Node createBVSubNode(Node x, Node y, uint64_t bvsize);
+
+  /** Returns a node that represents the signed extension of x by amount. */
+  Node createSignExtendNode(Node x, uint64_t bvsize, uint64_t amount);
 
   /**
    * Whenever we introduce an integer variable that represents a bit-vector
@@ -240,7 +271,7 @@ class IntBlaster
    * A useful utility function.
    * if n is an integer and tn is bit-vector,
    * applies the IntToBitVector operator on n.
-   * if n is a vit-vector and tn is integer,
+   * if n is a bit-vector and tn is integer,
    * applies BitVector_TO_NAT operator.
    * Otherwise, keeps n intact.
    */
@@ -284,7 +315,7 @@ class IntBlaster
    * binary representation of n is the same as the
    * signed binary representation of m.
    */
-  Node unsignedToSigned(Node n, uint64_t bvsize);
+  Node uts(Node n, uint64_t bvsize);
 
   /**
    * Performs the actual translation to integers for nodes
@@ -335,16 +366,10 @@ class IntBlaster
   /** the granularity to use in the translation */
   uint64_t d_granularity;
 
-  /** an SmtEngine for context */
+  /** an SolverEngine for context */
   context::Context* d_context;
-
-  /** true iff the translator should introduce
-   * fresh integer variables for bit-vector variables.
-   * Otherwise, we introduce a nat2bv term.
-   */
-  bool d_introduceFreshIntVars;
 };
 
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* __CVC5__THEORY__BV__INT_BLASTER_H */

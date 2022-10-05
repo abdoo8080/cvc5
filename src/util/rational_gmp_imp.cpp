@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Tim King, Christopher L. Conway, Morgan Deters
+ *   Tim King, Christopher L. Conway, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -25,7 +25,7 @@
 
 #include "base/check.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 std::ostream& operator<<(std::ostream& os, const Rational& q){
   return os << q.toString();
@@ -85,7 +85,7 @@ int Rational::absCmp(const Rational& q) const{
 
 
 /** Return an exact rational for a double d. */
-Maybe<Rational> Rational::fromDouble(double d)
+std::optional<Rational> Rational::fromDouble(double d)
 {
   using namespace std;
   if(isfinite(d)){
@@ -93,7 +93,7 @@ Maybe<Rational> Rational::fromDouble(double d)
     mpq_set_d(q.d_value.get_mpq_t(), d);
     return q;
   }
-  return Maybe<Rational>();
+  return std::optional<Rational>();
 }
 
-}  // namespace cvc5
+}  // namespace cvc5::internal

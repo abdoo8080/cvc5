@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Paul Meng, Tim King
+ *   Andrew Reynolds, Paul Meng, Mathias Preiner
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,6 +20,7 @@
 
 #include "context/cdhashset.h"
 #include "context/cdlist.h"
+#include "smt/env_obj.h"
 #include "theory/sets/inference_manager.h"
 #include "theory/sets/rels_utils.h"
 #include "theory/sets/solver_state.h"
@@ -27,7 +28,7 @@
 #include "theory/theory.h"
 #include "theory/uf/equality_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace sets {
 
@@ -52,20 +53,22 @@ public:
  * for handling quantifier-free constraints in the theory of relations.
  *
  * In cvc5, relations are represented as sets of tuples. The theory of
- * relations includes constraints over operators, e.g. TRANSPOSE, JOIN and so
- * on, which apply to sets of tuples.
+ * relations includes constraints over operators, e.g. RELATION_TRANSPOSE,
+ * RELATION_JOIN and so on, which apply to sets of tuples.
  *
  * Since relations are a special case of sets, this class is implemented as an
  * extension of the theory of sets. That is, it shares many components of the
  * TheorySets object which owns it.
  */
-class TheorySetsRels {
+class TheorySetsRels : protected EnvObj
+{
   typedef context::CDList<Node> NodeList;
   typedef context::CDHashSet<Node> NodeSet;
   typedef context::CDHashMap<Node, Node> NodeMap;
 
  public:
-  TheorySetsRels(SolverState& s,
+  TheorySetsRels(Env& env,
+                 SolverState& s,
                  InferenceManager& im,
                  SkolemCache& skc,
                  TermRegistry& treg);
@@ -110,7 +113,7 @@ class TheorySetsRels {
   std::map< Node, std::vector< Node > >           d_rReps_memberReps_exp_cache;
 
   /** Mapping between a relation representative and its equivalent relations involving relational operators */
-  std::map< Node, std::map<kind::Kind_t, std::vector<Node> > >                  d_terms_cache;
+  std::map<Node, std::map<Kind, std::vector<Node> > > d_terms_cache;
 
   /** Mapping between transitive closure relation TC(r) and its TC graph constructed based on the members of r*/
   std::map<Node, std::map<Node, std::unordered_set<Node> > > d_rRep_tcGraph;
@@ -177,7 +180,7 @@ class TheorySetsRels {
 
   /** Helper functions */
   bool hasTerm( Node a );
-  void makeSharedTerm(Node, TypeNode t);
+  void makeSharedTerm(Node a);
   void reduceTupleVar( Node );
   bool hasMember( Node, Node );
   void computeTupleReps( Node );
@@ -191,6 +194,6 @@ class TheorySetsRels {
 
 }  // namespace sets
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* SRC_THEORY_SETS_THEORY_SETS_RELS_H_ */

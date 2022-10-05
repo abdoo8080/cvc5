@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,15 +22,12 @@
 #include "theory/shared_solver.h"
 #include "theory/theory_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 CombinationCareGraph::CombinationCareGraph(
-    TheoryEngine& te,
-    Env& env,
-    const std::vector<Theory*>& paraTheories,
-    ProofNodeManager* pnm)
-    : CombinationEngine(te, env, paraTheories, pnm)
+    Env& env, TheoryEngine& te, const std::vector<Theory*>& paraTheories)
+    : CombinationEngine(env, te, paraTheories)
 {
 }
 
@@ -57,7 +54,7 @@ void CombinationCareGraph::combineTheories()
   prop::PropEngine* propEngine = d_te.getPropEngine();
   for (const CarePair& carePair : careGraph)
   {
-    Debug("combineTheories")
+    Trace("combineTheories")
         << "TheoryEngine::combineTheories(): checking " << carePair.d_a << " = "
         << carePair.d_b << " from " << carePair.d_theory << std::endl;
 
@@ -65,7 +62,7 @@ void CombinationCareGraph::combineTheories()
     Node equality = carePair.d_a.eqNode(carePair.d_b);
 
     // We need to split on it
-    Debug("combineTheories")
+    Trace("combineTheories")
         << "TheoryEngine::combineTheories(): requesting a split " << std::endl;
 
     TrustNode tsplit;
@@ -103,4 +100,4 @@ bool CombinationCareGraph::buildModel()
 }
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

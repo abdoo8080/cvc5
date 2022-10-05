@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,8 +18,6 @@
 #include "options/proof_options.h"
 #include "proof/annotation_proof_generator.h"
 #include "proof/eager_proof_generator.h"
-#include "smt/smt_engine_scope.h"
-#include "smt/smt_statistics_registry.h"
 #include "theory/builtin/proof_checker.h"
 #include "theory/inference_id_proof_annotator.h"
 #include "theory/output_channel.h"
@@ -29,50 +27,51 @@
 #include "theory/uf/equality_engine.h"
 #include "theory/uf/proof_equality_engine.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
-TheoryInferenceManager::TheoryInferenceManager(Theory& t,
+TheoryInferenceManager::TheoryInferenceManager(Env& env,
+                                               Theory& t,
                                                TheoryState& state,
-                                               ProofNodeManager* pnm,
                                                const std::string& statsName,
                                                bool cacheLemmas)
-    : d_theory(t),
+    : EnvObj(env),
+      d_theory(t),
       d_theoryState(state),
       d_out(t.getOutputChannel()),
       d_ee(nullptr),
       d_decManager(nullptr),
       d_pfee(nullptr),
-      d_pnm(pnm),
       d_cacheLemmas(cacheLemmas),
-      d_keep(t.getSatContext()),
-      d_lemmasSent(t.getUserContext()),
+      d_keep(context()),
+      d_lemmasSent(userContext()),
       d_numConflicts(0),
       d_numCurrentLemmas(0),
       d_numCurrentFacts(0),
-      d_conflictIdStats(smtStatisticsRegistry().registerHistogram<InferenceId>(
+      d_conflictIdStats(statisticsRegistry().registerHistogram<InferenceId>(
           statsName + "inferencesConflict")),
-      d_factIdStats(smtStatisticsRegistry().registerHistogram<InferenceId>(
+      d_factIdStats(statisticsRegistry().registerHistogram<InferenceId>(
           statsName + "inferencesFact")),
-      d_lemmaIdStats(smtStatisticsRegistry().registerHistogram<InferenceId>(
+      d_lemmaIdStats(statisticsRegistry().registerHistogram<InferenceId>(
           statsName + "inferencesLemma"))
 {
   // don't add true lemma
   Node truen = NodeManager::currentNM()->mkConst(true);
   d_lemmasSent.insert(truen);
 
-  if (d_pnm != nullptr)
+  if (isProofEnabled())
   {
-    context::UserContext* u = state.getUserContext();
+    context::UserContext* u = userContext();
+    ProofNodeManager* pnm = env.getProofNodeManager();
     d_defaultPg.reset(
-        new EagerProofGenerator(d_pnm, u, statsName + "EagerProofGenerator"));
-    if (options::proofAnnotate())
+        new EagerProofGenerator(env, u, statsName + "EagerProofGenerator"));
+    if (options().proof.proofAnnotate)
     {
-      d_iipa.reset(new InferenceIdProofAnnotator(d_pnm, u));
+      d_iipa.reset(new InferenceIdProofAnnotator(pnm, u));
       d_apg.reset(new AnnotationProofGenerator(
-          d_pnm, u, statsName + "AnnotationProofGenerator"));
+          pnm, u, statsName + "AnnotationProofGenerator"));
     }
   }
 }
@@ -88,15 +87,12 @@ void TheoryInferenceManager::setEqualityEngine(eq::EqualityEngine* ee)
   // if it is non-null. If its proof equality engine has already been assigned,
   // use it. This is to ensure that all theories use the same proof equality
   // engine when in ee-mode=central.
-  if (d_pnm != nullptr && d_ee != nullptr)
+  if (isProofEnabled() && d_ee != nullptr)
   {
     d_pfee = d_ee->getProofEqualityEngine();
     if (d_pfee == nullptr)
     {
-      d_pfeeAlloc.reset(new eq::ProofEqEngine(d_theoryState.getSatContext(),
-                                              d_theoryState.getUserContext(),
-                                              *d_ee,
-                                              d_pnm));
+      d_pfeeAlloc = std::make_unique<eq::ProofEqEngine>(d_env, *d_ee);
       d_pfee = d_pfeeAlloc.get();
       d_ee->setProofEqualityEngine(d_pfee);
     }
@@ -108,7 +104,10 @@ void TheoryInferenceManager::setDecisionManager(DecisionManager* dm)
   d_decManager = dm;
 }
 
-bool TheoryInferenceManager::isProofEnabled() const { return d_pnm != nullptr; }
+bool TheoryInferenceManager::isProofEnabled() const
+{
+  return d_env.isTheoryProofProducing();
+}
 
 void TheoryInferenceManager::reset()
 {
@@ -142,8 +141,10 @@ void TheoryInferenceManager::conflict(TNode conf, InferenceId id)
 
 void TheoryInferenceManager::trustedConflict(TrustNode tconf, InferenceId id)
 {
+  Assert(id != InferenceId::UNKNOWN)
+      << "Must provide an inference id for conflict";
   d_conflictIdStats << id;
-  smt::currentResourceManager()->spendResource(id);
+  resourceManager()->spendResource(id);
   Trace("im") << "(conflict " << id << " " << tconf.getProven() << ")"
               << std::endl;
   // annotate if the annotation proof generator is active
@@ -279,11 +280,13 @@ bool TheoryInferenceManager::trustedLemma(const TrustNode& tlem,
       return false;
     }
   }
+  Assert(id != InferenceId::UNKNOWN)
+      << "Must provide an inference id for lemma";
   d_lemmaIdStats << id;
-  smt::currentResourceManager()->spendResource(id);
+  resourceManager()->spendResource(id);
   Trace("im") << "(lemma " << id << " " << tlem.getProven() << ")" << std::endl;
   // shouldn't send trivially true or false lemmas
-  Assert(!Rewriter::rewrite(tlem.getProven()).isConst());
+  Assert(!rewrite(tlem.getProven()).isConst());
   d_numCurrentLemmas++;
   // annotate if the annotation proof generator is active
   if (d_apg != nullptr)
@@ -360,7 +363,7 @@ TrustNode TheoryInferenceManager::mkLemmaExp(Node conc,
 
 bool TheoryInferenceManager::hasCachedLemma(TNode lem, LemmaProperty p)
 {
-  Node rewritten = Rewriter::rewrite(lem);
+  Node rewritten = rewrite(lem);
   return d_lemmasSent.find(rewritten) != d_lemmasSent.end();
 }
 
@@ -411,8 +414,10 @@ bool TheoryInferenceManager::processInternalFact(TNode atom,
                                                  const std::vector<Node>& args,
                                                  ProofGenerator* pg)
 {
+  Assert(iid != InferenceId::UNKNOWN)
+      << "Must provide an inference id for fact";
   d_factIdStats << iid;
-  smt::currentResourceManager()->spendResource(iid);
+  resourceManager()->spendResource(iid);
   // make the node corresponding to the explanation
   Node expn = NodeManager::currentNM()->mkAnd(exp);
   Trace("im") << "(fact " << iid << " " << (pol ? Node(atom) : atom.notNode())
@@ -568,7 +573,7 @@ bool TheoryInferenceManager::hasSentFact() const
 
 bool TheoryInferenceManager::cacheLemma(TNode lem, LemmaProperty p)
 {
-  Node rewritten = Rewriter::rewrite(lem);
+  Node rewritten = rewrite(lem);
   if (d_lemmasSent.find(rewritten) != d_lemmasSent.end())
   {
     return false;
@@ -602,7 +607,8 @@ DecisionManager* TheoryInferenceManager::getDecisionManager()
 
 void TheoryInferenceManager::requirePhase(TNode n, bool pol)
 {
-  return d_out.requirePhase(n, pol);
+  Node en = d_theoryState.getValuation().ensureLiteral(n);
+  return d_out.requirePhase(en, pol);
 }
 
 void TheoryInferenceManager::spendResource(Resource r)
@@ -626,4 +632,4 @@ void TheoryInferenceManager::notifyInConflict()
 }
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Yancheng Ou
+ *   Yancheng Ou, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,7 +18,7 @@
 
 #include "smt/optimization_solver.h"
 
-namespace cvc5::omt {
+namespace cvc5::internal::omt {
 
 /**
  * The base class for optimizers of individual CVC type
@@ -105,7 +105,7 @@ class OMTOptimizer
    * @return smt::OptimizationResult the result of optimization, containing
    *   whether it's optimal and the optimized value.
    **/
-  virtual smt::OptimizationResult minimize(SmtEngine* optChecker,
+  virtual smt::OptimizationResult minimize(SolverEngine* optChecker,
                                            TNode target) = 0;
   /**
    * Maximize the target node with constraints encoded in optChecker
@@ -116,10 +116,10 @@ class OMTOptimizer
    * @return smt::OptimizationResult the result of optimization, containing
    *   whether it's optimal and the optimized value.
    **/
-  virtual smt::OptimizationResult maximize(SmtEngine* optChecker,
+  virtual smt::OptimizationResult maximize(SolverEngine* optChecker,
                                            TNode target) = 0;
 };
 
-}  // namespace cvc5::omt
+}  // namespace cvc5::internal::omt
 
 #endif /* CVC5__OMT__OMT_OPTIMIZER_H */

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Morgan Deters, Christopher L. Conway, Andrew Reynolds
+ *   Morgan Deters, Christopher L. Conway, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -26,16 +26,14 @@
 
 namespace cvc5 {
 
-namespace api {
 class Solver;
-}
 
 class Options;
-class SymbolManager;
 
 namespace parser {
 
 class Parser;
+class SymbolManager;
 
 /**
  * A builder for input language parsers. <code>build()</code> can be
@@ -45,10 +43,10 @@ class Parser;
 class CVC5_EXPORT ParserBuilder
 {
   /** The input language */
-  InputLanguage d_lang;
+  std::string d_lang;
 
   /** The API Solver object. */
-  api::Solver* d_solver;
+  cvc5::Solver* d_solver;
 
   /** The symbol manager */
   SymbolManager* d_symman;
@@ -72,15 +70,11 @@ class CVC5_EXPORT ParserBuilder
   std::string d_forcedLogic;
 
   /** Initialize this parser builder */
-  void init(api::Solver* solver, SymbolManager* sm);
+  void init(cvc5::Solver* solver, SymbolManager* sm);
 
  public:
   /** Create a parser builder using the given Solver and filename. */
-  ParserBuilder(api::Solver* solver, SymbolManager* sm);
-
-  ParserBuilder(api::Solver* solver,
-                SymbolManager* sm,
-                const Options& options);
+  ParserBuilder(cvc5::Solver* solver, SymbolManager* sm, bool useOptions);
 
   /** Build the parser, using the current settings. */
   Parser* build();
@@ -93,7 +87,7 @@ class CVC5_EXPORT ParserBuilder
    *
    * (Default: LANG_AUTO)
    */
-  ParserBuilder& withInputLanguage(InputLanguage lang);
+  ParserBuilder& withInputLanguage(const std::string& lang);
 
   /**
    * Are we only parsing, or doing something with the resulting
@@ -108,8 +102,8 @@ class CVC5_EXPORT ParserBuilder
    */
   ParserBuilder& withParseOnly(bool flag = true);
 
-  /** Derive settings from the given options. */
-  ParserBuilder& withOptions(const Options& opts);
+  /** Derive settings from the solver's options. */
+  ParserBuilder& withOptions();
 
   /**
    * Should the parser use strict mode?

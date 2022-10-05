@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,12 +23,11 @@
 #include "theory/quantifiers/sygus/sygus_unif.h"
 #include "theory/quantifiers/sygus/term_database_sygus.h"
 #include "theory/quantifiers/term_util.h"
-#include "theory/rewriter.h"
 
 using namespace std;
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
@@ -265,7 +264,7 @@ void SygusUnifStrategy::buildStrategyGraph(TypeNode tn, NodeRole nrole)
     Node eut = nm->mkNode(DT_SYGUS_EVAL, echildren);
     Trace("sygus-unif-debug2") << "  Test evaluation of " << eut << "..."
                                << std::endl;
-    eut = d_tds->getEvalUnfold()->unfold(eut);
+    eut = d_tds->rewriteNode(eut);
     Trace("sygus-unif-debug2") << "  ...got " << eut;
     Trace("sygus-unif-debug2") << ", type : " << eut.getType() << std::endl;
 
@@ -443,7 +442,7 @@ void SygusUnifStrategy::buildStrategyGraph(TypeNode tn, NodeRole nrole)
                 teut = children.size() == 1
                            ? children[0]
                            : nm->mkNode(eut.getKind(), children);
-                teut = Rewriter::rewrite(teut);
+                teut = rewrite(teut);
               }
               else
               {
@@ -610,7 +609,8 @@ void SygusUnifStrategy::buildStrategyGraph(TypeNode tn, NodeRole nrole)
         {
           if (sol_templ_children[j].isNull())
           {
-            sol_templ_children[j] = cop_to_sks[cop][j].getType().mkGroundTerm();
+            sol_templ_children[j] =
+                nm->mkGroundTerm(cop_to_sks[cop][j].getType());
           }
         }
         sol_templ_children.insert(sol_templ_children.begin(), cop);
@@ -622,7 +622,7 @@ void SygusUnifStrategy::buildStrategyGraph(TypeNode tn, NodeRole nrole)
           std::reverse(cons_strat->d_sol_templ_args.begin(),
                        cons_strat->d_sol_templ_args.end());
         }
-        if (Trace.isOn("sygus-unif"))
+        if (TraceIsOn("sygus-unif"))
         {
           Trace("sygus-unif") << "Initialized strategy " << strat;
           Trace("sygus-unif")
@@ -751,7 +751,7 @@ void SygusUnifStrategy::staticLearnRedundantOps(
 
 void SygusUnifStrategy::debugPrint(const char* c)
 {
-  if (Trace.isOn(c))
+  if (TraceIsOn(c))
   {
     std::map<Node, std::map<NodeRole, bool> > visited;
     debugPrint(c, getRootEnumerator(), role_equal, visited, 0);
@@ -1042,7 +1042,7 @@ StrategyNode::~StrategyNode()
 
 void SygusUnifStrategy::indent(const char* c, int ind)
 {
-  if (Trace.isOn(c))
+  if (TraceIsOn(c))
   {
     for (int i = 0; i < ind; i++)
     {
@@ -1053,4 +1053,4 @@ void SygusUnifStrategy::indent(const char* c, int ind)
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

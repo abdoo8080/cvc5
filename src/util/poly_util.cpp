@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Gereon Kremer
+ *   Gereon Kremer, Aina Niemetz, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,12 +23,11 @@
 #include <sstream>
 
 #include "base/check.h"
-#include "maybe.h"
 #include "util/integer.h"
 #include "util/rational.h"
 #include "util/real_algebraic_number.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace poly_utils {
 
 namespace {
@@ -157,7 +156,7 @@ poly::Rational toRational(const Rational& r)
 #endif
 }
 
-Maybe<poly::DyadicRational> toDyadicRational(const Rational& r)
+std::optional<poly::DyadicRational> toDyadicRational(const Rational& r)
 {
   Integer den = r.getDenominator();
   if (den.isOne())
@@ -170,10 +169,10 @@ Maybe<poly::DyadicRational> toDyadicRational(const Rational& r)
     // It's a dyadic rational.
     return div_2exp(poly::DyadicRational(toInteger(r.getNumerator())), exp - 1);
   }
-  return Maybe<poly::DyadicRational>();
+  return std::optional<poly::DyadicRational>();
 }
 
-Maybe<poly::DyadicRational> toDyadicRational(const poly::Rational& r)
+std::optional<poly::DyadicRational> toDyadicRational(const poly::Rational& r)
 {
   poly::Integer den = denominator(r);
   if (den == poly::Integer(1))
@@ -187,7 +186,7 @@ Maybe<poly::DyadicRational> toDyadicRational(const poly::Rational& r)
     // It's a dyadic rational.
     return div_2exp(poly::DyadicRational(numerator(r)), size);
   }
-  return Maybe<poly::DyadicRational>();
+  return std::optional<poly::DyadicRational>();
 }
 
 poly::Rational approximateToDyadic(const poly::Rational& r,
@@ -212,8 +211,8 @@ poly::AlgebraicNumber toPolyRanWithRefinement(poly::UPolynomial&& p,
                                               const Rational& lower,
                                               const Rational& upper)
 {
-  Maybe<poly::DyadicRational> ml = toDyadicRational(lower);
-  Maybe<poly::DyadicRational> mu = toDyadicRational(upper);
+  std::optional<poly::DyadicRational> ml = toDyadicRational(lower);
+  std::optional<poly::DyadicRational> mu = toDyadicRational(upper);
   if (ml && mu)
   {
     return poly::AlgebraicNumber(std::move(p),
@@ -354,6 +353,6 @@ void getVariableInformation(VariableInformation& vi,
 }
 
 }  // namespace poly_utils
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

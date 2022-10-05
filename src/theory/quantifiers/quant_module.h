@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Aina Niemetz, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,6 +22,7 @@
 #include <map>
 #include <vector>
 
+#include "smt/env_obj.h"
 #include "theory/quantifiers/quantifiers_inference_manager.h"
 #include "theory/quantifiers/quantifiers_registry.h"
 #include "theory/quantifiers/quantifiers_state.h"
@@ -29,7 +30,7 @@
 #include "theory/theory.h"
 #include "theory/uf/equality_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 class TermDb;
@@ -40,7 +41,7 @@ class TermDb;
  * This is the virtual class for defining subsolvers of the quantifiers theory.
  * It has a similar interface to a Theory object.
  */
-class QuantifiersModule
+class QuantifiersModule : protected EnvObj
 {
  public:
   /** effort levels for quantifiers modules check */
@@ -59,7 +60,8 @@ class QuantifiersModule
   };
 
  public:
-  QuantifiersModule(quantifiers::QuantifiersState& qs,
+  QuantifiersModule(Env& env,
+                    quantifiers::QuantifiersState& qs,
                     quantifiers::QuantifiersInferenceManager& qim,
                     quantifiers::QuantifiersRegistry& qr,
                     quantifiers::TermRegistry& tr);
@@ -165,6 +167,8 @@ class QuantifiersModule
   quantifiers::QuantifiersInferenceManager& getInferenceManager();
   /** get the quantifiers registry */
   quantifiers::QuantifiersRegistry& getQuantifiersRegistry();
+  /** get the term registry */
+  quantifiers::TermRegistry& getTermRegistry();
   //----------------------------end general queries
  protected:
   /** Reference to the state of the quantifiers engine */
@@ -178,6 +182,6 @@ class QuantifiersModule
 }; /* class QuantifiersModule */
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__QUANT_UTIL_H */

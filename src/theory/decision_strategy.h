@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner
+ *   Andrew Reynolds, Andres Noetzli, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,18 +21,19 @@
 
 #include "context/cdo.h"
 #include "expr/node.h"
+#include "smt/env_obj.h"
 #include "theory/valuation.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 
 /**
  * Virtual base class for decision strategies.
  */
-class DecisionStrategy
+class DecisionStrategy : protected EnvObj
 {
  public:
-  DecisionStrategy() {}
+  DecisionStrategy(Env& env) : EnvObj(env) {}
   virtual ~DecisionStrategy() {}
   /**
    * Initalize this strategy, This is called once per satisfiability call by
@@ -68,7 +69,7 @@ class DecisionStrategy
 class DecisionStrategyFmf : public DecisionStrategy
 {
  public:
-  DecisionStrategyFmf(context::Context* satContext, Valuation valuation);
+  DecisionStrategyFmf(Env& env, Valuation valuation);
   virtual ~DecisionStrategyFmf() {}
   /** initialize */
   void initialize() override;
@@ -119,9 +120,9 @@ class DecisionStrategyFmf : public DecisionStrategy
 class DecisionStrategySingleton : public DecisionStrategyFmf
 {
  public:
-  DecisionStrategySingleton(const char* name,
+  DecisionStrategySingleton(Env& env,
+                            const char* name,
                             Node lit,
-                            context::Context* satContext,
                             Valuation valuation);
   /**
    * Make the n^th literal of this strategy. This method returns d_literal if
@@ -141,6 +142,6 @@ class DecisionStrategySingleton : public DecisionStrategyFmf
 };
 
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__DECISION_STRATEGY__H */

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Aina Niemetz, Andres Noetzli, Gereon Kremer
+ *   Gereon Kremer, Aina Niemetz
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -22,11 +22,11 @@
 
 #include "lib/clock_gettime.h"
 #include "proof/proof_rule.h"
-#include "test.h"
+#include "test_env.h"
 #include "util/statistics_registry.h"
 #include "util/statistics_stats.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 std::ostream& operator<<(std::ostream& os, const StatisticBaseValue* sbv)
 {
@@ -41,14 +41,14 @@ bool operator==(const StatisticBaseValue* sbv, const std::string& s)
 
 namespace test {
 
-class TestUtilBlackStats : public TestInternal
+class TestUtilBlackStats : public TestEnv
 {
 };
 
 TEST_F(TestUtilBlackStats, stats)
 {
 #ifdef CVC5_STATISTICS_ON
-  StatisticsRegistry reg(false);
+  StatisticsRegistry reg(*d_env.get(), false);
   std::string empty, bar = "bar", baz = "baz";
 
   AverageStat avg = reg.registerAverage("avg");
@@ -98,4 +98,4 @@ TEST_F(TestUtilBlackStats, stats)
 #endif
 }
 }  // namespace test
-}  // namespace cvc5
+}  // namespace cvc5::internal

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Aina Niemetz, Christopher L. Conway, Morgan Deters
+ *   Aina Niemetz, Christopher L. Conway, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -17,27 +17,26 @@
 
 #include "api/cpp/cvc5.h"
 #include "base/output.h"
-#include "expr/symbol_manager.h"
 #include "options/base_options.h"
 #include "options/language.h"
 #include "options/options.h"
+#include "parser/api/cpp/command.h"
+#include "parser/api/cpp/symbol_manager.h"
 #include "parser/parser.h"
 #include "parser/parser_builder.h"
 #include "parser/smt2/smt2.h"
-#include "smt/command.h"
 #include "test.h"
 
-namespace cvc5 {
+using namespace cvc5::parser;
+using namespace cvc5::internal::parser;
 
-using namespace parser;
-using namespace language::input;
-
+namespace cvc5::internal {
 namespace test {
 
 class TestParserBlackParser : public TestInternal
 {
  protected:
-  TestParserBlackParser(InputLanguage lang) : d_lang(lang) {}
+  TestParserBlackParser(const std::string& lang) : d_lang(lang) {}
 
   virtual ~TestParserBlackParser() {}
 
@@ -45,7 +44,7 @@ class TestParserBlackParser : public TestInternal
   {
     TestInternal::SetUp();
     d_symman.reset(nullptr);
-    d_solver.reset(new cvc5::api::Solver());
+    d_solver.reset(new cvc5::Solver());
     d_solver->setOption("parse-only", "true");
   }
 
@@ -63,13 +62,13 @@ class TestParserBlackParser : public TestInternal
     parser.bindVar("b", d_solver.get()->getBooleanSort());
     parser.bindVar("c", d_solver.get()->getBooleanSort());
     /* t, u, v: TYPE */
-    api::Sort t = parser.mkSort("t");
-    api::Sort u = parser.mkSort("u");
-    api::Sort v = parser.mkSort("v");
+    cvc5::Sort t = parser.mkSort("t");
+    cvc5::Sort u = parser.mkSort("u");
+    cvc5::Sort v = parser.mkSort("v");
     /* f : t->u; g: u->v; h: v->t; */
-    parser.bindVar("f", d_solver.get()->mkFunctionSort(t, u));
-    parser.bindVar("g", d_solver.get()->mkFunctionSort(u, v));
-    parser.bindVar("h", d_solver.get()->mkFunctionSort(v, t));
+    parser.bindVar("f", d_solver.get()->mkFunctionSort({t}, u));
+    parser.bindVar("g", d_solver.get()->mkFunctionSort({u}, v));
+    parser.bindVar("h", d_solver.get()->mkFunctionSort({v}, t));
     /* x:t; y:u; z:v; */
     parser.bindVar("x", t);
     parser.bindVar("y", u);
@@ -79,16 +78,16 @@ class TestParserBlackParser : public TestInternal
   void tryGoodInput(const std::string goodInput)
   {
     d_symman.reset(new SymbolManager(d_solver.get()));
-    std::unique_ptr<Parser> parser(ParserBuilder(d_solver.get(), d_symman.get())
-                                       .withOptions(d_solver->getOptions())
-                                       .withInputLanguage(d_lang)
-                                       .build());
+    std::unique_ptr<Parser> parser(
+        ParserBuilder(d_solver.get(), d_symman.get(), true)
+            .withInputLanguage(d_lang)
+            .build());
     parser->setInput(Input::newStringInput(d_lang, goodInput, "test"));
     ASSERT_FALSE(parser->done());
     Command* cmd;
     while ((cmd = parser->nextCommand()) != NULL)
     {
-      Debug("parser") << "Parsed command: " << (*cmd) << std::endl;
+      Trace("parser") << "Parsed command: " << (*cmd) << std::endl;
       delete cmd;
     }
 
@@ -98,18 +97,18 @@ class TestParserBlackParser : public TestInternal
   void tryBadInput(const std::string badInput, bool strictMode = false)
   {
     d_symman.reset(new SymbolManager(d_solver.get()));
-    std::unique_ptr<Parser> parser(ParserBuilder(d_solver.get(), d_symman.get())
-                                       .withOptions(d_solver->getOptions())
-                                       .withInputLanguage(d_lang)
-                                       .withStrictMode(strictMode)
-                                       .build());
+    std::unique_ptr<Parser> parser(
+        ParserBuilder(d_solver.get(), d_symman.get(), true)
+            .withInputLanguage(d_lang)
+            .withStrictMode(strictMode)
+            .build());
     parser->setInput(Input::newStringInput(d_lang, badInput, "test"));
     ASSERT_THROW(
         {
           Command* cmd;
           while ((cmd = parser->nextCommand()) != NULL)
           {
-            Debug("parser") << "Parsed command: " << (*cmd) << std::endl;
+            Trace("parser") << "Parsed command: " << (*cmd) << std::endl;
             delete cmd;
           }
           std::cout << "\nBad input succeeded:\n" << badInput << std::endl;
@@ -120,12 +119,12 @@ class TestParserBlackParser : public TestInternal
   void tryGoodExpr(const std::string goodExpr)
   {
     d_symman.reset(new SymbolManager(d_solver.get()));
-    std::unique_ptr<Parser> parser(ParserBuilder(d_solver.get(), d_symman.get())
-                                       .withOptions(d_solver->getOptions())
-                                       .withInputLanguage(d_lang)
-                                       .build());
+    std::unique_ptr<Parser> parser(
+        ParserBuilder(d_solver.get(), d_symman.get(), true)
+            .withInputLanguage(d_lang)
+            .build());
     parser->setInput(Input::newStringInput(d_lang, goodExpr, "test"));
-    if (d_lang == LANG_SMTLIB_V2)
+    if (d_lang == "LANG_SMTLIB_V2_6")
     {
       /* Use QF_LIA to make multiplication ("*") available */
       std::unique_ptr<Command> cmd(
@@ -135,7 +134,7 @@ class TestParserBlackParser : public TestInternal
     ASSERT_FALSE(parser->done());
     setupContext(*parser);
     ASSERT_FALSE(parser->done());
-    api::Term e = parser->nextExpression();
+    cvc5::Term e = parser->nextExpression();
     ASSERT_FALSE(e.isNull());
     e = parser->nextExpression();
     ASSERT_TRUE(parser->done());
@@ -154,15 +153,15 @@ class TestParserBlackParser : public TestInternal
   void tryBadExpr(const std::string badExpr, bool strictMode = false)
   {
     d_symman.reset(new SymbolManager(d_solver.get()));
-    std::unique_ptr<Parser> parser(ParserBuilder(d_solver.get(), d_symman.get())
-                                       .withOptions(d_solver->getOptions())
-                                       .withInputLanguage(d_lang)
-                                       .withStrictMode(strictMode)
-                                       .build());
+    std::unique_ptr<Parser> parser(
+        ParserBuilder(d_solver.get(), d_symman.get(), true)
+            .withInputLanguage(d_lang)
+            .withStrictMode(strictMode)
+            .build());
     parser->setInput(Input::newStringInput(d_lang, badExpr, "test"));
     setupContext(*parser);
     ASSERT_FALSE(parser->done());
-    ASSERT_THROW(api::Term e = parser->nextExpression();
+    ASSERT_THROW(cvc5::Term e = parser->nextExpression();
                  std::cout << std::endl
                            << "Bad expr succeeded." << std::endl
                            << "Input: <<" << badExpr << ">>" << std::endl
@@ -170,115 +169,17 @@ class TestParserBlackParser : public TestInternal
                  , ParserException);
   }
 
-  InputLanguage d_lang;
-  std::unique_ptr<cvc5::api::Solver> d_solver;
+  std::string d_lang;
+  std::unique_ptr<cvc5::Solver> d_solver;
   std::unique_ptr<SymbolManager> d_symman;
 };
-
-/* -------------------------------------------------------------------------- */
-
-class TestParserBlackCvCParser : public TestParserBlackParser
-{
- protected:
-  TestParserBlackCvCParser() : TestParserBlackParser(LANG_CVC) {}
-};
-
-TEST_F(TestParserBlackCvCParser, good_inputs)
-{
-  tryGoodInput("");   // empty string is OK
-  tryGoodInput(";");  // no command is OK
-  tryGoodInput("ASSERT TRUE;");
-  tryGoodInput("QUERY TRUE;");
-  tryGoodInput("CHECKSAT FALSE;");
-  tryGoodInput("a, b : BOOLEAN;");
-  tryGoodInput("a, b : BOOLEAN; QUERY (a => b) AND a => b;");
-  tryGoodInput("T, U : TYPE; f : T -> U; x : T; y : U; CHECKSAT f(x) = y;");
-  tryGoodInput("T : TYPE = BOOLEAN; x : T; CHECKSAT x;");
-  tryGoodInput("a : ARRAY INT OF REAL; ASSERT (a WITH [1] := 0.0)[1] = a[0];");
-  tryGoodInput("b : BITVECTOR(3); ASSERT b = 0bin101;");
-  tryGoodInput("T : TYPE = BOOLEAN; x : T; CHECKSAT x;");
-  tryGoodInput(
-      "T : TYPE; x, y : T; a : BOOLEAN; QUERY (IF a THEN x ELSE y ENDIF) = x;");
-  tryGoodInput("CHECKSAT 0bin0000 /= 0hex7;");
-  tryGoodInput("%% nothing but a comment");
-  tryGoodInput("% a comment\nASSERT TRUE; %a command\n% another comment");
-  tryGoodInput("a : BOOLEAN; a: BOOLEAN;");  // double decl, but compatible
-  tryGoodInput("a : INT = 5; a: INT;");      // decl after define, compatible
-  tryGoodInput(
-      "a : TYPE; a : INT;");  // ok, sort and variable symbol spaces distinct
-  tryGoodInput(
-      "a : TYPE; a : INT; b : a;");  // ok except a is both INT and sort `a'
-  tryGoodInput(
-      "DATATYPE list = nil | cons(car:INT,cdr:list) END; DATATYPE cons = null "
-      "END;");
-  tryGoodInput(
-      "DATATYPE tree = node(data:list), list = cons(car:tree,cdr:list) | nil "
-      "END;");
-  tryGoodInput(
-      "DATATYPE trex = Foo | Bar END; DATATYPE tree = "
-      "node(data:[list,list,ARRAY trex OF list]), list = cons(car:ARRAY list "
-      "OF tree,cdr:BITVECTOR(32)) END;");
-}
-
-TEST_F(TestParserBlackCvCParser, bad_inputs)
-{
-// competition builds don't do any checking
-#ifndef CVC5_COMPETITION_MODE
-  tryBadInput("ASSERT;");  // no args
-  tryBadInput("QUERY");
-  tryBadInput("CHECKSAT");
-  tryBadInput("a, b : boolean;");  // lowercase boolean isn't a type
-  tryBadInput("0x : INT;");        // 0x isn't an identifier
-  tryBadInput(
-      "a, b : BOOLEAN\nQUERY (a => b) AND a => b;");  // no semicolon after decl
-  tryBadInput("ASSERT 0bin012 /= 0hex0;");            // bad binary literal
-  tryBadInput("a, b: BOOLEAN; QUERY a(b);");  // non-function used as function
-  tryBadInput("a : BOOLEAN; a: INT;");        // double decl, incompatible
-  tryBadInput("A : TYPE; A: TYPE;");          // types can't be double-declared
-  tryBadInput("a : INT; a: INT = 5;");        // can't define after decl
-  tryBadInput("a : INT = 5; a: BOOLEAN;");    // decl w/ incompatible type
-  tryBadInput(
-      "a : TYPE; a : INT; a : a;");  // ok except a is both INT and sort `a'
-  tryBadInput(
-      "DATATYPE list = nil | cons(car:INT,cdr:list) END; DATATYPE list = nil | "
-      "cons(car:INT,cdr:list) END;");
-  tryBadInput(
-      "DATATYPE list = nil | cons(car:INT,cdr:list) END; DATATYPE list2 = nil "
-      "END;");
-  tryBadInput(
-      "DATATYPE tree = node(data:(list,list,ARRAY trex OF list)), list = "
-      "cons(car:ARRAY list OF tree,cdr:BITVECTOR(32)) END;");
-#endif
-}
-
-TEST_F(TestParserBlackCvCParser, good_exprs)
-{
-  tryGoodExpr("a AND b");
-  tryGoodExpr("a AND b OR c");
-  tryGoodExpr("(a => b) AND a => b");
-  tryGoodExpr("(a <=> b) AND (NOT a)");
-  tryGoodExpr("(a XOR b) <=> (a OR b) AND (NOT (a AND b))");
-}
-
-TEST_F(TestParserBlackCvCParser, bad_exprs)
-{
-// competition builds don't do any checking
-#ifndef CVC5_COMPETITION_MODE
-  tryBadInput("a AND");             // wrong arity
-  tryBadInput("AND(a,b)");          // not infix
-  tryBadInput("(OR (AND a b) c)");  // not infix
-  tryBadInput("a IMPLIES b");       // should be =>
-  tryBadInput("a NOT b");           // wrong arity, not infix
-  tryBadInput("a and b");           // wrong case
-#endif
-}
 
 /* -------------------------------------------------------------------------- */
 
 class TestParserBlackSmt2Parser : public TestParserBlackParser
 {
  protected:
-  TestParserBlackSmt2Parser() : TestParserBlackParser(LANG_SMTLIB_V2) {}
+  TestParserBlackSmt2Parser() : TestParserBlackParser("LANG_SMTLIB_V2_6") {}
 };
 
 TEST_F(TestParserBlackSmt2Parser, good_inputs)
@@ -377,4 +278,4 @@ TEST_F(TestParserBlackSmt2Parser, bad_exprs)
 #endif
 }
 }  // namespace test
-}  // namespace cvc5
+}  // namespace cvc5::internal

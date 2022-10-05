@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -23,12 +23,13 @@
 #include "expr/node.h"
 #include "proof/proof_node_manager.h"
 #include "proof/trust_node.h"
+#include "smt/env_obj.h"
 #include "theory/arith/arith_state.h"
 #include "theory/arith/inference_manager.h"
 #include "theory/arith/pp_rewrite_eq.h"
 #include "util/rational.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace arith {
 
@@ -37,13 +38,13 @@ namespace arith {
  * agnostic to the state of solver; instead is simply given (variable, value)
  * pairs in branchIntegerVariable below and constructs the appropriate lemma.
  */
-class BranchAndBound
+class BranchAndBound : protected EnvObj
 {
  public:
-  BranchAndBound(ArithState& s,
+  BranchAndBound(Env& env,
+                 ArithState& s,
                  InferenceManager& im,
-                 PreprocessRewriteEq& ppre,
-                 ProofNodeManager* pnm);
+                 PreprocessRewriteEq& ppre);
   ~BranchAndBound() {}
   /**
    * Branch variable, called when integer var has given value
@@ -62,12 +63,10 @@ class BranchAndBound
   PreprocessRewriteEq& d_ppre;
   /** Proof generator. */
   std::unique_ptr<EagerProofGenerator> d_pfGen;
-  /** Proof node manager */
-  ProofNodeManager* d_pnm;
 };
 
 }  // namespace arith
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

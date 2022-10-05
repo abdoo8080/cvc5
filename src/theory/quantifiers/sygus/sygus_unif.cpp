@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Aina Niemetz, Haniel Barbosa
+ *   Andrew Reynolds, Aina Niemetz, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,13 +21,17 @@
 #include "util/random.h"
 
 using namespace std;
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
-SygusUnif::SygusUnif() : d_tds(nullptr), d_enableMinimality(false) {}
+SygusUnif::SygusUnif(Env& env)
+    : EnvObj(env), d_tds(nullptr), d_enableMinimality(false)
+{
+}
+
 SygusUnif::~SygusUnif() {}
 
 void SygusUnif::initializeCandidate(
@@ -39,7 +43,8 @@ void SygusUnif::initializeCandidate(
   d_tds = tds;
   d_candidates.push_back(f);
   // initialize the strategy
-  d_strategy[f].initialize(tds, f, enums);
+  d_strategy.emplace(f, SygusUnifStrategy(d_env));
+  d_strategy.at(f).initialize(tds, f, enums);
 }
 
 Node SygusUnif::getMinimalTerm(const std::vector<Node>& terms)
@@ -114,7 +119,7 @@ Node SygusUnif::constructBestStringToConcat(
 
 void SygusUnif::indent(const char* c, int ind)
 {
-  if (Trace.isOn(c))
+  if (TraceIsOn(c))
   {
     for (int i = 0; i < ind; i++)
     {
@@ -125,7 +130,7 @@ void SygusUnif::indent(const char* c, int ind)
 
 void SygusUnif::print_val(const char* c, std::vector<Node>& vals, bool pol)
 {
-  if (Trace.isOn(c))
+  if (TraceIsOn(c))
   {
     for (unsigned i = 0; i < vals.size(); i++)
     {
@@ -138,4 +143,4 @@ void SygusUnif::print_val(const char* c, std::vector<Node>& vals, bool pol)
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

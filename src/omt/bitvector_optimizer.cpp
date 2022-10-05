@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Yancheng Ou
+ *   Yancheng Ou, Michael Chang, Andrew Reynolds
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -16,11 +16,11 @@
 #include "omt/bitvector_optimizer.h"
 
 #include "options/smt_options.h"
-#include "smt/smt_engine.h"
+#include "smt/solver_engine.h"
 #include "util/bitvector.h"
 
-using namespace cvc5::smt;
-namespace cvc5::omt {
+using namespace cvc5::internal::smt;
+namespace cvc5::internal::omt {
 
 OMTOptimizerBitVector::OMTOptimizerBitVector(bool isSigned)
     : d_isSigned(isSigned)
@@ -44,17 +44,17 @@ BitVector OMTOptimizerBitVector::computeAverage(const BitVector& a,
                         + aMod2PlusbMod2Div2));
 }
 
-OptimizationResult OMTOptimizerBitVector::minimize(SmtEngine* optChecker,
+OptimizationResult OMTOptimizerBitVector::minimize(SolverEngine* optChecker,
                                                    TNode target)
 {
   // the smt engine to which we send intermediate queries
   // for the binary search.
-  NodeManager* nm = optChecker->getNodeManager();
+  NodeManager* nm = NodeManager::currentNM();
   Result intermediateSatResult = optChecker->checkSat();
   // Model-value of objective (used in optimization loop)
   Node value;
   if (intermediateSatResult.isUnknown()
-      || intermediateSatResult.isSat() == Result::UNSAT)
+      || intermediateSatResult.getStatus() == Result::UNSAT)
   {
     return OptimizationResult(intermediateSatResult, value);
   }
@@ -102,9 +102,9 @@ OptimizationResult OMTOptimizerBitVector::minimize(SmtEngine* optChecker,
                      nm->mkNode(LTOperator, target, nm->mkConst(pivot))));
     }
     intermediateSatResult = optChecker->checkSat();
-    switch (intermediateSatResult.isSat())
+    switch (intermediateSatResult.getStatus())
     {
-      case Result::SAT_UNKNOWN:
+      case Result::UNKNOWN:
         optChecker->pop();
         return OptimizationResult(intermediateSatResult, value);
       case Result::SAT:
@@ -133,17 +133,17 @@ OptimizationResult OMTOptimizerBitVector::minimize(SmtEngine* optChecker,
   return OptimizationResult(lastSatResult, value);
 }
 
-OptimizationResult OMTOptimizerBitVector::maximize(SmtEngine* optChecker,
+OptimizationResult OMTOptimizerBitVector::maximize(SolverEngine* optChecker,
                                                    TNode target)
 {
   // the smt engine to which we send intermediate queries
   // for the binary search.
-  NodeManager* nm = optChecker->getNodeManager();
+  NodeManager* nm = NodeManager::currentNM();
   Result intermediateSatResult = optChecker->checkSat();
   // Model-value of objective (used in optimization loop)
   Node value;
   if (intermediateSatResult.isUnknown()
-      || intermediateSatResult.isSat() == Result::UNSAT)
+      || intermediateSatResult.getStatus() == Result::UNSAT)
   {
     return OptimizationResult(intermediateSatResult, value);
   }
@@ -188,9 +188,9 @@ OptimizationResult OMTOptimizerBitVector::maximize(SmtEngine* optChecker,
                    nm->mkNode(GTOperator, target, nm->mkConst(pivot)),
                    nm->mkNode(LEOperator, target, nm->mkConst(upperBound))));
     intermediateSatResult = optChecker->checkSat();
-    switch (intermediateSatResult.isSat())
+    switch (intermediateSatResult.getStatus())
     {
-      case Result::SAT_UNKNOWN:
+      case Result::UNKNOWN:
         optChecker->pop();
         return OptimizationResult(intermediateSatResult, value);
       case Result::SAT:
@@ -219,4 +219,4 @@ OptimizationResult OMTOptimizerBitVector::maximize(SmtEngine* optChecker,
   return OptimizationResult(lastSatResult, value);
 }
 
-}  // namespace cvc5::omt
+}  // namespace cvc5::internal::omt

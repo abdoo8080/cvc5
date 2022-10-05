@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Mathias Preiner, Aina Niemetz
+ *   Andrew Reynolds, Mathias Preiner, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -13,27 +13,29 @@
  * Implementation of higher-order trigger class.
  */
 
+#include "theory/quantifiers/ematching/ho_trigger.h"
+
 #include <stack>
 
-#include "theory/quantifiers/ematching/ho_trigger.h"
+#include "theory/quantifiers/ho_term_database.h"
 #include "theory/quantifiers/instantiate.h"
 #include "theory/quantifiers/quantifiers_inference_manager.h"
 #include "theory/quantifiers/quantifiers_registry.h"
 #include "theory/quantifiers/quantifiers_state.h"
-#include "theory/quantifiers/term_database.h"
 #include "theory/quantifiers/term_registry.h"
 #include "theory/quantifiers/term_util.h"
 #include "theory/uf/theory_uf_rewriter.h"
 #include "util/hash.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 namespace inst {
 
 HigherOrderTrigger::HigherOrderTrigger(
+    Env& env,
     QuantifiersState& qs,
     QuantifiersInferenceManager& qim,
     QuantifiersRegistry& qr,
@@ -41,7 +43,7 @@ HigherOrderTrigger::HigherOrderTrigger(
     Node q,
     std::vector<Node>& nodes,
     std::map<Node, std::vector<Node> >& ho_apps)
-    : Trigger(qs, qim, qr, tr, q, nodes), d_ho_var_apps(ho_apps)
+    : Trigger(env, qs, qim, qr, tr, q, nodes), d_ho_var_apps(ho_apps)
 {
   NodeManager* nm = NodeManager::currentNM();
   // process the higher-order variable applications
@@ -51,7 +53,7 @@ HigherOrderTrigger::HigherOrderTrigger(
     d_ho_var_list.push_back(n);
     TypeNode tn = n.getType();
     Assert(tn.isFunction());
-    if (Trace.isOn("ho-quant-trigger"))
+    if (TraceIsOn("ho-quant-trigger"))
     {
       Trace("ho-quant-trigger") << "  have " << as.second.size();
       Trace("ho-quant-trigger") << " patterns with variable operator " << n
@@ -203,7 +205,7 @@ uint64_t HigherOrderTrigger::addInstantiations()
 
 bool HigherOrderTrigger::sendInstantiation(std::vector<Node>& m, InferenceId id)
 {
-  if (options::hoMatching())
+  if (options().quantifiers.hoMatching)
   {
     // get substitution corresponding to m
     std::vector<TNode> vars;
@@ -236,6 +238,7 @@ bool HigherOrderTrigger::sendInstantiation(std::vector<Node>& m, InferenceId id)
     d_lchildren.clear();
     d_arg_to_arg_rep.clear();
     d_arg_vector.clear();
+    EntailmentCheck* echeck = d_treg.getEntailmentCheck();
     for (std::pair<const TNode, std::vector<Node> >& ha : ho_var_apps_subs)
     {
       TNode var = ha.first;
@@ -289,8 +292,7 @@ bool HigherOrderTrigger::sendInstantiation(std::vector<Node>& m, InferenceId id)
           {
             if (!d_qstate.areEqual(itf->second, args[k]))
             {
-              if (!d_treg.getTermDatabase()->isEntailed(
-                      itf->second.eqNode(args[k]), true))
+              if (!echeck->isEntailed(itf->second.eqNode(args[k]), true))
               {
                 fixed_vals[k] = Node::null();
               }
@@ -298,7 +300,7 @@ bool HigherOrderTrigger::sendInstantiation(std::vector<Node>& m, InferenceId id)
           }
         }
       }
-      if (Trace.isOn("ho-unif-debug"))
+      if (TraceIsOn("ho-unif-debug"))
       {
         for (std::map<unsigned, Node>::iterator itf = fixed_vals.begin();
              itf != fixed_vals.end();
@@ -337,14 +339,10 @@ bool HigherOrderTrigger::sendInstantiation(std::vector<Node>& m, InferenceId id)
             {
               arg_to_rep[r] = index;
               // function applied to single value, can either use variable or
-              // value at this argument position
+              // value at this argument position. We give priority to variables,
+              // although this order could be changed.
               d_arg_vector[vnum][index].push_back(bv_at_index);
               d_arg_vector[vnum][index].push_back(itf->second);
-              if (!options::hoMatchingVarArgPriority())
-              {
-                std::reverse(d_arg_vector[vnum][index].begin(),
-                             d_arg_vector[vnum][index].end());
-              }
               Trace("ho-unif-debug") << " = { self, " << itf->second << " } "
                                      << std::endl;
             }
@@ -503,7 +501,7 @@ uint64_t HigherOrderTrigger::addHoTypeMatchPredicateLemmas()
           // if a variable of this type occurs in this trigger
           if (d_ho_var_types.find(stn) != d_ho_var_types.end())
           {
-            Node u = tdb->getHoTypeMatchPredicate(tn);
+            Node u = HoTermDb::getHoTypeMatchPredicate(tn);
             Node au = nm->mkNode(kind::APPLY_UF, u, f);
             if (d_qim.addPendingLemma(au,
                                       InferenceId::QUANTIFIERS_HO_MATCH_PRED))
@@ -527,4 +525,4 @@ uint64_t HigherOrderTrigger::addHoTypeMatchPredicateLemmas()
 }  // namespace inst
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal

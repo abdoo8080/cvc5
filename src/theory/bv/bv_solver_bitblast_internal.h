@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -19,11 +19,13 @@
 #ifndef CVC5__THEORY__BV__BV_SOLVER_BITBLAST_INTERNAL_H
 #define CVC5__THEORY__BV__BV_SOLVER_BITBLAST_INTERNAL_H
 
+#include "proof/eager_proof_generator.h"
+#include "smt/env_obj.h"
 #include "theory/bv/bitblast/proof_bitblaster.h"
 #include "theory/bv/bv_solver.h"
 #include "theory/bv/proof_checker.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace bv {
 
@@ -37,12 +39,12 @@ namespace bv {
 class BVSolverBitblastInternal : public BVSolver
 {
  public:
-  BVSolverBitblastInternal(TheoryState* state,
-                           TheoryInferenceManager& inferMgr,
-                           ProofNodeManager* pnm);
+  BVSolverBitblastInternal(Env& env,
+                           TheoryState* state,
+                           TheoryInferenceManager& inferMgr);
   ~BVSolverBitblastInternal() = default;
 
-  bool needsEqualityEngine(EeSetupInfo& esi) override { return true; }
+  bool needsEqualityEngine(EeSetupInfo& esi) override;
 
   void preRegisterTerm(TNode n) override {}
 
@@ -71,16 +73,16 @@ class BVSolverBitblastInternal : public BVSolver
    */
   void addBBLemma(TNode fact);
 
-  /** Proof node manager. */
-  ProofNodeManager* d_pnm;
   /** Bit-blaster used to bit-blast atoms/terms. */
   std::unique_ptr<BBProof> d_bitblaster;
   /** Proof rule checker */
   BVProofRuleChecker d_checker;
+  /** Proof generator for unpacking BITVECTOR_EAGER_ATOM. */
+  std::unique_ptr<EagerProofGenerator> d_epg;
 };
 
 }  // namespace bv
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

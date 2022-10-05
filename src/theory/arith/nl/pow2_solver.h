@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Yoni Zohar
+ *   Yoni Zohar, Andres Noetzli, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -20,8 +20,9 @@
 
 #include "context/cdhashset.h"
 #include "expr/node.h"
+#include "smt/env_obj.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace arith {
 
@@ -35,12 +36,12 @@ class NlModel;
 /** pow2 solver class
  *
  */
-class Pow2Solver
+class Pow2Solver : protected EnvObj
 {
   using NodeSet = context::CDHashSet<Node>;
 
  public:
-  Pow2Solver(InferenceManager& im, ArithState& state, NlModel& model);
+  Pow2Solver(Env& env, InferenceManager& im, ArithState& state, NlModel& model);
   ~Pow2Solver();
 
   /** init last call
@@ -99,7 +100,7 @@ class Pow2Solver
   /**
    * Value-based refinement lemma for i of the form (pow2 x). Returns:
    *   x = M(x) /\ x>= 0 ---->
-   *     (pow2 x) = Rewriter::rewrite((pow2 M(x)))
+   *     (pow2 x) = rewrite((pow2 M(x)))
    */
   Node valueBasedLemma(Node i);
 }; /* class Pow2Solver */
@@ -107,6 +108,6 @@ class Pow2Solver
 }  // namespace nl
 }  // namespace arith
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__ARITH__POW2_SOLVER_H */

@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Martin Brain, Aina Niemetz
+ *   Andrew Reynolds, Aina Niemetz, Martin Brain
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -29,22 +29,17 @@
 #include "theory/theory_state.h"
 #include "theory/uf/equality_engine.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace fp {
 
-class FpConverter;
+class FpWordBlaster;
 
 class TheoryFp : public Theory
 {
  public:
   /** Constructs a new instance of TheoryFp w.r.t. the provided contexts. */
-  TheoryFp(context::Context* c,
-           context::UserContext* u,
-           OutputChannel& out,
-           Valuation valuation,
-           const LogicInfo& logicInfo,
-           ProofNodeManager* pnm = nullptr);
+  TheoryFp(Env& env, OutputChannel& out, Valuation valuation);
 
   //--------------------------------- initialization
   /** Get the official theory rewriter of this theory. */
@@ -125,11 +120,11 @@ class TheoryFp : public Theory
   context::CDHashSet<Node> d_registeredTerms;
 
   /** The word-blaster. Translates FP -> BV. */
-  std::unique_ptr<FpConverter> d_conv;
+  std::unique_ptr<FpWordBlaster> d_wordBlaster;
 
   bool d_expansionRequested;
 
-  void convertAndEquateTerm(TNode node);
+  void wordBlastAndEquateTerm(TNode node);
 
   /** Interaction with the rest of the solver **/
   void handleLemma(Node node, InferenceId id);
@@ -146,12 +141,7 @@ class TheoryFp : public Theory
 
   bool refineAbstraction(TheoryModel* m, TNode abstract, TNode concrete);
 
-  Node abstractRealToFloat(Node);
-  Node abstractFloatToReal(Node);
-
  private:
-  ConversionAbstractionMap d_realToFloatMap;
-  ConversionAbstractionMap d_floatToRealMap;
   AbstractionMap d_abstractionMap;  // abstract -> original
 
   /** The theory rewriter for this theory. */
@@ -162,10 +152,13 @@ class TheoryFp : public Theory
   TheoryInferenceManager d_im;
   /** Cache of word-blasted facts. */
   context::CDHashSet<Node> d_wbFactsCache;
+
+  /** True constant. */
+  Node d_true;
 };
 
 }  // namespace fp
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__THEORY__FP__THEORY_FP_H */

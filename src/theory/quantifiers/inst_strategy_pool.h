@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds
+ *   Andrew Reynolds, Andres Noetzli
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -18,9 +18,10 @@
 #ifndef CVC5__THEORY__QUANTIFIERS__INST_STRATEGY_POOL_H
 #define CVC5__THEORY__QUANTIFIERS__INST_STRATEGY_POOL_H
 
+#include "smt/env_obj.h"
 #include "theory/quantifiers/quant_module.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
@@ -38,7 +39,8 @@ namespace quantifiers {
 class InstStrategyPool : public QuantifiersModule
 {
  public:
-  InstStrategyPool(QuantifiersState& qs,
+  InstStrategyPool(Env& env,
+                   QuantifiersState& qs,
                    QuantifiersInferenceManager& qim,
                    QuantifiersRegistry& qr,
                    TermRegistry& tr);
@@ -68,6 +70,6 @@ class InstStrategyPool : public QuantifiersModule
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

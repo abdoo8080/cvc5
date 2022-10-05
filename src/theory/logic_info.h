@@ -4,7 +4,7 @@
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -25,22 +25,22 @@
 #include "cvc5_export.h"
 #include "theory/theory_id.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 /**
  * A LogicInfo instance describes a collection of theory modules and some
  * basic configuration about them.  Conceptually, it provides a background
- * context for all operations in cvc5.  Typically, when cvc5's SmtEngine
+ * context for all operations in cvc5.  Typically, when cvc5's SolverEngine
  * is created, it is issued a setLogic() command indicating features of the
  * assertions and queries to follow---for example, whether quantifiers are
  * used, whether integers or reals (or both) will be used, etc.
  *
  * Most places in cvc5 will only ever need to access a const reference to an
- * instance of this class.  Such an instance is generally set by the SmtEngine
- * when setLogic() is called.  However, mutating member functions are also
- * provided by this class so that it can be used as a more general mechanism
- * (e.g., for communicating to the SmtEngine which theories should be used,
- * rather than having to provide an SMT-LIB string).
+ * instance of this class.  Such an instance is generally set by the
+ * SolverEngine when setLogic() is called.  However, mutating member functions
+ * are also provided by this class so that it can be used as a more general
+ * mechanism (e.g., for communicating to the SolverEngine which theories should
+ * be used, rather than having to provide an SMT-LIB string).
  */
 class CVC5_EXPORT LogicInfo
 {
@@ -296,6 +296,6 @@ public:
 
 std::ostream& operator<<(std::ostream& out, const LogicInfo& logic);
 
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC5__LOGIC_INFO_H */

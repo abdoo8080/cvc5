@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Abdalrhman Mohamed, Andrew Reynolds, Morgan Deters
+ *   Abdalrhman Mohamed, Andrew Reynolds, Gereon Kremer
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -14,49 +14,46 @@
  */
 #include "printer/printer.h"
 
+#include <sstream>
 #include <string>
 
+#include "expr/node_manager_attributes.h"
 #include "options/base_options.h"
 #include "options/language.h"
+#include "options/printer_options.h"
 #include "printer/ast/ast_printer.h"
-#include "printer/cvc/cvc_printer.h"
 #include "printer/smt2/smt2_printer.h"
 #include "printer/tptp/tptp_printer.h"
 #include "proof/unsat_core.h"
-#include "smt/command.h"
-#include "smt/node_command.h"
 #include "theory/quantifiers/instantiation_list.h"
 
 using namespace std;
 
-namespace cvc5 {
+namespace cvc5::internal {
 
-unique_ptr<Printer> Printer::d_printers[language::output::LANG_MAX];
+unique_ptr<Printer>
+    Printer::d_printers[static_cast<size_t>(Language::LANG_MAX)];
 
-unique_ptr<Printer> Printer::makePrinter(OutputLanguage lang)
+unique_ptr<Printer> Printer::makePrinter(Language lang)
 {
-  using namespace cvc5::language::output;
-
   switch(lang) {
-  case LANG_SMTLIB_V2_6:
-    return unique_ptr<Printer>(
-        new printer::smt2::Smt2Printer(printer::smt2::smt2_6_variant));
+    case Language::LANG_SMTLIB_V2_6:
+      return unique_ptr<Printer>(
+          new printer::smt2::Smt2Printer(printer::smt2::smt2_6_variant));
 
-  case LANG_TPTP:
-    return unique_ptr<Printer>(new printer::tptp::TptpPrinter());
+    case Language::LANG_TPTP:
+      return unique_ptr<Printer>(new printer::tptp::TptpPrinter());
 
-  case LANG_CVC: return unique_ptr<Printer>(new printer::cvc::CvcPrinter());
+    case Language::LANG_SYGUS_V2:
+      // sygus version 2.0 does not have discrepancies with smt2, hence we use
+      // a normal smt2 variant here.
+      return unique_ptr<Printer>(
+          new printer::smt2::Smt2Printer(printer::smt2::smt2_6_variant));
 
-  case LANG_SYGUS_V2:
-    // sygus version 2.0 does not have discrepancies with smt2, hence we use
-    // a normal smt2 variant here.
-    return unique_ptr<Printer>(
-        new printer::smt2::Smt2Printer(printer::smt2::smt2_6_variant));
+    case Language::LANG_AST:
+      return unique_ptr<Printer>(new printer::ast::AstPrinter());
 
-  case LANG_AST:
-    return unique_ptr<Printer>(new printer::ast::AstPrinter());
-
-  default: Unhandled() << lang;
+    default: Unhandled() << lang;
   }
 }
 
@@ -66,28 +63,14 @@ void Printer::toStream(std::ostream& out, const smt::Model& m) const
   const std::vector<TypeNode>& dsorts = m.getDeclaredSorts();
   for (const TypeNode& tn : dsorts)
   {
-    toStreamModelSort(out, m, tn);
+    toStreamModelSort(out, tn, m.getDomainElements(tn));
   }
-
   // print the declared terms
   const std::vector<Node>& dterms = m.getDeclaredTerms();
   for (const Node& n : dterms)
   {
-    // take into account model core, independently of the format
-    if (!m.isModelCoreSymbol(n))
-    {
-      continue;
-    }
-    toStreamModelTerm(out, m, n);
+    toStreamModelTerm(out, n, m.getValue(n));
   }
-
-}/* Printer::toStream(Model) */
-
-void Printer::toStreamUsing(OutputLanguage lang,
-                            std::ostream& out,
-                            const smt::Model& m) const
-{
-  getPrinter(lang)->toStream(out, m);
 }
 
 void Printer::toStream(std::ostream& out, const UnsatCore& core) const
@@ -140,42 +123,63 @@ void Printer::toStream(std::ostream& out, const SkolemList& sks) const
   out << ")" << std::endl;
 }
 
-Printer* Printer::getPrinter(OutputLanguage lang)
+Printer* Printer::getPrinter(std::ostream& out)
 {
-  if (lang == language::output::LANG_AUTO)
+  Language lang = options::ioutils::getOutputLanguage(out);
+  return getPrinter(lang);
+}
+
+Printer* Printer::getPrinter(Language lang)
+{
+  if (lang == Language::LANG_AUTO)
   {
-    // Infer the language to use for output.
-    //
-    // Options can be null in certain circumstances (e.g., when printing
-    // the singleton "null" expr.  So we guard against segfault
-    if (not Options::isCurrentNull())
-    {
-      if (Options::current().base.outputLanguageWasSetByUser)
-      {
-        lang = options::outputLanguage();
-      }
-      if (lang == language::output::LANG_AUTO
-          && Options::current().base.inputLanguageWasSetByUser)
-      {
-        lang = language::toOutputLanguage(options::inputLanguage());
-      }
-    }
-    if (lang == language::output::LANG_AUTO)
-    {
-      lang = language::output::LANG_SMTLIB_V2_6;  // default
-    }
+    lang = Language::LANG_SMTLIB_V2_6;  // default
   }
-  if (d_printers[lang] == nullptr)
+  if (d_printers[static_cast<size_t>(lang)] == nullptr)
   {
-    d_printers[lang] = makePrinter(lang);
+    d_printers[static_cast<size_t>(lang)] = makePrinter(lang);
   }
-  return d_printers[lang].get();
+  return d_printers[static_cast<size_t>(lang)].get();
+}
+
+void Printer::printUnknownCommandStatus(std::ostream& out,
+                                        const std::string& name) const
+{
+  out << "ERROR: don't know how to print " << name << " command status"
+      << std::endl;
 }
 
 void Printer::printUnknownCommand(std::ostream& out,
                                   const std::string& name) const
 {
   out << "ERROR: don't know how to print " << name << " command" << std::endl;
+}
+
+void Printer::toStreamCmdSuccess(std::ostream& out) const
+{
+  printUnknownCommandStatus(out, "success");
+}
+
+void Printer::toStreamCmdInterrupted(std::ostream& out) const
+{
+  printUnknownCommandStatus(out, "interrupted");
+}
+
+void Printer::toStreamCmdUnsupported(std::ostream& out) const
+{
+  printUnknownCommandStatus(out, "unsupported");
+}
+
+void Printer::toStreamCmdFailure(std::ostream& out,
+                                 const std::string& message) const
+{
+  printUnknownCommandStatus(out, "failure");
+}
+
+void Printer::toStreamCmdRecoverableFailure(std::ostream& out,
+                                            const std::string& message) const
+{
+  printUnknownCommandStatus(out, "recoverable-failure");
 }
 
 void Printer::toStreamCmdEmpty(std::ostream& out, const std::string& name) const
@@ -194,12 +198,12 @@ void Printer::toStreamCmdAssert(std::ostream& out, Node n) const
   printUnknownCommand(out, "assert");
 }
 
-void Printer::toStreamCmdPush(std::ostream& out) const
+void Printer::toStreamCmdPush(std::ostream& out, uint32_t nscopes) const
 {
   printUnknownCommand(out, "push");
 }
 
-void Printer::toStreamCmdPop(std::ostream& out) const
+void Printer::toStreamCmdPop(std::ostream& out, uint32_t nscopes) const
 {
   printUnknownCommand(out, "pop");
 }
@@ -211,12 +215,26 @@ void Printer::toStreamCmdDeclareFunction(std::ostream& out,
   printUnknownCommand(out, "declare-fun");
 }
 
+void Printer::toStreamCmdDeclareFunction(std::ostream& out, const Node& v) const
+{
+  std::string vs = v.getAttribute(expr::VarNameAttr());
+  toStreamCmdDeclareFunction(out, vs, v.getType());
+}
+
 void Printer::toStreamCmdDeclarePool(std::ostream& out,
                                      const std::string& id,
                                      TypeNode type,
                                      const std::vector<Node>& initValue) const
 {
   printUnknownCommand(out, "declare-pool");
+}
+
+void Printer::toStreamCmdDeclareOracleFun(std::ostream& out,
+                                          const std::string& id,
+                                          TypeNode type,
+                                          const std::string& binName) const
+{
+  printUnknownCommand(out, "declare-oracle-fun");
 }
 
 void Printer::toStreamCmdDeclareType(std::ostream& out,
@@ -242,6 +260,25 @@ void Printer::toStreamCmdDefineFunction(std::ostream& out,
   printUnknownCommand(out, "define-fun");
 }
 
+void Printer::toStreamCmdDefineFunction(std::ostream& out,
+                                        Node v,
+                                        Node lambda) const
+{
+  std::stringstream vs;
+  vs << v;
+  std::vector<Node> formals;
+  Node body = lambda;
+  TypeNode rangeType = v.getType();
+  if (body.getKind() == kind::LAMBDA)
+  {
+    formals.insert(formals.end(), lambda[0].begin(), lambda[0].end());
+    body = lambda[1];
+    Assert(rangeType.isFunction());
+    rangeType = rangeType.getRangeType();
+  }
+  toStreamCmdDefineFunction(out, vs.str(), formals, rangeType, body);
+}
+
 void Printer::toStreamCmdDefineFunctionRec(
     std::ostream& out,
     const std::vector<Node>& funcs,
@@ -251,6 +288,32 @@ void Printer::toStreamCmdDefineFunctionRec(
   printUnknownCommand(out, "define-fun-rec");
 }
 
+void Printer::toStreamCmdDefineFunctionRec(
+    std::ostream& out,
+    const std::vector<Node>& funcs,
+    const std::vector<Node>& lambdas) const
+{
+  std::vector<std::vector<Node>> formals;
+  std::vector<Node> formulas;
+  for (const Node& l : lambdas)
+  {
+    std::vector<Node> formalsVec;
+    Node formula;
+    if (l.getKind() == kind::LAMBDA)
+    {
+      formalsVec.insert(formalsVec.end(), l[0].begin(), l[0].end());
+      formula = l[1];
+    }
+    else
+    {
+      formula = l;
+    }
+    formals.emplace_back(formalsVec);
+    formulas.emplace_back(formula);
+  }
+  toStreamCmdDefineFunctionRec(out, funcs, formals, formulas);
+}
+
 void Printer::toStreamCmdSetUserAttribute(std::ostream& out,
                                           const std::string& attr,
                                           Node n) const
@@ -258,7 +321,7 @@ void Printer::toStreamCmdSetUserAttribute(std::ostream& out,
   printUnknownCommand(out, "set-user-attribute");
 }
 
-void Printer::toStreamCmdCheckSat(std::ostream& out, Node n) const
+void Printer::toStreamCmdCheckSat(std::ostream& out) const
 {
   printUnknownCommand(out, "check-sat");
 }
@@ -295,6 +358,11 @@ void Printer::toStreamCmdConstraint(std::ostream& out, Node n) const
   printUnknownCommand(out, "constraint");
 }
 
+void Printer::toStreamCmdAssume(std::ostream& out, Node n) const
+{
+  printUnknownCommand(out, "assume");
+}
+
 void Printer::toStreamCmdInvConstraint(
     std::ostream& out, Node inv, Node pre, Node trans, Node post) const
 {
@@ -304,6 +372,10 @@ void Printer::toStreamCmdInvConstraint(
 void Printer::toStreamCmdCheckSynth(std::ostream& out) const
 {
   printUnknownCommand(out, "check-synth");
+}
+void Printer::toStreamCmdCheckSynthNext(std::ostream& out) const
+{
+  printUnknownCommand(out, "check-synth-next");
 }
 
 void Printer::toStreamCmdSimplify(std::ostream& out, Node n) const
@@ -327,7 +399,8 @@ void Printer::toStreamCmdGetModel(std::ostream& out) const
   printUnknownCommand(out, "ge-model");
 }
 
-void Printer::toStreamCmdBlockModel(std::ostream& out) const
+void Printer::toStreamCmdBlockModel(std::ostream& out,
+                                    modes::BlockModelsMode mode) const
 {
   printUnknownCommand(out, "block-model");
 }
@@ -338,7 +411,8 @@ void Printer::toStreamCmdBlockModelValues(std::ostream& out,
   printUnknownCommand(out, "block-model-values");
 }
 
-void Printer::toStreamCmdGetProof(std::ostream& out) const
+void Printer::toStreamCmdGetProof(std::ostream& out,
+                                  modes::ProofComponent c) const
 {
   printUnknownCommand(out, "get-proof");
 }
@@ -353,7 +427,12 @@ void Printer::toStreamCmdGetInterpol(std::ostream& out,
                                      Node conj,
                                      TypeNode sygusType) const
 {
-  printUnknownCommand(out, "get-interpol");
+  printUnknownCommand(out, "get-interpolant");
+}
+
+void Printer::toStreamCmdGetInterpolNext(std::ostream& out) const
+{
+  printUnknownCommand(out, "get-interpolant-next");
 }
 
 void Printer::toStreamCmdGetAbduct(std::ostream& out,
@@ -364,8 +443,14 @@ void Printer::toStreamCmdGetAbduct(std::ostream& out,
   printUnknownCommand(out, "get-abduct");
 }
 
+void Printer::toStreamCmdGetAbductNext(std::ostream& out) const
+{
+  printUnknownCommand(out, "get-abduct-next");
+}
+
 void Printer::toStreamCmdGetQuantifierElimination(std::ostream& out,
-                                                  Node n) const
+                                                  Node n,
+                                                  bool doFull) const
 {
   printUnknownCommand(out, "get-quantifier-elimination");
 }
@@ -380,15 +465,20 @@ void Printer::toStreamCmdGetUnsatCore(std::ostream& out) const
   printUnknownCommand(out, "get-unsat-core");
 }
 
+void Printer::toStreamCmdGetDifficulty(std::ostream& out) const
+{
+  printUnknownCommand(out, "get-difficulty");
+}
+
+void Printer::toStreamCmdGetLearnedLiterals(std::ostream& out,
+                                            modes::LearnedLitType t) const
+{
+  printUnknownCommand(out, "get-learned-literals");
+}
+
 void Printer::toStreamCmdGetAssertions(std::ostream& out) const
 {
   printUnknownCommand(out, "get-assertions");
-}
-
-void Printer::toStreamCmdSetBenchmarkStatus(std::ostream& out,
-                                            Result::Sat status) const
-{
-  printUnknownCommand(out, "set-info");
 }
 
 void Printer::toStreamCmdSetBenchmarkLogic(std::ostream& out,
@@ -452,12 +542,6 @@ void Printer::toStreamCmdQuit(std::ostream& out) const
   printUnknownCommand(out, "quit");
 }
 
-void Printer::toStreamCmdComment(std::ostream& out,
-                                 const std::string& comment) const
-{
-  printUnknownCommand(out, "comment");
-}
-
 void Printer::toStreamCmdDeclareHeap(std::ostream& out,
                                      TypeNode locType,
                                      TypeNode dataType) const
@@ -465,16 +549,4 @@ void Printer::toStreamCmdDeclareHeap(std::ostream& out,
   printUnknownCommand(out, "declare-heap");
 }
 
-void Printer::toStreamCmdCommandSequence(
-    std::ostream& out, const std::vector<Command*>& sequence) const
-{
-  printUnknownCommand(out, "sequence");
-}
-
-void Printer::toStreamCmdDeclarationSequence(
-    std::ostream& out, const std::vector<Command*>& sequence) const
-{
-  printUnknownCommand(out, "sequence");
-}
-
-}  // namespace cvc5
+}  // namespace cvc5::internal

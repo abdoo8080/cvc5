@@ -1,10 +1,10 @@
 /******************************************************************************
  * Top contributors (to current version):
- *   Andrew Reynolds, Haniel Barbosa, Abdalrhman Mohamed
+ *   Andrew Reynolds, Mathias Preiner, Haniel Barbosa
  *
  * This file is part of the cvc5 project.
  *
- * Copyright (c) 2009-2021 by the authors listed in the file AUTHORS
+ * Copyright (c) 2009-2022 by the authors listed in the file AUTHORS
  * in the top-level source directory and their institutional affiliations.
  * All rights reserved.  See the file COPYING in the top-level source
  * directory for licensing information.
@@ -21,9 +21,6 @@
 #include "options/base_options.h"
 #include "options/quantifiers_options.h"
 #include "printer/printer.h"
-#include "smt/smt_engine.h"
-#include "smt/smt_engine_scope.h"
-#include "smt/smt_statistics_registry.h"
 #include "theory/datatypes/theory_datatypes_utils.h"
 #include "theory/logic_info.h"
 #include "theory/quantifiers/cegqi/ceg_instantiator.h"
@@ -31,14 +28,14 @@
 #include "theory/quantifiers/sygus/term_database_sygus.h"
 #include "theory/smt_engine_subsolver.h"
 
-using namespace cvc5::kind;
+using namespace cvc5::internal::kind;
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace theory {
 namespace quantifiers {
 
-SygusRepairConst::SygusRepairConst(TermDbSygus* tds)
-    : d_tds(tds), d_allow_constant_grammar(false)
+SygusRepairConst::SygusRepairConst(Env& env, TermDbSygus* tds)
+    : EnvObj(env), d_tds(tds), d_allow_constant_grammar(false)
 {
 }
 
@@ -128,7 +125,7 @@ bool SygusRepairConst::repairSolution(Node sygusBody,
   {
     return false;
   }
-  if (Trace.isOn("sygus-repair-const"))
+  if (TraceIsOn("sygus-repair-const"))
   {
     Trace("sygus-repair-const") << "Repair candidate solutions..." << std::endl;
     for (unsigned i = 0, size = candidates.size(); i < size; i++)
@@ -150,7 +147,7 @@ bool SygusRepairConst::repairSolution(Node sygusBody,
     Node cv = candidate_values[i];
     Node skeleton = getSkeleton(
         cv, free_var_count, sk_vars, sk_vars_to_subs, useConstantsAsHoles);
-    if (Trace.isOn("sygus-repair-const"))
+    if (TraceIsOn("sygus-repair-const"))
     {
       std::stringstream ss;
       TermDbSygus::toStreamSygus(ss, cv);
@@ -192,7 +189,7 @@ bool SygusRepairConst::repairSolution(Node sygusBody,
 
   // check whether it is not in the current logic, e.g. non-linear arithmetic.
   // if so, undo replacements until it is in the current logic.
-  LogicInfo logic = smt::currentSmtEngine()->getLogicInfo();
+  const LogicInfo& logic = logicInfo();
   if (logic.isTheoryEnabled(THEORY_ARITH) && logic.isLinear())
   {
     fo_body = fitToLogic(sygusBody,
@@ -218,7 +215,8 @@ bool SygusRepairConst::repairSolution(Node sygusBody,
   if (fo_body.getKind() == FORALL)
   {
     // must be a CBQI quantifier
-    CegHandledStatus hstatus = CegInstantiator::isCbqiQuant(fo_body);
+    CegHandledStatus hstatus =
+        CegInstantiator::isCbqiQuant(fo_body, options().quantifiers.cegqiAll);
     if (hstatus < CEG_HANDLED)
     {
       // abort if less than fully handled
@@ -231,23 +229,20 @@ bool SygusRepairConst::repairSolution(Node sygusBody,
 
   Trace("sygus-engine") << "Repairing previous solution..." << std::endl;
   // make the satisfiability query
-  std::unique_ptr<SmtEngine> repcChecker;
+  std::unique_ptr<SolverEngine> repcChecker;
+  SubsolverSetupInfo ssi(d_env);
   // initialize the subsolver using the standard method
-  initializeSubsolver(
-      repcChecker,
-      nullptr,
-      Options::current().quantifiers.sygusRepairConstTimeoutWasSetByUser,
-      options::sygusRepairConstTimeout());
+  initializeSubsolver(repcChecker,
+                      ssi,
+                      options().quantifiers.sygusRepairConstTimeoutWasSetByUser,
+                      options().quantifiers.sygusRepairConstTimeout);
   // renable options disabled by sygus
-  repcChecker->setOption("miniscope-quant", "true");
-  repcChecker->setOption("miniscope-quant-fv", "true");
-  repcChecker->setOption("quant-split", "true");
+  repcChecker->setOption("miniscope-quant", "conj-and-fv");
   repcChecker->assertFormula(fo_body);
   // check satisfiability
   Result r = repcChecker->checkSat();
   Trace("sygus-repair-const") << "...got : " << r << std::endl;
-  if (r.asSatisfiabilityResult().isSat() == Result::UNSAT
-      || r.asSatisfiabilityResult().isUnknown())
+  if (r.getStatus() == Result::UNSAT || r.isUnknown())
   {
     Trace("sygus-engine") << "...failed" << std::endl;
     return false;
@@ -271,7 +266,7 @@ bool SygusRepairConst::repairSolution(Node sygusBody,
     Node scsk = csk.substitute(
         sk_vars.begin(), sk_vars.end(), sk_sygus_m.begin(), sk_sygus_m.end());
     repair_cv.push_back(scsk);
-    if (Trace.isOn("sygus-repair-const") || Trace.isOn("sygus-engine"))
+    if (TraceIsOn("sygus-repair-const") || TraceIsOn("sygus-engine"))
     {
       std::stringstream sss;
       TermDbSygus::toStreamSygus(sss, repair_cv[i]);
@@ -446,7 +441,7 @@ Node SygusRepairConst::getFoQuery(Node body,
   Trace("sygus-repair-const-debug") << "  ...got : " << body << std::endl;
 
   Trace("sygus-repair-const") << "  Unfold the specification..." << std::endl;
-  body = d_tds->evaluateWithUnfolding(body);
+  body = d_tds->rewriteNode(body);
   Trace("sygus-repair-const-debug") << "  ...got : " << body << std::endl;
 
   Trace("sygus-repair-const") << "  Introduce first-order vars..." << std::endl;
@@ -531,7 +526,7 @@ Node SygusRepairConst::getFoQuery(Node body,
 }
 
 Node SygusRepairConst::fitToLogic(Node body,
-                                  LogicInfo& logic,
+                                  const LogicInfo& logic,
                                   Node n,
                                   const std::vector<Node>& candidates,
                                   std::vector<Node>& candidate_skeletons,
@@ -570,7 +565,7 @@ Node SygusRepairConst::fitToLogic(Node body,
   return Node::null();
 }
 
-bool SygusRepairConst::getFitToLogicExcludeVar(LogicInfo& logic,
+bool SygusRepairConst::getFitToLogicExcludeVar(const LogicInfo& logic,
                                                Node n,
                                                Node& exvar)
 {
@@ -626,4 +621,4 @@ bool SygusRepairConst::getFitToLogicExcludeVar(LogicInfo& logic,
 
 }  // namespace quantifiers
 }  // namespace theory
-}  // namespace cvc5
+}  // namespace cvc5::internal
