@@ -75,38 +75,6 @@ name   = "Proof"
   help       = "merge subproofs in final proof post-processor"
 
 [[option]]
-  name       = "checkProofsFail"
-  category   = "regular"
-  long       = "check-proofs-fail"
-  type       = "bool"
-  default    = "false"
-  help       = "always fail when the checkProof method is invoked (dummy option)"
-
-[[option]]
-  name       = "proofReq"
-  category   = "regular"
-  long       = "proof-req"
-  type       = "bool"
-  default    = "false"
-  help       = "always fail during setDefaults if proof is not enabled (dummy option)"
-
-[[option]]
-  name       = "proofUpdateDebug"
-  category   = "regular"
-  long       = "proof-update-debug"
-  type       = "bool"
-  default    = "false"
-  help       = "debug proof node updater"
-
-[[option]]
-  name       = "proofPpMerge"
-  category   = "regular"
-  long       = "proof-pp-merge"
-  type       = "bool"
-  default    = "true"
-  help       = "merge subproofs in final proof post-processor"
-
-[[option]]
   name       = "proofGranularityMode"
   category   = "regular"
   long       = "proof-granularity=MODE"
