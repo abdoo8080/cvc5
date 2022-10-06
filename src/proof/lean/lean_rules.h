@@ -21,7 +21,7 @@
 
 #include "expr/node.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace proof {
 
 enum class LeanRule : uint32_t
@@ -155,6 +155,6 @@ std::ostream& operator<<(std::ostream& out, LeanRule id);
 LeanRule getLeanRule(Node n);
 
 }  // namespace proof
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif /* CVC4__PROOF_LEAN_RULES_H */

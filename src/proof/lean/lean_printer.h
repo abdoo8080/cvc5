@@ -29,7 +29,7 @@
 #include "proof/proof_node.h"
 #include "proof/proof_node_updater.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 class CDProof;
 
@@ -65,10 +65,10 @@ class LetUpdaterPfCallback : public ProofNodeUpdaterCallback
   std::set<LeanRule> d_letRules;
 };
 
-class LeanPrinter
+class LeanPrinter : protected EnvObj
 {
  public:
-  LeanPrinter(LeanNodeConverter& lnc);
+  LeanPrinter(Env& env, LeanNodeConverter& lnc);
   ~LeanPrinter();
 
   /**
@@ -123,6 +123,6 @@ class LeanPrinter
 };
 
 }  // namespace proof
-}  // namespace cvc5
+}  // namespace cvc5::internal
 
 #endif

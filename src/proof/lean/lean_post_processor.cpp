@@ -23,7 +23,7 @@
 #include "util/bitvector.h"
 #include "util/rational.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 namespace proof {
 
@@ -107,7 +107,7 @@ void LeanProofPostprocessCallback::addLeanStep(
     CDProof& cdp)
 {
   std::vector<Node> leanArgs = {
-      NodeManager::currentNM()->mkConst<Rational>(static_cast<uint32_t>(rule)),
+      NodeManager::currentNM()->mkConstInt(Rational(static_cast<uint32_t>(rule))),
       res,
       convertedResult,
       isClause ? d_true : d_false};
@@ -184,7 +184,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       // add a lifting step from the OR above to the original conclusion. It
       // takes as arguments the number of assumptions and subproof conclusion
       newArgs.clear();
-      newArgs.push_back(nm->mkConst<Rational>(args.size()));
+      newArgs.push_back(nm->mkConstInt(Rational(args.size())));
       if (!negation)
       {
         // only implication version takes tail
@@ -280,7 +280,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   d_lnc.convert(res),
                   false,
                   children,
-                  {nm->mkConst<Rational>(var.getId()),
+                  {nm->mkConstInt(Rational(var.getId())),
                    nm->mkBoundVar(var.getType().getName(), nm->sExprType())},
                   *cdp);
       break;
@@ -297,7 +297,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       Node original = d_lnc.convert(res[1]);
       Node witness = nm->mkNode(kind::SEXPR,
                                 d_lnc.mkPrintableOp(kind::WITNESS),
-                                nm->mkConst<Rational>(0),
+                                nm->mkConstInt(Rational(0)),
                                 original);
       // arguments will be the id of the variable and its sort
       addLeanStep(res,
@@ -344,7 +344,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                       {},
                       // the size of the bv is the number of children of the
                       // bitblasted term
-                      {nm->mkConst<Rational>(res[1].getNumChildren())},
+                      {nm->mkConstInt(Rational(res[1].getNumChildren()))},
                       *cdp);
           break;
         }
@@ -368,7 +368,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                       {},
                       // the size of the bv is the number of children of the
                       // bitblasted term
-                      {nm->mkConst<Rational>(res[0][0].getNumChildren())},
+                      {nm->mkConstInt(Rational(res[0][0].getNumChildren()))},
                       *cdp);
           break;
         }
@@ -384,7 +384,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                       d_lnc.convert(res),
                       false,
                       {},
-                      {nm->mkConst<Rational>(res[0][0].getNumChildren())},
+                      {nm->mkConstInt(Rational(res[0][0].getNumChildren()))},
                       *cdp);
           break;
         }
@@ -400,7 +400,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                       d_lnc.convert(res),
                       false,
                       {},
-                      {nm->mkConst<Rational>(res[0][0].getNumChildren())},
+                      {nm->mkConstInt(Rational(res[0][0].getNumChildren()))},
                       *cdp);
           break;
         }
@@ -414,7 +414,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                       d_lnc.convert(res),
                       false,
                       {},
-                      {nm->mkConst<Rational>(res[0][0].getNumChildren())},
+                      {nm->mkConstInt(Rational(res[0][0].getNumChildren()))},
                       *cdp);
           break;
         }
@@ -428,8 +428,8 @@ bool LeanProofPostprocessCallback::update(Node res,
                       d_lnc.convert(res),
                       false,
                       {},
-                      {nm->mkConst<Rational>(res[0][0].getNumChildren()),
-                       nm->mkConst<Rational>(res[0][1].getNumChildren())},
+                      {nm->mkConstInt(Rational(res[0][0].getNumChildren())),
+                       nm->mkConstInt(Rational(res[0][1].getNumChildren()))},
                       *cdp);
           break;
         }
@@ -437,11 +437,7 @@ bool LeanProofPostprocessCallback::update(Node res,
         {
           // argument must be a bitblasted term
           AlwaysAssert(res[0][0].getKind() == kind::BITVECTOR_BB_TERM);
-          std::vector<Node> newArgs{nm->mkConst<Rational>(res[0][0].getNumChildren())};
-          // BitVectorExtract p =
-          //     res[0].getOperator().getConst<BitVectorExtract>();
-          // newArgs.push_back(nm->mkConst<Rational>(p.d_high));
-          // newArgs.push_back(nm->mkConst<Rational>(p.d_low));
+          std::vector<Node> newArgs{nm->mkConstInt(Rational(res[0][0].getNumChildren()))};
           addLeanStep(res,
                       LeanRule::BITBLAST_EXTRACT,
                       d_lnc.convert(res),
@@ -623,7 +619,7 @@ bool LeanProofPostprocessCallback::update(Node res,
           // applications that have repeated arguments
           std::vector<Node> argAppEqChildren{
               eqNode,
-              nm->mkConst<Rational>(i),
+              nm->mkConstInt(Rational(i)),
               nm->mkNode(kind::SEXPR, op, children[j][0]),
               nm->mkNode(kind::SEXPR, op, children[j][1])};
           Node argAppEq = nm->mkNode(kind::SEXPR, argAppEqChildren);
@@ -799,7 +795,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                                     arePremisesSingletons[0],
                                     arePremisesSingletons[1]};
           std::vector<Node> curChildren{
-              res, nm->mkConst<Rational>(i), pol, curArgs[0]};
+              res, nm->mkConstInt(Rational(i)), pol, curArgs[0]};
           Node newCur = nm->mkNode(kind::SEXPR, curChildren);
           Trace("test-lean")
               << "..res [internal] " << i << " has singleton premises "
@@ -962,7 +958,7 @@ bool LeanProofPostprocessCallback::update(Node res,
           {
             // we force the naturals to be internal symbols so that they are not
             // converted when we build the final sexpression
-            pos.push_back(d_lnc.mkInternalSymbol(nm->mkConst<Rational>(i)));
+            pos.push_back(d_lnc.mkInternalSymbol(nm->mkConstInt(Rational(i))));
           }
         }
       }
@@ -1071,10 +1067,10 @@ LeanProofPostprocessClConnectCallback::LeanProofPostprocessClConnectCallback(
   // init conversion rules
   NodeManager* nm = NodeManager::currentNM();
   d_conversionRules = {
-      nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::CL_OR)),
-      nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::CL_ASSUME)),
-      nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::CL_SINGLETON)),
-      nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::TH_ASSUME)),
+      nm->mkConstInt(Rational(static_cast<uint32_t>(LeanRule::CL_OR))),
+      nm->mkConstInt(Rational(static_cast<uint32_t>(LeanRule::CL_ASSUME))),
+      nm->mkConstInt(Rational(static_cast<uint32_t>(LeanRule::CL_SINGLETON))),
+      nm->mkConstInt(Rational(static_cast<uint32_t>(LeanRule::TH_ASSUME))),
   };
   // Rules that take clauses
   d_clausalPremisesRules = {LeanRule::R0,
@@ -1310,7 +1306,7 @@ bool LeanProofPostprocessClConnectCallback::update(
     cdp->addStep(argsOfChild[2], PfRule::LEAN_RULE, childrenOfChild, newArgs);
     // Now add the glue step to derive the term in a non-clausal rule
     std::vector<Node> replaceArgs{
-        nm->mkConst<Rational>(static_cast<uint32_t>(LeanRule::TH_ASSUME)),
+        nm->mkConstInt(Rational(static_cast<uint32_t>(LeanRule::TH_ASSUME))),
         children[i],
         d_lnc.convert(children[i]),
         d_false};
@@ -1345,4 +1341,4 @@ void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
 };
 
 }  // namespace proof
-}  // namespace cvc5
+}  // namespace cvc5::internal

@@ -21,7 +21,7 @@
 #include "util/bitvector.h"
 #include "util/string.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace proof {
 
 std::unordered_map<Kind, std::string> s_kindToString = {
@@ -83,7 +83,7 @@ Node LeanNodeConverter::mkList(const std::vector<Node>& nodes,
 
 Node LeanNodeConverter::mkInt(unsigned i)
 {
-  return mkInt(NodeManager::currentNM()->mkConst<Rational>(i));
+  return mkInt(NodeManager::currentNM()->mkConstInt(Rational(i)));
 }
 
 Node LeanNodeConverter::mkInt(Node i)
@@ -253,7 +253,7 @@ Node LeanNodeConverter::convert(Node n)
             AlwaysAssert(!SkolemManager::getOriginalForm(cur).isNull());
             res = nm->mkNode(kind::SEXPR,
                              mkInternalSymbol("choice"),
-                             nm->mkConst<Rational>(0),
+                             nm->mkConstInt(Rational(0)),
                              d_cache[SkolemManager::getOriginalForm(cur)]);
           }
           AlwaysAssert(!res.isNull());
@@ -267,7 +267,7 @@ Node LeanNodeConverter::convert(Node n)
             // variables are (const id type)
             resChildren.push_back(mkInternalSymbol("const"));
             resChildren.push_back(
-                nm->mkConst<Rational>(static_cast<int>(cur.getId())));
+                nm->mkConstInt(Rational(static_cast<int>(cur.getId()))));
             resChildren.push_back(typeAsNode(cur.getType()));
             res = nm->mkNode(kind::SEXPR, resChildren);
           }
@@ -336,8 +336,8 @@ Node LeanNodeConverter::convert(Node n)
           {
             curChild = nm->mkNode(kind::SEXPR,
                                   binderOp,
-                                  nm->mkConst<Rational>(static_cast<int>(
-                                      children[0][nVars - i - 1].getId())),
+                                  nm->mkConstInt(Rational(static_cast<int>(
+                                      children[0][nVars - i - 1].getId()))),
                                   curChild);
           }
           res = curChild;
@@ -508,11 +508,11 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     {
       return mkInternalSymbol("fIteConst");
     }
-    case kind::PLUS:
+    case kind::ADD:
     {
       return mkInternalSymbol("plusConst");
     }
-    case kind::MINUS:
+    case kind::SUB:
     {
       return mkInternalSymbol("minusConst");
     }
@@ -632,12 +632,13 @@ Node LeanNodeConverter::typeAsNode(TypeNode tn)
     res = nm->mkNode(
         kind::SEXPR,
         mkInternalSymbol("bv"),
-        mkInternalSymbol(nm->mkConst<Rational>(tn.getBitVectorSize())));
+        mkInternalSymbol(nm->mkConstInt(Rational(tn.getBitVectorSize()))));
   }
   else
   {
     std::stringstream ss;
-    tn.toStream(ss, language::output::LANG_SMTLIB_V2_6);
+    options::ioutils::applyOutputLanguage(ss, Language::LANG_SMTLIB_V2_6);
+    tn.toStream(ss);
     res = mkInternalSymbol(ss.str());
   }
   d_typeAsNode[tn] = res;
@@ -665,7 +666,8 @@ Node LeanNodeConverter::mkInternalSymbol(TNode n)
   {
     ss << "__LEAN_TMP";
   }
-  n.toStream(ss, -1, 0, language::output::LANG_SMTLIB_V2_6);
+  options::ioutils::applyOutputLanguage(ss, Language::LANG_SMTLIB_V2_6);
+  n.toStream(ss);
   return mkInternalSymbol(ss.str());
 }
 

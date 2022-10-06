@@ -18,7 +18,7 @@
 
 #include "proof/proof_checker.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace proof {
 
 const char* toString(LeanRule id)
@@ -155,4 +155,4 @@ LeanRule getLeanRule(Node n)
 }
 
 }  // namespace proof
-}  // namespace cvc5
+}  // namespace cvc5::internal

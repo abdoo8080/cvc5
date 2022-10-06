@@ -24,7 +24,7 @@
 #include "expr/node_converter.h"
 #include "expr/type_node.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 namespace proof {
 
 class LeanNodeConverter

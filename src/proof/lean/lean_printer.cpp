@@ -19,11 +19,11 @@
 
 #include "expr/node_algorithm.h"
 #include "expr/skolem_manager.h"
-#include "options/expr_options.h"
+#include "options/printer_options.h"
 #include "proof/lean/lean_rules.h"
 #include "util/string.h"
 
-namespace cvc5 {
+namespace cvc5::internal {
 
 namespace proof {
 
@@ -64,7 +64,7 @@ bool LetUpdaterPfCallback::update(Node res,
   return false;
 }
 
-LeanPrinter::LeanPrinter(LeanNodeConverter& lnc)
+LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
     : d_letRules({
         LeanRule::R0_PARTIAL,
         LeanRule::R1_PARTIAL,
@@ -78,8 +78,7 @@ LeanPrinter::LeanPrinter(LeanNodeConverter& lnc)
         LeanRule::CL_ASSUME,
         LeanRule::TH_ASSUME,
     }),
-      d_lbind(options::defaultDagThresh() ? options::defaultDagThresh() + 1
-                                          : 0),
+      d_lbind(options().printer.dagTresh ? options().printer.dagTresh + 1 : 0),
       d_lnc(lnc),
       d_cb(new LetUpdaterPfCallback(d_lbind, d_skMap, d_letRules))
 {
@@ -137,7 +136,8 @@ void LeanPrinter::printSort(std::ostream& out, TypeNode tn)
 {
   // must clean indexed symbols
   std::stringstream ss;
-  d_lnc.typeAsNode(tn).toStream(ss, -1, 0, language::output::LANG_SMTLIB_V2_6);
+  options::ioutils::applyOutputLanguage(ss, Language::LANG_SMTLIB_V2_6);
+  d_lnc.typeAsNode(tn).toStream(ss);
   std::string s = ss.str();
   cleanSymbols(s);
   out << s;
@@ -148,7 +148,8 @@ void LeanPrinter::printTerm(std::ostream& out, TNode n, bool letTop)
   // must clean indexed symbols
   std::stringstream ss;
   Node nc = d_lbind.convert(n, "let", letTop);
-  nc.toStream(ss, -1, 0, language::output::LANG_SMTLIB_V2_6);
+  options::ioutils::applyOutputLanguage(ss, Language::LANG_SMTLIB_V2_6);
+  nc.toStream(ss);
   std::string s = ss.str();
   cleanSymbols(s);
   out << s << (letTop ? "" : "\n");
@@ -459,4 +460,16 @@ void LeanPrinter::print(std::ostream& out,
 }
 
 }  // namespace proof
-}  // namespace cvc5
+}  // namespace cvc5::internal
+
+LetBinding lbind;
+// lbind.process(n), for every term n in your whole formula
+std::vector<Node> letList;
+lbind.letify(letList);
+std::stringstream ss;
+for (TNode n : letList)
+{
+  size_t id = lbind.getId(n);
+  Node nc = lbind.convert(n, "let");
+  ss << "let" << id << " := " << nc << "\n";
+}
