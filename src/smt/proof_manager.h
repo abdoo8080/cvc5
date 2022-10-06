@@ -34,10 +34,6 @@ namespace rewriter {
 class RewriteDb;
 }
 
-namespace rewriter {
-class RewriteDb;
-}
-
 namespace smt {
 
 class Assertions;

@@ -78,8 +78,6 @@ class ProofPostprocessCallback : public ProofNodeUpdaterCallback, protected EnvO
   Node d_true;
   /** The preprocessing proof generator */
   ProofGenerator* d_pppg;
-  /** The rewrite database proof generator */
-  rewriter::RewriteDbProofCons d_rdbPc;
   /** The witness form proof generator */
   WitnessFormGenerator d_wfpm;
   /** The witness form assumptions used in the proof */
@@ -264,8 +262,6 @@ class ProofPostprocess : protected EnvObj
   void process(std::shared_ptr<ProofNode> pf);
   /** set eliminate rule */
   void setEliminateRule(PfRule rule);
-  /** Set assertions (for debugging whether the final proof is closed) */
-  void setAssertions(const std::vector<Node>& assertions);
 
  private:
   /** The post process callback */

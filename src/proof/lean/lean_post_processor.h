@@ -35,7 +35,7 @@ namespace proof {
 class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
 {
  public:
-  LeanProofPostprocessCallback(ProofNodeManager* pnm, LeanNodeConverter& lnc);
+  LeanProofPostprocessCallback(LeanNodeConverter& lnc);
   /**
    * Initialize, called once for each new ProofNode to process. This
    * initializes static information to be used by successive calls to update.
@@ -54,9 +54,6 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
               bool& continueUpdate) override;
 
  protected:
-  /** The proof node manager */
-  ProofNodeManager* d_pnm;
-
   /** The node converter */
   LeanNodeConverter& d_lnc;
 
@@ -94,8 +91,7 @@ class LeanProofPostprocessClConnectCallback
     : public LeanProofPostprocessCallback
 {
  public:
-  LeanProofPostprocessClConnectCallback(ProofNodeManager* pnm,
-                                        LeanNodeConverter& lnc);
+  LeanProofPostprocessClConnectCallback(LeanNodeConverter& lnc);
   ~LeanProofPostprocessClConnectCallback();
 
   /** Update the proof node iff has the LEAN_RULE id. */
@@ -123,10 +119,10 @@ class LeanProofPostprocessClConnectCallback
  * The proof postprocessor module. This postprocesses a proof node into one
  * using the rules from the Lean calculus.
  */
-class LeanProofPostprocess
+class LeanProofPostprocess : protected EnvObj
 {
  public:
-  LeanProofPostprocess(ProofNodeManager* pnm, LeanNodeConverter& lnc);
+  LeanProofPostprocess(Env& env, LeanNodeConverter& lnc);
   /** post-process */
   void process(std::shared_ptr<ProofNode> pf);
 
@@ -135,8 +131,6 @@ class LeanProofPostprocess
   std::unique_ptr<LeanProofPostprocessCallback> d_cb;
   /** The post process callback */
   std::unique_ptr<LeanProofPostprocessClConnectCallback> d_cbCl;
-  /** The proof node manager */
-  ProofNodeManager* d_pnm;
 };
 
 }  // namespace proof

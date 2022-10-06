@@ -74,9 +74,7 @@ class LeanPrinter : protected EnvObj
   /**
    * Print the full proof of assertions => false by pfn.
    */
-  void print(std::ostream& out,
-             const std::vector<Node>& assertions,
-             std::shared_ptr<ProofNode> pfn);
+  void print(std::ostream& out, std::shared_ptr<ProofNode> pfn);
 
  private:
   void printSort(std::ostream& out, TypeNode tn);

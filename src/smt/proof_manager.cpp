@@ -22,12 +22,14 @@
 #include "proof/alethe/alethe_post_processor.h"
 #include "proof/alethe/alethe_printer.h"
 #include "proof/dot/dot_printer.h"
+#include "proof/lean/lean_node_converter.h"
+#include "proof/lean/lean_post_processor.h"
+#include "proof/lean/lean_printer.h"
 #include "proof/lfsc/lfsc_post_processor.h"
 #include "proof/lfsc/lfsc_printer.h"
 #include "proof/proof_checker.h"
 #include "proof/proof_node_algorithm.h"
 #include "proof/proof_node_manager.h"
-#include "rewriter/rewrite_db.h"
 #include "smt/assertions.h"
 #include "smt/difficulty_post_processor.h"
 #include "smt/env.h"
@@ -162,7 +164,6 @@ std::shared_ptr<ProofNode> PfManager::connectProofToAssertions(
   Trace("smt-proof")
       << "SolverEngine::connectProofToAssertions(): postprocess...\n";
   Assert(d_pfpp != nullptr);
-  d_pfpp->setAssertions(assertions);
   d_pfpp->process(pfn);
 
   switch (scopeMode)
@@ -237,17 +238,16 @@ void PfManager::printProof(std::ostream& out,
     proof::DotPrinter dotPrinter(d_env);
     dotPrinter.print(out, fp.get());
   }
-  else if (options::proofFormatMode() == options::ProofFormatMode::LEAN)
+  else if (mode == options::ProofFormatMode::LEAN)
   {
     std::vector<Node> assertions;
     Trace("test-lean-pf") << "Original proof: " << *fp.get() << "\n";
-    getAssertions(as, assertions);
     Trace("test-lean") << "Processing...\n";
     proof::LeanNodeConverter lnc;
-    proof::LeanProofPostprocess lpfpp(d_pnm.get(), lnc);
+    proof::LeanProofPostprocess lpfpp(d_env, lnc);
     lpfpp.process(fp);
     proof::LeanPrinter lp(d_env, lnc);
-    lp.print(out, assertions, fp);
+    lp.print(out, fp);
   }
   else if (mode == options::ProofFormatMode::ALETHE)
   {

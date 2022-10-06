@@ -20,6 +20,7 @@
 #include "preprocessing/assertion_pipeline.h"
 #include "proof/proof_node_algorithm.h"
 #include "proof/proof_node_manager.h"
+#include "smt/solver_engine.h"
 #include "theory/arith/arith_utilities.h"
 #include "theory/builtin/proof_checker.h"
 #include "theory/bv/bitblast/bitblast_proof_generator.h"
@@ -1090,10 +1091,11 @@ Node ProofPostprocessCallback::expandMacros(PfRule id,
         PfRule::EVALUATE, {}, {eq[0]}, Node::null(), "smt-proof-pp-debug");
     if (!ceval.isNull() && ceval == eq)
     {
-      // if successful, we update the proof
+      cdp->addStep(eq, PfRule::EVALUATE, {}, {eq[0]});
       return eq;
     }
     // otherwise no update
+    Trace("final-pf-hole") << "hole: " << id << " : " << eq << std::endl;
   }
   else if (id == PfRule::MACRO_ARITH_SCALE_SUM_UB)
   {
@@ -1300,15 +1302,6 @@ void ProofPostprocess::process(std::shared_ptr<ProofNode> pf)
 void ProofPostprocess::setEliminateRule(PfRule rule)
 {
   d_cb.setEliminateRule(rule);
-}
-
-void ProofPostproccess::setAssertions(const std::vector<Node>& assertions)
-{
-  // for debugging (slow)
-  if (options::proofUpdateDebug())
-  {
-    d_updater.setDebugFreeAssumptions(assertions);
-  }
 }
 
 }  // namespace smt

@@ -79,17 +79,16 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::SKOLEM_INTRO, LeanRule::SKOLEM_INTRO},
 };
 
-LeanProofPostprocess::LeanProofPostprocess(ProofNodeManager* pnm,
-                                           LeanNodeConverter& lnc)
-    : d_cb(new LeanProofPostprocessCallback(pnm, lnc)),
-      d_cbCl(new LeanProofPostprocessClConnectCallback(pnm, lnc)),
-      d_pnm(pnm)
+LeanProofPostprocess::LeanProofPostprocess(Env& env, LeanNodeConverter& lnc)
+    : EnvObj(env),
+      d_cb(new LeanProofPostprocessCallback(lnc)),
+      d_cbCl(new LeanProofPostprocessClConnectCallback(lnc))
 {
 }
 
 LeanProofPostprocessCallback::LeanProofPostprocessCallback(
-    ProofNodeManager* pnm, LeanNodeConverter& lnc)
-    : d_pnm(pnm), d_lnc(lnc)
+    LeanNodeConverter& lnc)
+    : d_lnc(lnc)
 {
   NodeManager* nm = NodeManager::currentNM();
   d_empty = d_lnc.convert(nm->mkNode(kind::SEXPR));
@@ -1061,8 +1060,8 @@ bool LeanProofPostprocessCallback::update(Node res,
 }
 
 LeanProofPostprocessClConnectCallback::LeanProofPostprocessClConnectCallback(
-    ProofNodeManager* pnm, LeanNodeConverter& lnc)
-    : LeanProofPostprocessCallback(pnm, lnc)
+    LeanNodeConverter& lnc)
+    : LeanProofPostprocessCallback(lnc)
 {
   // init conversion rules
   NodeManager* nm = NodeManager::currentNM();
@@ -1333,9 +1332,9 @@ bool LeanProofPostprocessClConnectCallback::update(
 
 void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
 {
-  ProofNodeUpdater updater(d_pnm, *(d_cb.get()), false, false);
+  ProofNodeUpdater updater(d_env, *(d_cb.get()), false, false);
   updater.process(pf);
-  ProofNodeUpdater updaterCl(d_pnm, *(d_cbCl.get()), false, false);
+  ProofNodeUpdater updaterCl(d_env, *(d_cbCl.get()), false, false);
   // we don't need to convert the final scope, which has been lifted
   updaterCl.process(pf->getChildren()[0]->getChildren()[0]);
 };

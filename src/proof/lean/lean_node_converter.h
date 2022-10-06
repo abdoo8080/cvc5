@@ -50,6 +50,9 @@ class LeanNodeConverter
   /** Type as node */
   Node typeAsNode(TypeNode tn);
 
+  /** The set of declared types */
+  // std::unordered_set<TypeNode> d_declTypes;
+
  private:
   /** Should we traverse n? */
   bool shouldTraverse(Node n);

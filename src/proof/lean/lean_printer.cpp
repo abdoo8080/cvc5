@@ -65,20 +65,22 @@ bool LetUpdaterPfCallback::update(Node res,
 }
 
 LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
-    : d_letRules({
-        LeanRule::R0_PARTIAL,
-        LeanRule::R1_PARTIAL,
-        LeanRule::REFL_PARTIAL,
-        LeanRule::CONG_PARTIAL,
-        LeanRule::BIND_PARTIAL,
-        LeanRule::BIND_LAMBDA_PARTIAL,
-        LeanRule::TRANS_PARTIAL,
-        LeanRule::AND_INTRO_PARTIAL,
-        LeanRule::CL_OR,
-        LeanRule::CL_ASSUME,
-        LeanRule::TH_ASSUME,
-    }),
-      d_lbind(options().printer.dagTresh ? options().printer.dagTresh + 1 : 0),
+    : EnvObj(env),
+      d_letRules({
+          LeanRule::R0_PARTIAL,
+          LeanRule::R1_PARTIAL,
+          LeanRule::REFL_PARTIAL,
+          LeanRule::CONG_PARTIAL,
+          LeanRule::BIND_PARTIAL,
+          LeanRule::BIND_LAMBDA_PARTIAL,
+          LeanRule::TRANS_PARTIAL,
+          LeanRule::AND_INTRO_PARTIAL,
+          LeanRule::CL_OR,
+          LeanRule::CL_ASSUME,
+          LeanRule::TH_ASSUME,
+      }),
+      d_lbind(options().printer.dagThresh ? options().printer.dagThresh + 1
+                                          : 0),
       d_lnc(lnc),
       d_cb(new LetUpdaterPfCallback(d_lbind, d_skMap, d_letRules))
 {
@@ -336,7 +338,6 @@ void LeanPrinter::printProof(std::ostream& out,
 }
 
 void LeanPrinter::print(std::ostream& out,
-                        const std::vector<Node>& assertions,
                         std::shared_ptr<ProofNode> pfn)
 {
   // outer method to print valid Lean output from a ProofNode
@@ -349,6 +350,7 @@ void LeanPrinter::print(std::ostream& out,
   out << "open proof\nopen proof.sort proof.term\n";
   out << "open rules eufRules arrayRules bvRules quantRules\n\n";
 
+  std::vector<Node> assertions = pfn->getArguments();
   // Print user defined sorts and constants of those sorts
   std::unordered_set<Node> syms;
   std::unordered_set<TNode> visited;
@@ -368,7 +370,7 @@ void LeanPrinter::print(std::ostream& out,
     for (const TypeNode& stc : ctypes)
     {
       // only collect non-predefined sorts for declaration
-      if (stc.isSort() && stc.getKind() != kind::TYPE_CONSTANT)
+      if (stc.isUninterpretedSort() && stc.getKind() != kind::TYPE_CONSTANT)
       {
         Trace("test-lean") << "collecting sort " << stc << " with kind "
                            << stc.getKind() << "\n";
@@ -401,7 +403,7 @@ void LeanPrinter::print(std::ostream& out,
   }
   // Traverse the proof node to letify the (converted) conclusions of explicit
   // proof steps. This traversal will collect the skolems to de defined.
-  ProofNodeUpdater updater(nullptr, *(d_cb.get()), false, false);
+  ProofNodeUpdater updater(d_env, *(d_cb.get()), false, false);
   updater.process(innerPf);
 
   const std::vector<Node>& assumptions = pfn->getChildren()[0]->getArguments();
@@ -461,15 +463,3 @@ void LeanPrinter::print(std::ostream& out,
 
 }  // namespace proof
 }  // namespace cvc5::internal
-
-LetBinding lbind;
-// lbind.process(n), for every term n in your whole formula
-std::vector<Node> letList;
-lbind.letify(letList);
-std::stringstream ss;
-for (TNode n : letList)
-{
-  size_t id = lbind.getId(n);
-  Node nc = lbind.convert(n, "let");
-  ss << "let" << id << " := " << nc << "\n";
-}
