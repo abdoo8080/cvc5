@@ -47,7 +47,6 @@ void QuantifiersModules::initialize(Env& env,
                                     QuantifiersRegistry& qr,
                                     TermRegistry& tr,
                                     QModelBuilder* builder,
-                                    ProofNodeManager* pnm,
                                     std::vector<QuantifiersModule*>& modules)
 {
   // add quantifiers modules

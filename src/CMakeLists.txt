@@ -327,8 +327,6 @@ libcvc5_add_sources(
   smt/print_benchmark.h
   smt/process_assertions.cpp
   smt/process_assertions.h
-  smt/proof_final_callback.cpp
-  smt/proof_final_callback.h
   smt/proof_manager.cpp
   smt/proof_manager.h
   smt/proof_final_callback.cpp
@@ -1341,13 +1339,6 @@ set(KINDS_FILES
   ${PROJECT_SOURCE_DIR}/src/theory/bags/kinds
   ${PROJECT_SOURCE_DIR}/src/theory/strings/kinds
   ${PROJECT_SOURCE_DIR}/src/theory/quantifiers/kinds)
-
-#-----------------------------------------------------------------------------#
-
-set(REWRITES_FILES
-  ${PROJECT_SOURCE_DIR}/src/theory/arith/rewrites
-  ${PROJECT_SOURCE_DIR}/src/theory/booleans/rewrites
-  ${PROJECT_SOURCE_DIR}/src/theory/strings/rewrites)
 
 #-----------------------------------------------------------------------------#
 # Add subdirectories

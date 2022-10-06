@@ -65,7 +65,6 @@ class QuantifiersModules
                   QuantifiersRegistry& qr,
                   TermRegistry& tr,
                   QModelBuilder* builder,
-                  ProofNodeManager* pnm,
                   std::vector<QuantifiersModule*>& modules);
 
  private:

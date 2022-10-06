@@ -1,4 +1,4 @@
-; COMMAND-LINE: --fmf-fun  --no-check-unsat-cores
+; COMMAND-LINE: --fmf-fun
 ; EXPECT: unsat
 (set-logic UFNIA)
 (set-info :status unsat)

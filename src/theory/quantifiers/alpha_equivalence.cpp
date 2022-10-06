@@ -197,6 +197,7 @@ TrustNode AlphaEquivalence::reduceQuantifier(Node q)
   Trace("alpha-eq") << "Alpha equivalent : " << std::endl;
   Trace("alpha-eq") << "  " << q << std::endl;
   Trace("alpha-eq") << "  " << ret << std::endl;
+  lem = ret.eqNode(q);
   if (q.getNumChildren() == 3)
   {
     verbose(1) << "Ignoring annotated quantified formula based on alpha "
