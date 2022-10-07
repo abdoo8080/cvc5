@@ -41,14 +41,14 @@ std::unordered_map<Kind, std::string> s_kindToString = {
     {kind::ITE, "fIte"},
     {kind::SELECT, "select"},
     {kind::STORE, "store"},
-    {kind::NOT, "term.not"},
+    {kind::NOT, "Not"},
     {kind::STRING_LENGTH, "mkLength"},
-    {kind::EQUAL, "eq"},
+    {kind::EQUAL, "Eq"},
     {kind::XOR, "xor"},
     {kind::IMPLIES, "implies"},
     {kind::DISTINCT, "distinct"},
-    {kind::FORALL, "qforall"},
-    {kind::LAMBDA, "lambda"},
+    {kind::FORALL, "forall"},
+    {kind::LAMBDA, "fun"},
     {kind::WITNESS, "choice"},
 };
 
@@ -83,17 +83,7 @@ Node LeanNodeConverter::mkList(const std::vector<Node>& nodes,
 
 Node LeanNodeConverter::mkInt(unsigned i)
 {
-  return mkInt(NodeManager::currentNM()->mkConstInt(Rational(i)));
-}
-
-Node LeanNodeConverter::mkInt(Node i)
-{
-  NodeManager* nm = NodeManager::currentNM();
-  std::vector<Node> children{mkInternalSymbol("val")};
-  children.push_back(
-      nm->mkNode(kind::SEXPR, mkInternalSymbol("value.integer"), i));
-  children.push_back(typeAsNode(nm->integerType()));
-  return nm->mkNode(kind::SEXPR, children);
+  return mkInternalSymbol(NodeManager::currentNM()->mkConstInt(Rational(i)));
 }
 
 std::vector<Node> LeanNodeConverter::getOperatorIndices(Kind k, Node n)
@@ -279,8 +269,8 @@ Node LeanNodeConverter::convert(Node n)
         }
         case kind::CONST_BOOLEAN:
         {
-          res = cur.getConst<bool>() ? mkInternalSymbol("top")
-                                     : mkInternalSymbol("bot");
+          res = cur.getConst<bool>() ? mkInternalSymbol("True")
+                                     : mkInternalSymbol("False");
           break;
         }
         case kind::CONST_RATIONAL:
@@ -308,19 +298,6 @@ Node LeanNodeConverter::convert(Node n)
           res = nm->mkNode(kind::SEXPR, resChildren);
           break;
         }
-        // case kind::CONST_STRING:
-        // {
-        //   resChildren.push_back(mkInternalSymbol("mkVarChars"));
-        //   resChildren.push_back(d_brack[0]);
-        //   cvc5::String str = n.getConst<String>();
-        //   for (size_t i = 0, size = str.size(); i < size; ++i)
-        //   {
-        //     resChildren.push_back(str[i]);
-        //     resChildren.push_back(mkInternalSymbol(i < size - 1 ? ", " :
-        //     "]"));
-        //   }
-        //   return nm->mkNode(kind::SEXPR, resChildren);
-        // }
         case kind::FORALL:
         case kind::LAMBDA:
         case kind::WITNESS:
@@ -344,23 +321,6 @@ Node LeanNodeConverter::convert(Node n)
           break;
         }
         // "indexed"
-        case kind::APPLY_UF:
-        {
-          AlwaysAssert(children.size() == nChildren + 1);
-          Node op = children[0];
-          Assert(nChildren >= 1);
-          if (nChildren > 1)
-          {
-            res = mkList({children.begin() + 1, children.end()},
-                         {mkInternalSymbol("appN"), op});
-            break;
-          }
-          resChildren.push_back(mkInternalSymbol("app"));
-          resChildren.push_back(op);
-          resChildren.push_back(children[1]);
-          res = nm->mkNode(kind::SEXPR, resChildren);
-          break;
-        }
         case kind::BITVECTOR_BB_TERM:
         {
           res = mkList(children, {mkInternalSymbol("mkBbT")});
@@ -381,16 +341,33 @@ Node LeanNodeConverter::convert(Node n)
           res = nm->mkNode(kind::SEXPR, resChildren);
           break;
         }
+        // requires special case for equality between Props (the Booleans here),
+        // which must be represented as Iff
+        case kind::EQUAL:
+        {
+          resChildren.push_back(mkInternalSymbol(
+              cur[0].getType().isBoolean() ? "Iff" : s_kindToString[k]));
+          resChildren.push_back(children[0]);
+          resChildren.push_back(children[1]);
+          res = nm->mkNode(kind::SEXPR, resChildren);
+          break;
+        }
         // binary operators
+        case kind::XOR:
+        case kind::IMPLIES:
+        {
+          resChildren.push_back(children[0]);
+          resChildren.push_back(mkInternalSymbol(s_kindToString[k]));
+          resChildren.push_back(children[1]);
+          res = nm->mkNode(kind::SEXPR, resChildren);
+          break;
+        }
         case kind::BITVECTOR_CONCAT:
         case kind::BITVECTOR_AND:
         case kind::BITVECTOR_ADD:
         case kind::BITVECTOR_SUB:
         case kind::BITVECTOR_ULT:
         case kind::BITVECTOR_ULE:
-        case kind::EQUAL:
-        case kind::XOR:
-        case kind::IMPLIES:
         case kind::DISTINCT:
         case kind::SELECT:
         {
@@ -432,25 +409,15 @@ Node LeanNodeConverter::convert(Node n)
             break;
           }
             resChildren.push_back(
-                mkInternalSymbol(isOr ? "term.or" : "term.and"));
+                mkInternalSymbol(isOr ? "Or" : "And"));
             resChildren.push_back(children[0]);
             resChildren.push_back(children[1]);
           res = nm->mkNode(kind::SEXPR, resChildren);
           break;
         }
-        // clauses
-        case kind::SEXPR:
-        {
-          res = mkList(children);
-          break;
-        }
         default:
         {
-          AlwaysAssert(!childChanged);
-          res = cur;
-          // Unreachable() << "Have to convert everything, but " << n << ", kind
-          // "
-          //               << n.getKind() << " escaped\n";
+          res = childChanged ? nm->mkNode(k, children) : Node(cur);
         }
       }
       d_cache[cur] = res;

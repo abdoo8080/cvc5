@@ -914,9 +914,9 @@ bool LeanProofPostprocessCallback::update(Node res,
         {
           if (children[0][i] == resLit)
           {
-            // we force the naturals to be internal symbols so that they are not
-            // converted when we build the final sexpression
-            pos.push_back(d_lnc.mkInternalSymbol(nm->mkConstInt(Rational(i))));
+            // don't convert the numbers since naturals should be
+            // printed as is
+            pos.push_back(nm->mkConstInt(Rational(i)));
           }
         }
       }
@@ -925,7 +925,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   LeanRule::REORDER,
                   d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
                   children,
-                  {d_lnc.convert(nm->mkNode(kind::SEXPR, pos))},
+                  {d_lnc.mkList(pos)},
                   *cdp);
       break;
     }

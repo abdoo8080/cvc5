@@ -178,7 +178,7 @@ void LeanPrinter::printStepId(std::ostream& out,
                               const std::map<const ProofNode*, size_t>& pfMap,
                               const std::map<Node, size_t>& pfAssumpMap)
 {
-  out << (d_printToCheck? "@lean_" : "");
+  out << (d_printToCheck? "lean_" : "");
   if (pfn->getRule() == PfRule::ASSUME)
   {
     // converted assumption
@@ -233,7 +233,7 @@ void LeanPrinter::printProof(std::ostream& out,
     printOffset(out, offset);
     if (d_printToCheck)
     {
-      out << "have @lean_s" << id << " : ";
+      out << "have lean_s" << id << " : ";
     }
     else
     {
@@ -259,7 +259,7 @@ void LeanPrinter::printProof(std::ostream& out,
       printOffset(out, ++offset);
       if (d_printToCheck)
       {
-        out << "(scope (fun @lean_a" << assumptionsShift + i - 3 << " : ";
+        out << "(scope (fun lean_a" << assumptionsShift + i - 3 << " : ";
         printTerm(out, args[i]);
         out << " =>\n";
       }
@@ -333,7 +333,7 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     if (d_printToCheck)
     {
-      out << "let @lean_s" << id << " := " << rule;
+      out << "let lean_s" << id << " := " << rule;
     }
     else
     {
@@ -350,13 +350,13 @@ void LeanPrinter::printProof(std::ostream& out,
     {
       if (d_printToCheck)
       {
-        out << "have @lean_s" << id << " : ";
+        out << "have lean_s" << id << " : ";
         printTerm(out, res);
         out << " := " << rule;
       }
       else
       {
-        out << "[s" << id << ";thHolds ";
+        out << "[s" << id << ";";
         printTerm(out, res);
         out << ";" << rule;
       }
@@ -463,7 +463,7 @@ void LeanPrinter::print(std::ostream& out,
     for (const Node& a : convertedAssumptions)
     {
       printTerm(out, d_lnc.convert(a));
-      out << " -> ";
+      out << " → ";
     }
     out << "False :=\n";
   }
@@ -474,7 +474,7 @@ void LeanPrinter::print(std::ostream& out,
     pfAssumpMap[convertedAssumptions[i]] = i;
     if (d_printToCheck)
     {
-      out << "fun @lean_a" << i << " : ";
+      out << "fun lean_a" << i << " : ";
       printTerm(out, convertedAssumptions[i]);
       out << " =>\n";
     }

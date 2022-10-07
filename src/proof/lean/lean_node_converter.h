@@ -53,12 +53,14 @@ class LeanNodeConverter
   /** The set of declared types */
   // std::unordered_set<TypeNode> d_declTypes;
 
+  Node mkList(const std::vector<Node>& nodes, const std::vector<Node>& prefix = {});
+
  private:
   /** Should we traverse n? */
   bool shouldTraverse(Node n);
 
   // Node mkList(const std::vector<Node>& nodes);
-  Node mkList(const std::vector<Node>& nodes, const std::vector<Node>& prefix = {});
+
   Node mkInt(unsigned i);
   Node mkInt(Node i);
 
