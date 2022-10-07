@@ -64,7 +64,7 @@ bool LetUpdaterPfCallback::update(Node res,
   return false;
 }
 
-LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
+LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc, bool printToCheck)
     : EnvObj(env),
       d_letRules({
           LeanRule::R0_PARTIAL,
@@ -82,7 +82,8 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
       d_lbind(options().printer.dagThresh ? options().printer.dagThresh + 1
                                           : 0),
       d_lnc(lnc),
-      d_cb(new LetUpdaterPfCallback(d_lbind, d_skMap, d_letRules))
+      d_cb(new LetUpdaterPfCallback(d_lbind, d_skMap, d_letRules)),
+      d_printToCheck(printToCheck)
 {
   d_false = NodeManager::currentNM()->mkConst(false);
 }
@@ -177,6 +178,7 @@ void LeanPrinter::printStepId(std::ostream& out,
                               const std::map<const ProofNode*, size_t>& pfMap,
                               const std::map<Node, size_t>& pfAssumpMap)
 {
+  out << (d_printToCheck? "@lean_" : "");
   if (pfn->getRule() == PfRule::ASSUME)
   {
     // converted assumption
@@ -229,10 +231,17 @@ void LeanPrinter::printProof(std::ostream& out,
   if (rule == LeanRule::SCOPE)
   {
     printOffset(out, offset);
-    out << "[s" << id << ";";
+    if (d_printToCheck)
+    {
+      out << "have @lean_s" << id << " : ";
+    }
+    else
+    {
+      out << "[s" << id << ";";
+    }
     // print conversion to a clause of the original scope's conclusion
     printTerm(out, res);
-    out << ";\n";
+    out << (d_printToCheck ? " :=" : ";") << "\n";
     // each argument to the scope proof node corresponds to one scope to close
     // in the Lean proof. To avoid clashes, we shift the assumptions numbers by
     // current pfAssumpMap' size
@@ -248,9 +257,18 @@ void LeanPrinter::printProof(std::ostream& out,
       pfAssumpMap[args[i]] = assumptionsShift + i - 3;
       // push and print offset
       printOffset(out, ++offset);
-      out << "[[a" << assumptionsShift + i - 3 << ";";
-      printTerm(out, args[i]);
-      out << ";]\n";
+      if (d_printToCheck)
+      {
+        out << "(scope (fun @lean_a" << assumptionsShift + i - 3 << " : ";
+        printTerm(out, args[i]);
+        out << " =>\n";
+      }
+      else
+      {
+        out << "[[a" << assumptionsShift + i - 3 << ";";
+        printTerm(out, args[i]);
+        out << ";]\n";
+      }
     }
     // similarly, we shift step ids by the number of current steps
     size_t newId = pfMap.size();
@@ -267,21 +285,32 @@ void LeanPrinter::printProof(std::ostream& out,
     if (children[0]->getResult() != d_false)
     {
       printOffset(out, offset);
-      out << "[;";
-      printTerm(out, children[0]->getArguments()[2]);
-      out << ";";
-      printStepId(out, children[0].get(), subpfMap, pfAssumpMap);
-      out << "]\n";
+      if (d_printToCheck)
+      {
+        out << "show ";
+        printTerm(out, children[0]->getArguments()[2]);
+        out << " from ";
+        printStepId(out, children[0].get(), subpfMap, pfAssumpMap);
+        out << "\n";
+      }
+      else
+      {
+        out << "[;";
+        printTerm(out, children[0]->getArguments()[2]);
+        out << ";";
+        printStepId(out, children[0].get(), subpfMap, pfAssumpMap);
+        out << "]\n";
+      }
     }
     // now close. We have assumptions*2 parens
     std::stringstream cparens;
     for (size_t i = 3, size = args.size(); i < size; ++i)
     {
       offset--;
-      cparens << "]";
+      cparens << (d_printToCheck? "))" : "]");
     }
     printOffset(out, offset);
-    out << cparens.str() << "]\n";
+    out << cparens.str() << (d_printToCheck? "" : "]") << "\n";
     // recover assumption map
     for (const auto& p : backupMap)
     {
@@ -302,19 +331,35 @@ void LeanPrinter::printProof(std::ostream& out,
   // than have s....
   if (d_letRules.find(rule) != d_letRules.end())
   {
-    out << "[s" << id << ";;" << rule;
+    if (d_printToCheck)
+    {
+      out << "let @lean_s" << id << " := " << rule;
+    }
+    else
+    {
+      out << "[s" << id << ";;" << rule;
+    }
   }
   else
   {
     if (pfn->getResult() == d_false)
     {
-      out << "[;False;" << rule;
+      out << (d_printToCheck ? "show False from " : "[;False;") << rule;
     }
     else
     {
-      out << "[s" << id << ";thHolds ";
-      printTerm(out, res);
-      out << ";" << rule;
+      if (d_printToCheck)
+      {
+        out << "have @lean_s" << id << " : ";
+        printTerm(out, res);
+        out << " := " << rule;
+      }
+      else
+      {
+        out << "[s" << id << ";thHolds ";
+        printTerm(out, res);
+        out << ";" << rule;
+      }
     }
   }
   for (const std::shared_ptr<ProofNode>& child : children)
@@ -327,7 +372,7 @@ void LeanPrinter::printProof(std::ostream& out,
     out << " ";
     printTerm(out, args[i]);
   }
-  out << "]\n";
+  out << (d_printToCheck? "" : "]") << "\n";
   // save proof step in map
   pfMap[pfn.get()] = id++;
 }
@@ -337,6 +382,58 @@ void LeanPrinter::print(std::ostream& out,
 {
   // outer method to print valid Lean output from a ProofNode
   Trace("test-lean-pf") << "Post-processed proof " << *pfn.get() << "\n";
+
+  // Print preamble
+  if (d_printToCheck)
+  {
+    out << "import Meta.Boolean\nimport Meta.Resolution\nimport "
+           "Meta.PermutateOr";
+    // increase recursion depth and heartbeats
+    // out << "set_option maxRecDepth 10000\nset_option maxHeartbeats
+    // 500000\n\n";
+
+    std::vector<Node> assertions = pfn->getArguments();
+    // Print user defined sorts and constants of those sorts
+    std::unordered_set<Node> syms;
+    std::unordered_set<TNode> visited;
+    for (const Node& a : assertions)
+    {
+      expr::getSymbols(a, syms, visited);
+    }
+    // uninterpreted sorts
+    std::unordered_set<TypeNode> sts;
+    for (const Node& s : syms)
+    {
+      TypeNode st = s.getType();
+      std::unordered_set<TypeNode> ctypes;
+      expr::getComponentTypes(st, ctypes);
+      for (const TypeNode& stc : ctypes)
+      {
+        // only collect non-predefined sorts for declaration
+        if (stc.isUninterpretedSort() && stc.getKind() != kind::TYPE_CONSTANT)
+        {
+          Trace("test-lean") << "collecting sort " << stc << " with kind "
+                             << stc.getKind() << "\n";
+          sts.insert(stc);
+        }
+      }
+    }
+    if (!sts.empty())
+    {
+      out << "universe u\n";
+    }
+    for (const auto& s : sts)
+    {
+      out << "variable {" << s << " : Type u}\n";
+    }
+    // uninterpreted functions
+    for (const Node& s : syms)
+    {
+      out << "variable {" << s << " : ";
+      printSort(out, s.getType());
+      out << "}\n";
+    }
+  }
 
   // No lets for now
 
@@ -358,15 +455,35 @@ void LeanPrinter::print(std::ostream& out,
     d_lbind.process(convertedAssumptions.back());
   }
   printLetList(out);
-
+  if (d_printToCheck)
+  {
+    // print theorem statement, which is to get proofs of all the assumptions
+    // and conclude a proof of False. The assumptions are args[3..]
+    out << "\ntheorem th0 : ";
+    for (const Node& a : convertedAssumptions)
+    {
+      printTerm(out, d_lnc.convert(a));
+      out << " -> ";
+    }
+    out << "False :=\n";
+  }
   // print initial assumptions
   std::map<Node, size_t> pfAssumpMap;
   for (size_t i = 0, size = convertedAssumptions.size(); i < size; ++i)
   {
     pfAssumpMap[convertedAssumptions[i]] = i;
-    out << "[a" << i << ";";
-    printTerm(out, convertedAssumptions[i]);
-    out << ";]\n";
+    if (d_printToCheck)
+    {
+      out << "fun @lean_a" << i << " : ";
+      printTerm(out, convertedAssumptions[i]);
+      out << " =>\n";
+    }
+    else
+    {
+      out << "[a" << i << ";";
+      printTerm(out, convertedAssumptions[i]);
+      out << ";]\n";
+    }
   }
   std::stringstream ss;
   ss << out.rdbuf();
