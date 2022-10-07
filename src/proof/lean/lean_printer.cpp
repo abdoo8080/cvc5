@@ -183,12 +183,12 @@ void LeanPrinter::printStepId(std::ostream& out,
     Node conv = d_lnc.convert(pfn->getResult());
     AlwaysAssert(pfAssumpMap.find(conv) != pfAssumpMap.end())
         << "Original: " << pfn->getResult() << "\nConverted: " << conv;
-    out << "lean_a" << pfAssumpMap.find(conv)->second;
+    out << "a" << pfAssumpMap.find(conv)->second;
   }
   else
   {
     AlwaysAssert(pfMap.find(pfn) != pfMap.end());
-    out << "lean_s" << pfMap.find(pfn)->second;
+    out << "s" << pfMap.find(pfn)->second;
   }
 }
 
@@ -229,10 +229,10 @@ void LeanPrinter::printProof(std::ostream& out,
   if (rule == LeanRule::SCOPE)
   {
     printOffset(out, offset);
-    out << "have lean_s" << id << " : thHolds ";
+    out << "[s" << id << ";";
     // print conversion to a clause of the original scope's conclusion
     printTerm(out, res);
-    out << " :=\n";
+    out << ";\n";
     // each argument to the scope proof node corresponds to one scope to close
     // in the Lean proof. To avoid clashes, we shift the assumptions numbers by
     // current pfAssumpMap' size
@@ -248,9 +248,9 @@ void LeanPrinter::printProof(std::ostream& out,
       pfAssumpMap[args[i]] = assumptionsShift + i - 4;
       // push and print offset
       printOffset(out, ++offset);
-      out << "(scope (fun lean_a" << assumptionsShift + i - 4 << " : thHolds ";
+      out << "[[a" << assumptionsShift + i - 4 << ";";
       printTerm(out, args[i]);
-      out << " =>\n";
+      out << ";]\n";
     }
     // similarly, we shift step ids by the number of current steps
     size_t newId = pfMap.size();
@@ -267,21 +267,21 @@ void LeanPrinter::printProof(std::ostream& out,
     if (children[0]->getResult() != d_false)
     {
       printOffset(out, offset);
-      out << "show thHolds ";
+      out << "[;";
       printTerm(out, children[0]->getArguments()[2]);
-      out << " from ";
+      out << ";";
       printStepId(out, children[0].get(), subpfMap, pfAssumpMap);
-      out << "\n";
+      out << "]\n";
     }
     // now close. We have assumptions*2 parens
     std::stringstream cparens;
     for (size_t i = 4, size = args.size(); i < size; ++i)
     {
       offset--;
-      cparens << "))";
+      cparens << "]";
     }
     printOffset(out, offset);
-    out << cparens.str() << "\n";
+    out << cparens.str() << "]\n";
     // recover assumption map
     for (const auto& p : backupMap)
     {
@@ -305,21 +305,21 @@ void LeanPrinter::printProof(std::ostream& out,
   bool hasClausalResult = args[3] != d_false;
   if (d_letRules.find(rule) != d_letRules.end())
   {
-    out << "let lean_s" << id << " := " << rule;
+    out << "[s" << id << ";;" << rule;
   }
   else
   {
     if (pfn->getResult() == d_false)
     {
-      out << "show " << (hasClausalResult ? "holds []" : "thHolds bot")
-          << " from " << rule;
+      out << "[;" << (hasClausalResult ? "holds []" : "thHolds bot")
+          << ";" << rule;
     }
     else
     {
-      out << "have lean_s" << id << " : "
+      out << "[s" << id << ";"
           << (hasClausalResult ? "holds " : "thHolds ");
       printTerm(out, res);
-      out << " := " << rule;
+      out << ";" << rule;
     }
   }
   for (const std::shared_ptr<ProofNode>& child : children)
@@ -332,7 +332,7 @@ void LeanPrinter::printProof(std::ostream& out,
     out << " ";
     printTerm(out, args[i]);
   }
-  out << "\n";
+  out << "]\n";
   // save proof step in map
   pfMap[pfn.get()] = id++;
 }
@@ -342,69 +342,18 @@ void LeanPrinter::print(std::ostream& out,
 {
   // outer method to print valid Lean output from a ProofNode
   Trace("test-lean-pf") << "Post-processed proof " << *pfn.get() << "\n";
-  // TODO preamble should be theory dependent
-  out << "import Cdclt.Euf\nimport Cdclt.Array\nimport Cdclt.BV\nimport Cdclt.Quant\n";
-  // increase recursion depth and heartbeats
-  out << "set_option maxRecDepth 10000\nset_option maxHeartbeats 500000\n\n";
-  // do includes
-  out << "open proof\nopen proof.sort proof.term\n";
-  out << "open rules eufRules arrayRules bvRules quantRules\n\n";
 
-  std::vector<Node> assertions = pfn->getArguments();
-  // Print user defined sorts and constants of those sorts
-  std::unordered_set<Node> syms;
-  std::unordered_set<TNode> visited;
-  for (const Node& a : assertions)
-  {
-    expr::getSymbols(a, syms, visited);
-  }
-  int sortCount = 1000;
-  int symCount = 1000;
-  // uninterpreted sorts
-  std::unordered_set<TypeNode> sts;
-  for (const Node& s : syms)
-  {
-    TypeNode st = s.getType();
-    std::unordered_set<TypeNode> ctypes;
-    expr::getComponentTypes(st, ctypes);
-    for (const TypeNode& stc : ctypes)
-    {
-      // only collect non-predefined sorts for declaration
-      if (stc.isUninterpretedSort() && stc.getKind() != kind::TYPE_CONSTANT)
-      {
-        Trace("test-lean") << "collecting sort " << stc << " with kind "
-                           << stc.getKind() << "\n";
-        sts.insert(stc);
-      }
-    }
-  }
-  for (const auto& s : sts)
-  {
-    out << "def " << s << " := atom " << sortCount++ << "\n";
-  }
-  // uninterpreted functions
-  for (const Node& s : syms)
-  {
-    out << "def " << s << " := const " << symCount++ << " ";
-    printSort(out, s.getType());
-    out << "\n";
-  }
-  // actual proof is under the processed scope and possibly spurious thAssume
-  // steps
-  AlwaysAssert(pfn->getChildren().size() == 1
-               && pfn->getChildren()[0]->getChildren().size() == 1);
-  std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0]->getChildren()[0];
-  Trace("test-lean") << "innerPf rule: "
-                     << getLeanRule(innerPf->getArguments()[0]) << "\n";
-  // compute the term lets. For this consider the converted assertions
-  for (const Node& a : assertions)
-  {
-    d_lbind.process(d_lnc.convert(a));
-  }
-  // Traverse the proof node to letify the (converted) conclusions of explicit
-  // proof steps. This traversal will collect the skolems to de defined.
-  ProofNodeUpdater updater(d_env, *(d_cb.get()), false, false);
-  updater.process(innerPf);
+  // No lets for now
+
+  // // compute the term lets. For this consider the converted assertions
+  // for (const Node& a : assertions)
+  // {
+  //   d_lbind.process(d_lnc.convert(a));
+  // }
+  // // Traverse the proof node to letify the (converted) conclusions of explicit
+  // // proof steps. This traversal will collect the skolems to de defined.
+  // ProofNodeUpdater updater(d_env, *(d_cb.get()), false, false);
+  // updater.process(innerPf);
 
   const std::vector<Node>& assumptions = pfn->getChildren()[0]->getArguments();
   std::vector<Node> convertedAssumptions;
@@ -415,37 +364,14 @@ void LeanPrinter::print(std::ostream& out,
   }
   printLetList(out);
 
-  // print theorem header, which is to get proofs of all the assumptions and
-  // conclude a proof of []. The assumptions are args[2..]
-  out << "\ntheorem th0 : ";
-  for (const Node& a : convertedAssumptions)
-  {
-    out << "thHolds ";
-    printTerm(out, a);
-    out << " -> ";
-  }
-  // whether conclusion is "thHolds bot" or "holds []" depends on what the inner
-  // proof term is concluding. So we check here:
-  AlwaysAssert(innerPf->getArguments().size() >= 3);
-  if (innerPf->getArguments()[3] != d_false)
-  {
-    out << "holds [] :=\n";
-  }
-  else
-  {
-    AlwaysAssert(innerPf->getResult() == d_false)
-        << "conclusion with rule " << getLeanRule(innerPf->getArguments()[0])
-        << " is actually " << innerPf->getResult();
-    out << "thHolds bot :=\n";
-  }
   // print initial assumptions
   std::map<Node, size_t> pfAssumpMap;
   for (size_t i = 0, size = convertedAssumptions.size(); i < size; ++i)
   {
     pfAssumpMap[convertedAssumptions[i]] = i;
-    out << "fun lean_a" << i << " : thHolds ";
+    out << "[a" << i << ";";
     printTerm(out, convertedAssumptions[i]);
-    out << " =>\n";
+    out << ";]\n";
   }
   std::stringstream ss;
   ss << out.rdbuf();
@@ -453,7 +379,7 @@ void LeanPrinter::print(std::ostream& out,
   Trace("test-lean") << "Before getting to proof node:\n"
                      << ss.str() << "==================\n\n";
   std::map<const ProofNode*, size_t> pfMap;
-  printProof(out, id, 0, innerPf, pfMap, pfAssumpMap);
+  printProof(out, id, 0, pfn->getChildren()[0], pfMap, pfAssumpMap);
   ss.clear();
   ss << out.rdbuf();
   Trace("test-lean") << "After getting to proof node:\n"
