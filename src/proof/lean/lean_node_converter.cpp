@@ -415,6 +415,12 @@ Node LeanNodeConverter::convert(Node n)
           res = nm->mkNode(kind::SEXPR, resChildren);
           break;
         }
+        // lists
+        case kind::SEXPR:
+        {
+          res = mkList(children);
+          break;
+        }
         default:
         {
           res = childChanged ? nm->mkNode(k, children) : Node(cur);

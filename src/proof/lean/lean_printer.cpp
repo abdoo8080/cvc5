@@ -79,6 +79,15 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc, bool printToCheck)
           LeanRule::CL_ASSUME,
           LeanRule::TH_ASSUME,
       }),
+      d_tacticRules({
+          LeanRule::R0,
+          LeanRule::R0_PARTIAL,
+          LeanRule::R1,
+          LeanRule::R1_PARTIAL,
+          LeanRule::REORDER,
+          LeanRule::LIFT_OR_N_TO_IMP,
+          LeanRule::TH_TRUST_VALID,
+        }),
       d_lbind(options().printer.dagThresh ? options().printer.dagThresh + 1
                                           : 0),
       d_lnc(lnc),
@@ -124,6 +133,12 @@ void LeanPrinter::cleanSymbols(std::string& s)
   while ((startPos = s.find(" ,", startPos)) != std::string::npos)
   {
     s.replace(startPos, 1, "");
+  }
+  // If first symbols are "([", remove first and last symbols
+  if (s.find("([", 0) == 0)
+  {
+    s.replace(0, 1, "");
+    s.replace(s.size() - 1, 1, "");
   }
 }
 
@@ -218,8 +233,8 @@ void LeanPrinter::printProof(std::ostream& out,
   LeanRule rule = getLeanRule(args[0]);
   Trace("test-lean") << "printProof: offset " << offset << "\n";
   Trace("test-lean") << "printProof: args " << args << "\n";
-  Trace("test-lean") << "prhintProof: rule " << rule << "\n";
-  Trace("test-lean") << "printProof: result " << res << "\n";
+  Trace("test-lean") << "printProof: rule " << rule << "\n";
+  Trace("test-lean") << "printProof: result " << res << "\n-----------\n";
   if (rule == LeanRule::UNKNOWN)
   {
     // save proof step in map
@@ -289,7 +304,11 @@ void LeanPrinter::printProof(std::ostream& out,
       {
         out << "show ";
         printTerm(out, children[0]->getArguments()[2]);
-        out << " from ";
+        out << " from "
+            << (d_tacticRules.find(getLeanRule(children[0]->getArguments()[0]))
+                        != d_tacticRules.end()
+                    ? "by "
+                    : "");
         printStepId(out, children[0].get(), subpfMap, pfAssumpMap);
         out << "\n";
       }
@@ -327,13 +346,14 @@ void LeanPrinter::printProof(std::ostream& out,
   }
   Trace("test-lean") << pop;
   printOffset(out, offset);
+  bool isTactic = d_tacticRules.find(rule) != d_tacticRules.end();
   // print conclusion: proof node concludes `false`, print as show ... rather
   // than have s....
   if (d_letRules.find(rule) != d_letRules.end())
   {
     if (d_printToCheck)
     {
-      out << "let lean_s" << id << " := " << rule;
+      out << "let lean_s" << id << " := " << (isTactic? "by " : "") << rule;
     }
     else
     {
@@ -344,7 +364,8 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     if (pfn->getResult() == d_false)
     {
-      out << (d_printToCheck ? "show False from " : "[;False;") << rule;
+      out << (d_printToCheck ? "show False from " : "[;False;")
+          << (d_printToCheck && isTactic ? "by " : "") << rule;
     }
     else
     {
@@ -352,7 +373,7 @@ void LeanPrinter::printProof(std::ostream& out,
       {
         out << "have lean_s" << id << " : ";
         printTerm(out, res);
-        out << " := " << rule;
+        out << " := " << (isTactic? "by " : "") << rule;
       }
       else
       {
@@ -362,14 +383,15 @@ void LeanPrinter::printProof(std::ostream& out,
       }
     }
   }
-  for (const std::shared_ptr<ProofNode>& child : children)
+  std::string separator = isTactic? ", " : " ";
+  for (size_t i = 0, size = children.size(); i < size; ++i)
   {
-    out << " ";
-    printStepId(out, child.get(), pfMap, pfAssumpMap);
+    out << (i == 0 ? " " : separator);
+    printStepId(out, children[i].get(), pfMap, pfAssumpMap);
   }
   for (size_t i = 3, size = args.size(); i < size; ++i)
   {
-    out << " ";
+    out << separator;
     printTerm(out, args[i]);
   }
   out << (d_printToCheck? "" : "]") << "\n";
@@ -381,8 +403,12 @@ void LeanPrinter::print(std::ostream& out,
                         std::shared_ptr<ProofNode> pfn)
 {
   // outer method to print valid Lean output from a ProofNode
-  Trace("test-lean-pf") << "Post-processed proof " << *pfn.get() << "\n";
-
+  if (TraceIsOn("test-lean-pf"))
+  {
+    Trace("test-lean-pf") << "Post-processed proof ";
+    pfn->printDebug(out, true);
+    Trace("test-lean-pf") << "\n";
+  }
   // Print preamble
   if (d_printToCheck)
   {
@@ -420,7 +446,7 @@ void LeanPrinter::print(std::ostream& out,
     }
     if (!sts.empty())
     {
-      out << "universe u\n";
+      out << "\nuniverse u\n";
     }
     for (const auto& s : sts)
     {
@@ -434,6 +460,10 @@ void LeanPrinter::print(std::ostream& out,
       out << "}\n";
     }
   }
+  // The proof we will actually process is the one under the original scope.
+  // Since our processing of scope converts it into two rules (scope and
+  // lifnOrNToImp) we need to get the child of the child
+  std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0]->getChildren()[0];
 
   // No lets for now
 
@@ -491,7 +521,7 @@ void LeanPrinter::print(std::ostream& out,
   Trace("test-lean") << "Before getting to proof node:\n"
                      << ss.str() << "==================\n\n";
   std::map<const ProofNode*, size_t> pfMap;
-  printProof(out, id, 0, pfn->getChildren()[0], pfMap, pfAssumpMap);
+  printProof(out, id, 0, innerPf, pfMap, pfAssumpMap);
   ss.clear();
   ss << out.rdbuf();
   Trace("test-lean") << "After getting to proof node:\n"

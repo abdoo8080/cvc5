@@ -30,16 +30,16 @@ const char* toString(LeanRule id)
     case LeanRule::CL_ASSUME: return "clAssume";
     case LeanRule::CL_OR: return "clOr";
     case LeanRule::TH_ASSUME: return "thAssume";
-    case LeanRule::LIFT_N_OR_TO_IMP: return "liftNOrToImp";
-    case LeanRule::LIFT_N_OR_TO_NEG: return "liftNOrToNeg";
+    case LeanRule::LIFT_OR_N_TO_IMP: return "liftOrNToImp";
+    case LeanRule::LIFT_OR_N_TO_NEG: return "liftOrNToNeg";
 
-    case LeanRule::R0: return "R0";
-    case LeanRule::R0_PARTIAL: return "R0";
-    case LeanRule::R1: return "R1";
-    case LeanRule::R1_PARTIAL: return "R1";
+    case LeanRule::R0: return "R1";
+    case LeanRule::R0_PARTIAL: return "R1";
+    case LeanRule::R1: return "R2";
+    case LeanRule::R1_PARTIAL: return "R2";
 
     case LeanRule::FACTORING: return "factoring";
-    case LeanRule::REORDER: return "reorder";
+    case LeanRule::REORDER: return "permutateOr";
     case LeanRule::EQ_RESOLVE: return "eqResolve";
     case LeanRule::MODUS_PONENS: return "modusPonens";
     case LeanRule::NOT_NOT_ELIM: return "notNotElim";
@@ -65,7 +65,7 @@ const char* toString(LeanRule id)
     case LeanRule::NOT_ITE_ELIM2: return "notIteElim2";
     case LeanRule::NOT_AND: return "notAnd";
     case LeanRule::CNF_AND_POS: return "@cnfAndPos";
-    case LeanRule::CNF_AND_NEG: return "@cnfAndNeg";
+    case LeanRule::CNF_AND_NEG: return "cnfAndNeg";
     case LeanRule::CNF_OR_POS: return "@cnfOrPos";
     case LeanRule::CNF_OR_NEG: return "@cnfOrNeg";
 
@@ -88,15 +88,15 @@ const char* toString(LeanRule id)
     case LeanRule::CNF_ITE_NEG3: return "cnfIteNeg3";
     case LeanRule::TRUST: return "trust";
     case LeanRule::TH_TRUST: return "thTrust";
-    case LeanRule::TH_TRUST_VALID: return "thTrustValid";
+    case LeanRule::TH_TRUST_VALID: return "simp";
 
     case LeanRule::CONG: return "cong";
     case LeanRule::CONG_PARTIAL: return "cong";
-    case LeanRule::REFL: return "@refl";
+    case LeanRule::REFL: return "rfl";
     case LeanRule::REFL_PARTIAL: return "@refl";
-    case LeanRule::TRANS: return "trans";
-    case LeanRule::TRANS_PARTIAL: return "trans";
-    case LeanRule::SYMM: return "symm";
+    case LeanRule::TRANS: return "Eq.trans";
+    case LeanRule::TRANS_PARTIAL: return "Eq.trans";
+    case LeanRule::SYMM: return "Eq.symm";
     case LeanRule::NEG_SYMM: return "negSymm";
 
     case LeanRule::TRUE_INTRO: return "trueIntro";

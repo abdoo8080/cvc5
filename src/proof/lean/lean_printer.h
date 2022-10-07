@@ -110,6 +110,7 @@ class LeanPrinter : protected EnvObj
   Node d_false;
 
   std::set<LeanRule> d_letRules;
+  std::set<LeanRule> d_tacticRules;
 
   LetBinding d_lbind;
 

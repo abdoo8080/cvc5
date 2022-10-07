@@ -175,14 +175,9 @@ bool LeanProofPostprocessCallback::update(Node res,
       // takes as arguments the number of assumptions and subproof conclusion
       newArgs.clear();
       newArgs.push_back(nm->mkConstInt(Rational(args.size())));
-      if (!negation)
-      {
-        // only implication version takes tail
-        newArgs.push_back(d_lnc.convert(newResChildren.back()));
-      }
       addLeanStep(
           res,
-          negation ? LeanRule::LIFT_N_OR_TO_NEG : LeanRule::LIFT_N_OR_TO_IMP,
+          negation ? LeanRule::LIFT_OR_N_TO_NEG : LeanRule::LIFT_OR_N_TO_IMP,
           d_lnc.convert(res),
           {newRes},
           newArgs,
@@ -751,9 +746,11 @@ bool LeanProofPostprocessCallback::update(Node res,
           // resolution. The placeholder is [res, i, pol, pivot], where pol and
           // pivot are relative to this part of the chain resolution
           Node pol = args[(i - 1) * 2];
-          std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1]),
-                                    arePremisesSingletons[0],
-                                    arePremisesSingletons[1]};
+          // std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1]),
+          //                           arePremisesSingletons[0],
+          //                           arePremisesSingletons[1]};
+          // don't mark the singletons
+          std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1])};
           std::vector<Node> curChildren{
               res, nm->mkConstInt(Rational(i)), pol, curArgs[0]};
           Node newCur = nm->mkNode(kind::SEXPR, curChildren);
@@ -870,9 +867,11 @@ bool LeanProofPostprocessCallback::update(Node res,
       size_t i = children.size() - 1;
       Trace("test-lean") << "..res [final] " << i << " has singleton premises "
                          << arePremisesSingletons << "\n";
-      std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1]),
-                                arePremisesSingletons[0],
-                                arePremisesSingletons[1]};
+      // std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1]),
+      //                           arePremisesSingletons[0],
+      //                           arePremisesSingletons[1]};
+      // don't mark the singletons
+      std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1])};
       if (!isSingletonClause)
       {
         std::vector<Node> resLits{res.begin(), res.end()};
@@ -1011,8 +1010,6 @@ bool LeanProofPostprocessCallback::update(Node res,
   };
   return true;
 }
-
-
 
 void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
 {
