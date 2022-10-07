@@ -2233,15 +2233,12 @@ enum class PfRule : uint32_t
   //================================================ Place holder for Lean rules
   // ======== Lean rule
   // Children: (P1 ... Pn)
-  // Arguments: (id, Q, C, A1, ..., Am)
+  // Arguments: (id, Q, Q', A1, ..., Am)
   // ---------------------
   // Conclusion: (Q)
   // The id argument is a LeanRule, as defined in proof/lean/lean_rules.h
   // This allows us to specify which rule in the Lean calculus the current rule
   // corresponds to.
-  //
-  // The C argument is the clausal form of Q, if any, set depending on id. When
-  // C is set that is the term that is printed in the final Lean proof.
   LEAN_RULE,
   /**
    * \verbatim embed:rst:leading-asterisk

@@ -78,41 +78,9 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
   void addLeanStep(Node res,
                    LeanRule rule,
                    Node convertedResult,
-                   bool isClause,
                    const std::vector<Node>& children,
                    const std::vector<Node>& args,
                    CDProof& cdp);
-};
-
-/** Similar to the above call back, but tries to update all the premises all
- * lean rules in terms of whether they are exectping terms and getting clauses
- * or vice-versa. */
-class LeanProofPostprocessClConnectCallback
-    : public LeanProofPostprocessCallback
-{
- public:
-  LeanProofPostprocessClConnectCallback(LeanNodeConverter& lnc);
-  ~LeanProofPostprocessClConnectCallback();
-
-  /** Update the proof node iff has the LEAN_RULE id. */
-  bool shouldUpdate(std::shared_ptr<ProofNode> pn,
-                    const std::vector<Node>& fa,
-                    bool& continueUpdate) override;
-  /** Update the proof rule application. */
-  bool update(Node res,
-              PfRule id,
-              const std::vector<Node>& children,
-              const std::vector<Node>& args,
-              CDProof* cdp,
-              bool& continueUpdate) override;
-
- private:
-  /** rules that take terms and yield clauses */
-  std::set<Node> d_conversionRules;
-  /** rules that take clauses */
-  std::set<LeanRule> d_clausalPremisesRules;
-  std::set<LeanRule> d_resRules;
-  std::unordered_set<const ProofNode*> processed;
 };
 
 /**
@@ -129,8 +97,6 @@ class LeanProofPostprocess : protected EnvObj
  private:
   /** The post process callback */
   std::unique_ptr<LeanProofPostprocessCallback> d_cb;
-  /** The post process callback */
-  std::unique_ptr<LeanProofPostprocessClConnectCallback> d_cbCl;
 };
 
 }  // namespace proof

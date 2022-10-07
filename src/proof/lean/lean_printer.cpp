@@ -216,7 +216,7 @@ void LeanPrinter::printProof(std::ostream& out,
   LeanRule rule = getLeanRule(args[0]);
   Trace("test-lean") << "printProof: offset " << offset << "\n";
   Trace("test-lean") << "printProof: args " << args << "\n";
-  Trace("test-lean") << "printProof: rule " << rule << "\n";
+  Trace("test-lean") << "prhintProof: rule " << rule << "\n";
   Trace("test-lean") << "printProof: result " << res << "\n";
   if (rule == LeanRule::UNKNOWN)
   {
@@ -238,17 +238,17 @@ void LeanPrinter::printProof(std::ostream& out,
     // current pfAssumpMap' size
     size_t assumptionsShift = pfAssumpMap.size();
     std::map<Node, size_t> backupMap;
-    for (size_t i = 4, size = args.size(); i < size; ++i)
+    for (size_t i = 3, size = args.size(); i < size; ++i)
     {
       auto it = pfAssumpMap.find(args[i]);
       if (it != pfAssumpMap.end())
       {
         backupMap[args[i]] = it->second;
       }
-      pfAssumpMap[args[i]] = assumptionsShift + i - 4;
+      pfAssumpMap[args[i]] = assumptionsShift + i - 3;
       // push and print offset
       printOffset(out, ++offset);
-      out << "[[a" << assumptionsShift + i - 4 << ";";
+      out << "[[a" << assumptionsShift + i - 3 << ";";
       printTerm(out, args[i]);
       out << ";]\n";
     }
@@ -275,7 +275,7 @@ void LeanPrinter::printProof(std::ostream& out,
     }
     // now close. We have assumptions*2 parens
     std::stringstream cparens;
-    for (size_t i = 4, size = args.size(); i < size; ++i)
+    for (size_t i = 3, size = args.size(); i < size; ++i)
     {
       offset--;
       cparens << "]";
@@ -298,11 +298,8 @@ void LeanPrinter::printProof(std::ostream& out,
   }
   Trace("test-lean") << pop;
   printOffset(out, offset);
-  AlwaysAssert(args.size() >= 4);
   // print conclusion: proof node concludes `false`, print as show ... rather
-  // than have s.... If the proof has a clausal conclusion, print
-  // holds, otherwise thHolds and the result.
-  bool hasClausalResult = args[3] != d_false;
+  // than have s....
   if (d_letRules.find(rule) != d_letRules.end())
   {
     out << "[s" << id << ";;" << rule;
@@ -311,13 +308,11 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     if (pfn->getResult() == d_false)
     {
-      out << "[;" << (hasClausalResult ? "holds []" : "thHolds bot")
-          << ";" << rule;
+      out << "[;False;" << rule;
     }
     else
     {
-      out << "[s" << id << ";"
-          << (hasClausalResult ? "holds " : "thHolds ");
+      out << "[s" << id << ";thHolds ";
       printTerm(out, res);
       out << ";" << rule;
     }
@@ -327,7 +322,7 @@ void LeanPrinter::printProof(std::ostream& out,
     out << " ";
     printStepId(out, child.get(), pfMap, pfAssumpMap);
   }
-  for (size_t i = 4, size = args.size(); i < size; ++i)
+  for (size_t i = 3, size = args.size(); i < size; ++i)
   {
     out << " ";
     printTerm(out, args[i]);
