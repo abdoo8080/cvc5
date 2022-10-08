@@ -412,8 +412,8 @@ void LeanPrinter::print(std::ostream& out,
   // Print preamble
   if (d_printToCheck)
   {
-    out << "import Meta.Boolean\nimport Meta.Resolution\nimport "
-           "Meta.PermutateOr";
+    out << "import Meta.Util\nimport Meta.Boolean\nimport "
+           "Meta.Resolution\nimport Meta.PermutateOr";
     // increase recursion depth and heartbeats
     // out << "set_option maxRecDepth 10000\nset_option maxHeartbeats
     // 500000\n\n";
@@ -479,7 +479,7 @@ void LeanPrinter::print(std::ostream& out,
 
   const std::vector<Node>& assumptions = pfn->getChildren()[0]->getArguments();
   std::vector<Node> convertedAssumptions;
-  for (size_t i = 4, size = assumptions.size(); i < size; ++i)
+  for (size_t i = 3, size = assumptions.size(); i < size; ++i)
   {
     convertedAssumptions.push_back(d_lnc.convert(assumptions[i]));
     d_lbind.process(convertedAssumptions.back());

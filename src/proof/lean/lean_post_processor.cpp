@@ -209,7 +209,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   s_pfRuleToLeanRule.at(id),
                   d_lnc.convert(res),
                   children,
-                  {d_lnc.convert(args[0])},
+                  {},
                   *cdp);
       break;
     }
@@ -558,7 +558,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                     LeanRule::REFL_PARTIAL,
                     Node::null(),
                     {},
-                    {d_lnc.mkPrintableOp(op)},
+                    {},
                     *cdp);
       }
       // Are we doing congruence of an n-ary operator with more than two
@@ -772,98 +772,6 @@ bool LeanProofPostprocessCallback::update(Node res,
           arePremisesSingletons[1] = d_false;
         }
       }
-      // now check whether conclusion is a singleton
-      //
-      // If res is not an or node, then it's necessarily a singleton clause.
-      bool isSingletonClause = res.getKind() != kind::OR;
-      // Otherwise, we need to determine if res if it's of the form (or t1 ...
-      // tn), corresponds to the clause (cl t1 ... tn) or to (cl (OR t1 ...
-      // tn)). The only way in which the latter can happen is if res occurs as a
-      // child in one of the premises, and is not eliminated afterwards. So we
-      // search for res as a subterm of some children, which would mark its last
-      // insertion into the resolution result. If res does not occur as the
-      // pivot to be eliminated in a subsequent premise, then, and only then, it
-      // is a singleton clause.
-      if (!isSingletonClause)
-      {
-        size_t i;
-        // Find out which child introduced res. There can be at most one by
-        // design of the proof production. After the loop finishes i is the
-        // index of the child C_i that introduced res. If i=0 none of the
-        // children introduced res as a subterm and therefore it cannot be a
-        // singleton clause.
-        for (i = children.size(); i > 0; --i)
-        {
-          // only non-singleton clauses may be introducing
-          // res, so we only care about non-singleton or nodes. We check then
-          // against the kind and whether the whole or node occurs as a pivot of
-          // the respective resolution
-          if (children[i - 1].getKind() != kind::OR)
-          {
-            continue;
-          }
-          size_t pivotIndex = (i != 1) ? 2 * (i - 1) - 1 : 1;
-          if (args[pivotIndex] == children[i - 1]
-              || args[pivotIndex].notNode() == children[i - 1])
-          {
-            continue;
-          }
-          // if res occurs as a subterm of a non-singleton premise
-          if (std::find(children[i - 1].begin(), children[i - 1].end(), res)
-              != children[i - 1].end())
-          {
-            break;
-          }
-        }
-
-        // If res is a subterm of one of the children we still need to check if
-        // that subterm is eliminated
-        if (i > 0)
-        {
-          bool posFirst = (i == 1) ? (args[0] == d_true)
-                                   : (args[(2 * (i - 1)) - 2] == d_true);
-          Node pivot = (i == 1) ? args[1] : args[(2 * (i - 1)) - 1];
-
-          // Check if it is eliminated by the previous resolution step
-          if ((res == pivot && !posFirst)
-              || (res.notNode() == pivot && posFirst)
-              || (pivot.notNode() == res && posFirst))
-          {
-            // We decrease i by one such that isSingletonClause is set to false
-            --i;
-          }
-          else
-          {
-            // Otherwise check if any subsequent premise eliminates it
-            for (; i < children.size(); ++i)
-            {
-              posFirst = args[(2 * i) - 2] == d_true;
-              pivot = args[(2 * i) - 1];
-              // To eliminate res, the clause must contain it with opposite
-              // polarity. There are three successful cases, according to the
-              // pivot and its sign
-              //
-              // - res is the same as the pivot and posFirst is true, which
-              // means that the clause contains its negation and eliminates it
-              //
-              // - res is the negation of the pivot and posFirst is false, so
-              // the clause contains the node whose negation is res. Note that
-              // this case may either be res.notNode() == pivot or res ==
-              // pivot.notNode().
-              if ((res == pivot && posFirst)
-                  || (res.notNode() == pivot && !posFirst)
-                  || (pivot.notNode() == res && !posFirst))
-              {
-                break;
-              }
-            }
-          }
-        }
-        // if not eliminated (loop went to the end), then it's a singleton
-        // clause
-        isSingletonClause = i == children.size();
-      }
-      Node conclusion;
       size_t i = children.size() - 1;
       Trace("test-lean") << "..res [final] " << i << " has singleton premises "
                          << arePremisesSingletons << "\n";
@@ -872,27 +780,10 @@ bool LeanProofPostprocessCallback::update(Node res,
       //                           arePremisesSingletons[1]};
       // don't mark the singletons
       std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1])};
-      if (!isSingletonClause)
-      {
-        std::vector<Node> resLits{res.begin(), res.end()};
-        conclusion = nm->mkNode(kind::SEXPR, resLits);
-      }
-      // conclusion is empty list
-      else if (res == d_false)
-      {
-        conclusion = d_empty;
-      }
-      else
-      {
-        conclusion = nm->mkNode(kind::SEXPR, res);
-      }
-      Trace("test-lean") << "..final step of res " << res << " with children "
-                         << cur << ", " << children.back() << " and args "
-                         << conclusion << ", " << curArgs << "\n";
       addLeanStep(
           res,
           args[(i - 1) * 2].getConst<bool>() ? LeanRule::R0 : LeanRule::R1,
-          d_lnc.convert(conclusion),
+          d_lnc.convert(res),
           {cur, children.back()},
           curArgs,
           *cdp);
@@ -905,10 +796,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       // premise
       std::vector<Node> pos;
       size_t size = res.getNumChildren();
-      std::vector<Node> resLits;
       for (const Node& resLit : res)
       {
-        resLits.push_back(resLit);
         for (size_t i = 0; i < size; ++i)
         {
           if (children[0][i] == resLit)
@@ -922,7 +811,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       // turn conclusion into clause
       addLeanStep(res,
                   LeanRule::REORDER,
-                  d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
+                  d_lnc.convert(res),
                   children,
                   {d_lnc.mkList(pos)},
                   *cdp);
@@ -956,7 +845,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       std::vector<Node> resArgs{args[0].begin(), args[0].end()};
       addLeanStep(res,
                   LeanRule::CNF_AND_POS,
-                  d_lnc.convert(nm->mkNode(kind::SEXPR, res[0], res[1])),
+                  d_lnc.convert(res),
                   children,
                   // don't convert second argument since naturals should be
                   // printed as is
@@ -967,10 +856,9 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::CNF_AND_NEG:
     {
       std::vector<Node> resArgs{args[0].begin(), args[0].end()};
-      std::vector<Node> resLits{res.begin(), res.end()};
       addLeanStep(res,
                   LeanRule::CNF_AND_NEG,
-                  d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
+                  d_lnc.convert(res),
                   children,
                   {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs))},
                   *cdp);
@@ -978,11 +866,10 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::CNF_OR_POS:
     {
-      std::vector<Node> resLits{res.begin(), res.end()};
       std::vector<Node> resArgs{args[0].begin(), args[0].end()};
       addLeanStep(res,
                   LeanRule::CNF_OR_POS,
-                  d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
+                  d_lnc.convert(res),
                   children,
                   // don't convert second argument since naturals should be
                   // printed as is

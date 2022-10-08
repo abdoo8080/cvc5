@@ -45,7 +45,7 @@ std::unordered_map<Kind, std::string> s_kindToString = {
     {kind::STRING_LENGTH, "mkLength"},
     {kind::EQUAL, "Eq"},
     {kind::XOR, "xor"},
-    {kind::IMPLIES, "implies"},
+    {kind::IMPLIES, "->"},
     {kind::DISTINCT, "distinct"},
     {kind::FORALL, "forall"},
     {kind::LAMBDA, "fun"},
@@ -402,17 +402,14 @@ Node LeanNodeConverter::convert(Node n)
         case kind::OR:
         case kind::AND:
         {
-          bool isOr = k == kind::OR;
-          if (nChildren > 2)
+          Node newCur = children.back();
+          Node connective = mkInternalSymbol(k == kind::OR? "Or" : "And");
+          for (size_t i = nChildren - 1; i > 0; --i)
           {
-            res = mkList(children, {mkInternalSymbol(isOr ? "orN" : "andN")});
-            break;
+            newCur =
+                nm->mkNode(kind::SEXPR, {connective, children[i - 1], newCur});
           }
-            resChildren.push_back(
-                mkInternalSymbol(isOr ? "Or" : "And"));
-            resChildren.push_back(children[0]);
-            resChildren.push_back(children[1]);
-          res = nm->mkNode(kind::SEXPR, resChildren);
+          res = newCur;
           break;
         }
         // lists
@@ -571,18 +568,16 @@ Node LeanNodeConverter::typeAsNode(TypeNode tn)
   // functional sort
   if (tn.isFunction())
   {
-    resChildren.push_back(mkInternalSymbol("arrowN"));
-    resChildren.push_back(d_brack[0]);
     // convert each argument
     size_t size = tn.getNumChildren();
+    Node arrow = mkInternalSymbol("->");
     for (size_t i = 0; i < size - 1; ++i)
     {
       resChildren.push_back(typeAsNode(tn[i]));
-      resChildren.push_back(d_comma);
+      resChildren.push_back(arrow);
     }
     // return sort
     resChildren.push_back(typeAsNode(tn[size - 1]));
-    resChildren.push_back(d_brack[1]);
     res = nm->mkNode(kind::SEXPR, resChildren);
   }
   else if (tn.isArray())
@@ -594,11 +589,11 @@ Node LeanNodeConverter::typeAsNode(TypeNode tn)
   }
   else if (tn.isBoolean())
   {
-    res = mkInternalSymbol("boolSort");
+    res = mkInternalSymbol("Prop");
   }
   else if (tn.isInteger())
   {
-    res = mkInternalSymbol("intSort");
+    res = mkInternalSymbol("Int");
   }
   else if (tn.isBitVector())
   {
