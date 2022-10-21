@@ -14,6 +14,8 @@
 
 #include "proof/lean/lean_post_processor.h"
 
+#include <sstream>
+
 #include "expr/skolem_manager.h"
 #include "proof/lazy_proof.h"
 #include "proof/lean/lean_rules.h"
@@ -819,22 +821,9 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::FACTORING:
     {
-      Node conclusion;
-      // conclusion is singleton only if it occurs in premise
-      if (res.getKind() == kind::OR
-          && std::find(children[0].begin(), children[0].end(), res)
-                 == children[0].end())
-      {
-        std::vector<Node> resLits{res.begin(), res.end()};
-        conclusion = nm->mkNode(kind::SEXPR, resLits);
-      }
-      else
-      {
-        conclusion = nm->mkNode(kind::SEXPR, res);
-      }
       addLeanStep(res,
                   LeanRule::FACTORING,
-                  d_lnc.convert(conclusion),
+                  d_lnc.convert(res),
                   children,
                   {},
                   *cdp);
@@ -891,8 +880,13 @@ bool LeanProofPostprocessCallback::update(Node res,
     default:
     {
       Trace("test-lean") << "Unhandled rule " << id << "\n";
+      std::stringstream ss;
+      ss << id;
+      Node newVar = nm->mkBoundVar(ss.str(), nm->sExprType());
+      std::vector<Node> newArgs{newVar};
+      newArgs.insert(newArgs.end(), args.begin(), args.end());
       addLeanStep(
-          res, LeanRule::UNKNOWN, Node::null(), children, args, *cdp);
+          res, LeanRule::UNKNOWN, Node::null(), children, newArgs, *cdp);
     }
   };
   return true;

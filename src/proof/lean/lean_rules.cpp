@@ -38,7 +38,7 @@ const char* toString(LeanRule id)
     case LeanRule::R1: return "R2";
     case LeanRule::R1_PARTIAL: return "R2";
 
-    case LeanRule::FACTORING: return "factoring";
+    case LeanRule::FACTORING: return "factor";
     case LeanRule::REORDER: return "permutateOr";
     case LeanRule::EQ_RESOLVE: return "eqResolve";
     case LeanRule::MODUS_PONENS: return "modusPonens";
@@ -90,8 +90,8 @@ const char* toString(LeanRule id)
     case LeanRule::TH_TRUST: return "thTrust";
     case LeanRule::TH_TRUST_VALID: return "simp";
 
-    case LeanRule::CONG: return "cong";
-    case LeanRule::CONG_PARTIAL: return "cong";
+    case LeanRule::CONG: return "smtCong";
+    case LeanRule::CONG_PARTIAL: return "smtCong";
     case LeanRule::REFL: return "rfl";
     case LeanRule::REFL_PARTIAL: return "rfl";
     case LeanRule::TRANS: return "Eq.trans";

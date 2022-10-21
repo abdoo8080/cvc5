@@ -85,6 +85,7 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc, bool printToCheck)
           LeanRule::R1,
           LeanRule::R1_PARTIAL,
           LeanRule::REORDER,
+          LeanRule::FACTORING,
           LeanRule::LIFT_OR_N_TO_IMP,
           LeanRule::TH_TRUST_VALID,
         }),
@@ -412,8 +413,10 @@ void LeanPrinter::print(std::ostream& out,
   // Print preamble
   if (d_printToCheck)
   {
-    out << "import Meta.Util\nimport Meta.Boolean\nimport "
-           "Meta.Resolution\nimport Meta.PermutateOr";
+    out << "import Smt.Reconstruction.Certifying.Boolean\nimport "
+           "Smt.Reconstruction.Certifying.Resolution\nimport "
+           "Smt.Reconstruction.Certifying.Factor\nimport "
+           "Smt.Reconstruction.Certifying.PermutateOr";
     // increase recursion depth and heartbeats
     // out << "set_option maxRecDepth 10000\nset_option maxHeartbeats
     // 500000\n\n";
