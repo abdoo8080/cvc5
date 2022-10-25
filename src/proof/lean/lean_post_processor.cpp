@@ -207,12 +207,13 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::REFL:
     {
-      addLeanStep(res,
-                  s_pfRuleToLeanRule.at(id),
-                  d_lnc.convert(res),
-                  children,
-                  {},
-                  *cdp);
+      addLeanStep(
+          res,
+          res[0].getType().isBoolean() ? LeanRule::IFF_REFL : LeanRule::REFL,
+          d_lnc.convert(res),
+          children,
+          {},
+          *cdp);
       break;
     }
     case PfRule::NOT_OR_ELIM:
@@ -477,9 +478,11 @@ bool LeanProofPostprocessCallback::update(Node res,
     // minor reasoning to pick the rule
     case PfRule::SYMM:
     {
+      AlwaysAssert(res.getKind() == kind::EQUAL)
+          << "No support yet for NEG_SYMM";
       addLeanStep(
           res,
-          res.getKind() == kind::EQUAL ? LeanRule::SYMM : LeanRule::NEG_SYMM,
+          res[0].getType().isBoolean() ? LeanRule::IFF_SYMM : LeanRule::SYMM,
           d_lnc.convert(res),
           children,
           {},
@@ -553,8 +556,19 @@ bool LeanProofPostprocessCallback::update(Node res,
       }
       else
       {
-        op = args.size() == 2 ? args[1] : args[0];
-        Node opConverted = d_lnc.mkPrintableOp(op);
+        Node opConverted;
+        // if the congruence is of equalities over booleans, then we have Iff as
+        // the congruence operator
+        if (args.size() == 1 && res[0].getKind() == kind::EQUAL
+            && res[0][0].getType().isBoolean())
+        {
+          opConverted = d_lnc.mkInternalSymbol("Iff");
+        }
+        else
+        {
+          op = args.size() == 2 ? args[1] : args[0];
+          opConverted = d_lnc.mkPrintableOp(op);
+        }
         // add internal refl step
         opEq = nm->mkNode(kind::SEXPR,
                           d_lnc.mkPrintableOp(kind::EQUAL),
@@ -656,20 +670,22 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::TRANS:
     {
+      bool useIff = res[0].getType().isBoolean();
       Node cur = children[0], first = children[0][0];
       for (size_t i = 1, size = children.size(); i < size - 1; ++i)
       {
         Node newCur = nm->mkNode(kind::EQUAL, first, children[i][1]);
-        addLeanStep(newCur,
-                    LeanRule::TRANS_PARTIAL,
-                    Node::null(),
-                    {cur, children[i]},
-                    {},
-                    *cdp);
+        addLeanStep(
+            newCur,
+            useIff ? LeanRule::IFF_TRANS_PARTIAL : LeanRule::TRANS_PARTIAL,
+            Node::null(),
+            {cur, children[i]},
+            {},
+            *cdp);
         cur = newCur;
       }
       addLeanStep(res,
-                  LeanRule::TRANS,
+                  useIff ? LeanRule::IFF_TRANS : LeanRule::TRANS,
                   d_lnc.convert(res),
                   {cur, children.back()},
                   {},

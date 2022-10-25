@@ -87,6 +87,9 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc, bool printToCheck)
           LeanRule::FACTORING,
           LeanRule::LIFT_OR_N_TO_IMP,
           LeanRule::TH_TRUST_VALID,
+          LeanRule::CONG,
+          LeanRule::CONG_PARTIAL,
+          LeanRule::AND_ELIM,
         }),
       d_lbind(options().printer.dagThresh ? options().printer.dagThresh + 1
                                           : 0),
@@ -304,11 +307,7 @@ void LeanPrinter::printProof(std::ostream& out,
       {
         out << "show ";
         printTerm(out, children[0]->getArguments()[2]);
-        out << " from "
-            << (d_tacticRules.find(getLeanRule(children[0]->getArguments()[0]))
-                        != d_tacticRules.end()
-                    ? "by "
-                    : "");
+        out << " from ";
         printStepId(out, children[0].get(), subpfMap, pfAssumpMap);
         out << "\n";
       }
