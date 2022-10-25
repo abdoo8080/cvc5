@@ -53,6 +53,14 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
               CDProof* cdp,
               bool& continueUpdate) override;
 
+  /** New assumptions added during post-processing
+   *
+   * Currently these are the rewrite steps used in the proof.
+   *
+   * These assumptions are added as arguments of the outer scope so that they
+   * are properly printed.
+   */
+  std::unordered_set<Node> d_newAssumptions;
  protected:
   /** The node converter */
   LeanNodeConverter& d_lnc;

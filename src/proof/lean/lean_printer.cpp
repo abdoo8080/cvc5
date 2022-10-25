@@ -64,7 +64,7 @@ bool LetUpdaterPfCallback::update(Node res,
   return false;
 }
 
-LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc, bool printToCheck)
+LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
     : EnvObj(env),
       d_letRules({
           LeanRule::R0_PARTIAL,
@@ -73,10 +73,7 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc, bool printToCheck)
           LeanRule::BIND_PARTIAL,
           LeanRule::BIND_LAMBDA_PARTIAL,
           LeanRule::TRANS_PARTIAL,
-          LeanRule::AND_INTRO_PARTIAL,
-          LeanRule::CL_OR,
-          LeanRule::CL_ASSUME,
-          LeanRule::TH_ASSUME,
+          LeanRule::AND_INTRO_PARTIAL
       }),
       d_tacticRules({
           LeanRule::R0,
@@ -90,12 +87,11 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc, bool printToCheck)
           LeanRule::CONG,
           LeanRule::CONG_PARTIAL,
           LeanRule::AND_ELIM,
-        }),
+      }),
       d_lbind(options().printer.dagThresh ? options().printer.dagThresh + 1
                                           : 0),
       d_lnc(lnc),
-      d_cb(new LetUpdaterPfCallback(d_lbind, d_skMap, d_letRules)),
-      d_printToCheck(printToCheck)
+      d_cb(new LetUpdaterPfCallback(d_lbind, d_skMap, d_letRules))
 {
   d_false = NodeManager::currentNM()->mkConst(false);
 }
@@ -196,7 +192,7 @@ void LeanPrinter::printStepId(std::ostream& out,
                               const std::map<const ProofNode*, size_t>& pfMap,
                               const std::map<Node, size_t>& pfAssumpMap)
 {
-  out << (d_printToCheck? "lean_" : "");
+  out << "lean_";
   if (pfn->getRule() == PfRule::ASSUME)
   {
     // converted assumption
@@ -249,17 +245,10 @@ void LeanPrinter::printProof(std::ostream& out,
   if (rule == LeanRule::SCOPE)
   {
     printOffset(out, offset);
-    if (d_printToCheck)
-    {
-      out << "have lean_s" << id << " : ";
-    }
-    else
-    {
-      out << "[s" << id << ";";
-    }
+    out << "have lean_s" << id << " : ";
     // print conversion to a clause of the original scope's conclusion
     printTerm(out, res);
-    out << (d_printToCheck ? " :=" : ";") << "\n";
+    out << " :=\n";
     // each argument to the scope proof node corresponds to one scope to close
     // in the Lean proof. To avoid clashes, we shift the assumptions numbers by
     // current pfAssumpMap' size
@@ -275,18 +264,9 @@ void LeanPrinter::printProof(std::ostream& out,
       pfAssumpMap[args[i]] = assumptionsShift + i - 3;
       // push and print offset
       printOffset(out, ++offset);
-      if (d_printToCheck)
-      {
-        out << "(scope (fun lean_a" << assumptionsShift + i - 3 << " : ";
-        printTerm(out, args[i]);
-        out << " =>\n";
-      }
-      else
-      {
-        out << "[[a" << assumptionsShift + i - 3 << ";";
-        printTerm(out, args[i]);
-        out << ";]\n";
-      }
+      out << "(scope (fun lean_a" << assumptionsShift + i - 3 << " : ";
+      printTerm(out, args[i]);
+      out << " =>\n";
     }
     // similarly, we shift step ids by the number of current steps
     size_t newId = pfMap.size();
@@ -303,32 +283,21 @@ void LeanPrinter::printProof(std::ostream& out,
     if (children[0]->getResult() != d_false)
     {
       printOffset(out, offset);
-      if (d_printToCheck)
-      {
-        out << "show ";
-        printTerm(out, children[0]->getArguments()[2]);
-        out << " from ";
-        printStepId(out, children[0].get(), subpfMap, pfAssumpMap);
-        out << "\n";
-      }
-      else
-      {
-        out << "[;";
-        printTerm(out, children[0]->getArguments()[2]);
-        out << ";";
-        printStepId(out, children[0].get(), subpfMap, pfAssumpMap);
-        out << "]\n";
-      }
+      out << "show ";
+      printTerm(out, children[0]->getArguments()[2]);
+      out << " from ";
+      printStepId(out, children[0].get(), subpfMap, pfAssumpMap);
+      out << "\n";
     }
     // now close. We have assumptions*2 parens
     std::stringstream cparens;
     for (size_t i = 3, size = args.size(); i < size; ++i)
     {
       offset--;
-      cparens << (d_printToCheck? "))" : "]");
+      cparens << "))";
     }
     printOffset(out, offset);
-    out << cparens.str() << (d_printToCheck? "" : "]") << "\n";
+    out << cparens.str() << "\n";
     // recover assumption map
     for (const auto& p : backupMap)
     {
@@ -350,39 +319,22 @@ void LeanPrinter::printProof(std::ostream& out,
   // than have s....
   if (d_letRules.find(rule) != d_letRules.end())
   {
-    if (d_printToCheck)
-    {
-      out << "let lean_s" << id << " := " << (isTactic? "by " : "") << rule;
-    }
-    else
-    {
-      out << "[s" << id << ";;" << rule;
-    }
+    out << "let lean_s" << id << " := " << (isTactic ? "by " : "") << rule;
   }
   else
   {
     if (pfn->getResult() == d_false)
     {
-      out << (d_printToCheck ? "show False from " : "[;False;")
-          << (d_printToCheck && isTactic ? "by " : "") << rule;
+      out << "show False from " << (isTactic ? "by " : "") << rule;
     }
     else
     {
-      if (d_printToCheck)
-      {
-        out << "have lean_s" << id << " : ";
-        printTerm(out, res);
-        out << " := " << (isTactic? "by " : "") << rule;
-      }
-      else
-      {
-        out << "[s" << id << ";";
-        printTerm(out, res);
-        out << ";" << rule;
-      }
+      out << "have lean_s" << id << " : ";
+      printTerm(out, res);
+      out << " := " << (isTactic ? "by " : "") << rule;
     }
   }
-  std::string separator = isTactic? ", " : " ";
+  std::string separator = isTactic ? ", " : " ";
   for (size_t i = 0, size = children.size(); i < size; ++i)
   {
     out << (i == 0 ? " " : separator);
@@ -393,78 +345,73 @@ void LeanPrinter::printProof(std::ostream& out,
     out << separator;
     printTerm(out, args[i]);
   }
-  out << (d_printToCheck? "" : "]") << "\n";
+  out << "\n";
   // save proof step in map
   pfMap[pfn.get()] = id++;
 }
 
-void LeanPrinter::print(std::ostream& out,
-                        std::shared_ptr<ProofNode> pfn)
+void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
 {
   // outer method to print valid Lean output from a ProofNode
   if (TraceIsOn("test-lean-pf"))
   {
+    std::stringstream ss;
     Trace("test-lean-pf") << "Post-processed proof ";
-    pfn->printDebug(out, true);
-    Trace("test-lean-pf") << "\n";
+    pfn->printDebug(ss, true);
+    Trace("test-lean-pf") << ss.str() << "\n";
   }
   // Print preamble
-  if (d_printToCheck)
-  {
-    out << "import Smt.Reconstruction.Certifying.Boolean\nimport "
-           "Smt.Reconstruction.Certifying.Resolution\nimport "
-           "Smt.Reconstruction.Certifying.Factor\nimport "
-           "Smt.Reconstruction.Certifying.PermutateOr";
-    // increase recursion depth and heartbeats
-    // out << "set_option maxRecDepth 10000\nset_option maxHeartbeats
-    // 500000\n\n";
+  out << "import Smt.Reconstruction.Certifying.Boolean\nimport "
+         "Smt.Reconstruction.Certifying.Resolution\nimport "
+         "Smt.Reconstruction.Certifying.Factor\nimport "
+         "Smt.Reconstruction.Certifying.PermutateOr";
+  // increase recursion depth and heartbeats
+  // out << "set_option maxRecDepth 10000\nset_option maxHeartbeats
+  // 500000\n\n";
 
-    std::vector<Node> assertions = pfn->getArguments();
-    // Print user defined sorts and constants of those sorts
-    std::unordered_set<Node> syms;
-    std::unordered_set<TNode> visited;
-    for (const Node& a : assertions)
+  const std::vector<Node>& assumptions = pfn->getArguments();
+  // The proof we will print is the one under the scope
+  std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0];
+  // Print user defined sorts and constants of those sorts
+  std::unordered_set<Node> syms;
+  std::unordered_set<TNode> visited;
+  for (const Node& a : assumptions)
+  {
+    expr::getSymbols(a, syms, visited);
+  }
+  // uninterpreted sorts
+  std::unordered_set<TypeNode> sts;
+  for (const Node& s : syms)
+  {
+    TypeNode st = s.getType();
+    std::unordered_set<TypeNode> ctypes;
+    expr::getComponentTypes(st, ctypes);
+    for (const TypeNode& stc : ctypes)
     {
-      expr::getSymbols(a, syms, visited);
-    }
-    // uninterpreted sorts
-    std::unordered_set<TypeNode> sts;
-    for (const Node& s : syms)
-    {
-      TypeNode st = s.getType();
-      std::unordered_set<TypeNode> ctypes;
-      expr::getComponentTypes(st, ctypes);
-      for (const TypeNode& stc : ctypes)
+      // only collect non-predefined sorts for declaration
+      if (stc.isUninterpretedSort() && stc.getKind() != kind::TYPE_CONSTANT)
       {
-        // only collect non-predefined sorts for declaration
-        if (stc.isUninterpretedSort() && stc.getKind() != kind::TYPE_CONSTANT)
-        {
-          Trace("test-lean") << "collecting sort " << stc << " with kind "
-                             << stc.getKind() << "\n";
-          sts.insert(stc);
-        }
+        Trace("test-lean") << "collecting sort " << stc << " with kind "
+                           << stc.getKind() << "\n";
+        sts.insert(stc);
       }
     }
-    if (!sts.empty())
-    {
-      out << "\nuniverse u\n";
-    }
-    for (const auto& s : sts)
-    {
-      out << "variable {" << s << " : Type u}\n";
-    }
-    // uninterpreted functions
-    for (const Node& s : syms)
-    {
-      out << "variable {" << s << " : ";
-      printSort(out, s.getType());
-      out << "}\n";
-    }
   }
-  // The proof we will actually process is the one under the original scope.
-  // Since our processing of scope converts it into two rules (scope and
-  // lifnOrNToImp) we need to get the child of the child
-  std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0]->getChildren()[0];
+  if (!sts.empty())
+  {
+    out << "\nuniverse u\n";
+  }
+  for (const auto& s : sts)
+  {
+    out << "variable {" << s << " : Type u}\n";
+  }
+  // uninterpreted functions
+  for (const Node& s : syms)
+  {
+    out << "variable {" << s << " : ";
+    printSort(out, s.getType());
+    out << "}\n";
+  }
 
   // No lets for now
 
@@ -473,12 +420,12 @@ void LeanPrinter::print(std::ostream& out,
   // {
   //   d_lbind.process(d_lnc.convert(a));
   // }
-  // // Traverse the proof node to letify the (converted) conclusions of explicit
+  // // Traverse the proof node to letify the (converted) conclusions of
+  // explicit
   // // proof steps. This traversal will collect the skolems to de defined.
   // ProofNodeUpdater updater(d_env, *(d_cb.get()), false, false);
   // updater.process(innerPf);
 
-  const std::vector<Node>& assumptions = pfn->getChildren()[0]->getArguments();
   std::vector<Node> convertedAssumptions;
   for (size_t i = 3, size = assumptions.size(); i < size; ++i)
   {
@@ -486,35 +433,23 @@ void LeanPrinter::print(std::ostream& out,
     d_lbind.process(convertedAssumptions.back());
   }
   printLetList(out);
-  if (d_printToCheck)
+  // print theorem statement, which is to get proofs of all the assumptions
+  // and conclude a proof of False. The assumptions are args[3..]
+  out << "\ntheorem th0 : ";
+  for (const Node& a : convertedAssumptions)
   {
-    // print theorem statement, which is to get proofs of all the assumptions
-    // and conclude a proof of False. The assumptions are args[3..]
-    out << "\ntheorem th0 : ";
-    for (const Node& a : convertedAssumptions)
-    {
-      printTerm(out, d_lnc.convert(a));
-      out << " → ";
-    }
-    out << "False :=\n";
+    printTerm(out, d_lnc.convert(a));
+    out << " → ";
   }
+  out << "False :=\n";
   // print initial assumptions
   std::map<Node, size_t> pfAssumpMap;
   for (size_t i = 0, size = convertedAssumptions.size(); i < size; ++i)
   {
     pfAssumpMap[convertedAssumptions[i]] = i;
-    if (d_printToCheck)
-    {
-      out << "fun lean_a" << i << " : ";
-      printTerm(out, convertedAssumptions[i]);
-      out << " =>\n";
-    }
-    else
-    {
-      out << "[a" << i << ";";
-      printTerm(out, convertedAssumptions[i]);
-      out << ";]\n";
-    }
+    out << "fun lean_a" << i << " : ";
+    printTerm(out, convertedAssumptions[i]);
+    out << " =>\n";
   }
   std::stringstream ss;
   ss << out.rdbuf();

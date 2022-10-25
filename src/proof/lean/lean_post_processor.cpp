@@ -22,6 +22,7 @@
 #include "proof/proof_checker.h"
 #include "proof/proof_node_algorithm.h"
 #include "proof/proof_node_manager.h"
+#include "smt/env.h"
 #include "util/bitvector.h"
 #include "util/rational.h"
 
@@ -236,6 +237,12 @@ bool LeanProofPostprocessCallback::update(Node res,
     // minor reasoning to clean args
     case PfRule::PREPROCESS:
     case PfRule::THEORY_REWRITE:
+    {
+      d_newAssumptions.insert(d_lnc.convert(res));
+      // Make this an assumption
+      cdp->addStep(res, PfRule::ASSUME, {}, {res}, false, CDPOverwrite::ALWAYS);
+      break;
+    }
     case PfRule::ARRAYS_READ_OVER_WRITE:
     case PfRule::ARRAYS_READ_OVER_WRITE_CONTRA:
     case PfRule::ARRAYS_READ_OVER_WRITE_1:
@@ -911,6 +918,27 @@ void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
 {
   ProofNodeUpdater updater(d_env, *(d_cb.get()), false, false);
   updater.process(pf);
+  // The resulting proof is the one under the original scope.  Since our
+  // processing of scope converts it into two rules (scope and lifnOrNToImp), we
+  // wil exclude this outer one. Furthermore, we will add new assumptions as
+  // arguments of that scope. This is done by rebuilding the proof node but with
+  // different arguments. We do not care about the original conclusion, so this
+  // is fine
+  CDProof cdp(
+      d_env, nullptr, "LeanProofPostprocess::CDProofForNewAssumptions", false);
+  std::shared_ptr<ProofNode> scopePf = pf->getChildren()[0];
+  Node res = pf->getResult();
+  const std::vector<std::shared_ptr<ProofNode>>& childrenPfs =
+      scopePf->getChildren();
+  Assert(childrenPfs().size() == 1);
+  cdp.addProof(childrenPfs[0]);
+  std::vector<Node> newArgs{scopePf->getArguments()};
+  for (const Node& a : d_cb->d_newAssumptions)
+  {
+    newArgs.push_back(a);
+  }
+  cdp.addStep(res, PfRule::LEAN_RULE, {childrenPfs[0]->getResult()}, newArgs);
+  d_env.getProofNodeManager()->updateNode(pf.get(), cdp.getProofFor(res).get());
 };
 
 }  // namespace proof

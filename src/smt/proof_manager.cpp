@@ -246,7 +246,7 @@ void PfManager::printProof(std::ostream& out,
     proof::LeanNodeConverter lnc;
     proof::LeanProofPostprocess lpfpp(d_env, lnc);
     lpfpp.process(fp);
-    proof::LeanPrinter lp(d_env, lnc, options().proof.printLeanCheck);
+    proof::LeanPrinter lp(d_env, lnc);
     lp.print(out, fp);
   }
   else if (mode == options::ProofFormatMode::ALETHE)

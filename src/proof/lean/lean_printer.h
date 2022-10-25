@@ -68,7 +68,7 @@ class LetUpdaterPfCallback : public ProofNodeUpdaterCallback
 class LeanPrinter : protected EnvObj
 {
  public:
-  LeanPrinter(Env& env, LeanNodeConverter& lnc, bool printToCheck = false);
+  LeanPrinter(Env& env, LeanNodeConverter& lnc);
   ~LeanPrinter();
 
   /**
@@ -119,8 +119,6 @@ class LeanPrinter : protected EnvObj
   LeanNodeConverter& d_lnc;
 
   std::unique_ptr<LetUpdaterPfCallback> d_cb;
-
-  bool d_printToCheck;
 };
 
 }  // namespace proof

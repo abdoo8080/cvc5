@@ -142,11 +142,3 @@ name   = "Proof"
   type       = "bool"
   default    = "false"
   help       = "Check proof steps for satisfiability, for refutation soundness testing. Note this checks only steps for non-core proof rules"
-
-[[option]]
-  name       = "printLeanCheck"
-  category   = "expert"
-  long       = "print-lean-check"
-  type       = "bool"
-  default    = "false"
-  help       = "Print Lean proof in an indepedently checkable format, i.e., as a valid Lean file"
