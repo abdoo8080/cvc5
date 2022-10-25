@@ -452,19 +452,19 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
   {
     case kind::NOT:
     {
-      return mkInternalSymbol("notConst");
+      return mkInternalSymbol("Not");
     }
     case kind::EQUAL:
     {
-      return mkInternalSymbol("eqConst");
+      return mkInternalSymbol("Eq");
     }
     case kind::OR:
     {
-      return mkInternalSymbol("orConst");
+      return mkInternalSymbol("Or");
     }
     case kind::AND:
     {
-      return mkInternalSymbol("andConst");
+      return mkInternalSymbol("And");
     }
     case kind::XOR:
     {
@@ -472,7 +472,7 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     }
     case kind::IMPLIES:
     {
-      return mkInternalSymbol("impliesConst");
+      return mkInternalSymbol("Implies");
     }
     case kind::ITE:
     {

@@ -93,7 +93,6 @@ const char* toString(LeanRule id)
     case LeanRule::CONG: return "smtCong";
     case LeanRule::CONG_PARTIAL: return "smtCong";
     case LeanRule::REFL: return "rfl";
-    case LeanRule::REFL_PARTIAL: return "rfl";
     case LeanRule::TRANS: return "Eq.trans";
     case LeanRule::TRANS_PARTIAL: return "Eq.trans";
     case LeanRule::SYMM: return "Eq.symm";

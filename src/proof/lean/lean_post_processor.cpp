@@ -554,14 +554,13 @@ bool LeanProofPostprocessCallback::update(Node res,
       else
       {
         op = args.size() == 2 ? args[1] : args[0];
+        Node opConverted = d_lnc.mkPrintableOp(op);
         // add internal refl step
-        opEq = nm->mkNode(kind::SEXPR, eqNode, op, op);
-        addLeanStep(opEq,
-                    LeanRule::REFL_PARTIAL,
-                    Node::null(),
-                    {},
-                    {},
-                    *cdp);
+        opEq = nm->mkNode(kind::SEXPR,
+                          d_lnc.mkPrintableOp(kind::EQUAL),
+                          opConverted,
+                          opConverted);
+        addLeanStep(opEq, LeanRule::REFL, opEq, {}, {}, *cdp);
       }
       // Are we doing congruence of an n-ary operator with more than two
       // arguments? If so, notice that op is a binary operator and we must apply

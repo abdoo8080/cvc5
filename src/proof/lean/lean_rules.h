@@ -92,7 +92,6 @@ enum class LeanRule : uint32_t
   CONG,
   CONG_PARTIAL,
   REFL,
-  REFL_PARTIAL,
   TRANS,
   TRANS_PARTIAL,
   SYMM,

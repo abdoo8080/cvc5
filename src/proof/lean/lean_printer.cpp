@@ -69,7 +69,6 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc, bool printToCheck)
       d_letRules({
           LeanRule::R0_PARTIAL,
           LeanRule::R1_PARTIAL,
-          LeanRule::REFL_PARTIAL,
           LeanRule::CONG_PARTIAL,
           LeanRule::BIND_PARTIAL,
           LeanRule::BIND_LAMBDA_PARTIAL,
