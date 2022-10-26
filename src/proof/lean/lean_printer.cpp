@@ -366,8 +366,7 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
          "Smt.Reconstruction.Certifying.Factor\nimport "
          "Smt.Reconstruction.Certifying.PermutateOr";
   // increase recursion depth and heartbeats
-  // out << "set_option maxRecDepth 10000\nset_option maxHeartbeats
-  // 500000\n\n";
+  out << "\n\nset_option maxRecDepth 10000\nset_option maxHeartbeats 500000\n\n";
 
   const std::vector<Node>& assumptions = pfn->getArguments();
   // The proof we will print is the one under the scope
