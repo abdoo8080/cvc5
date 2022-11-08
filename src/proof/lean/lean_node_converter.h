@@ -62,7 +62,6 @@ class LeanNodeConverter
   // Node mkList(const std::vector<Node>& nodes);
 
   Node mkInt(unsigned i);
-  Node mkInt(Node i);
 
   std::vector<Node> getOperatorIndices(Kind k, Node n);
 

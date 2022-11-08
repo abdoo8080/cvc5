@@ -1490,7 +1490,12 @@ void GetProofCommand::invoke(cvc5::Solver* solver, SymbolManager* sm)
 
 void GetProofCommand::printResult(cvc5::Solver* solver, std::ostream& out) const
 {
-  out << d_result;
+  std::string result = d_result;
+  if (solver->getOption("proof-format-mode") == "lean")
+  {
+    result = "(proof \"" + result + "\")\n";
+  }
+  out << result;
 }
 
 std::string GetProofCommand::getCommandName() const { return "get-proof"; }
