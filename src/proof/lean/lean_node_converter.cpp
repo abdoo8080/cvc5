@@ -277,7 +277,7 @@ Node LeanNodeConverter::convert(Node n)
         {
           TypeNode tn = cur.getType();
           AlwaysAssert(tn.isInteger()) << "Only support integer rationals\n";
-          res = mkInt(cur);
+          res = cur;
           break;
         }
         case kind::CONST_BITVECTOR:
