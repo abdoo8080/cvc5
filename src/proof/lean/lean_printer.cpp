@@ -325,7 +325,7 @@ void LeanPrinter::printProof(std::ostream& out,
   {
     if (pfn->getResult() == d_false)
     {
-      out << "show False from " << (isTactic ? "by " : "") << rule;
+      out << "exact (show False from " << (isTactic ? "by " : "") << rule;
     }
     else
     {
@@ -345,7 +345,7 @@ void LeanPrinter::printProof(std::ostream& out,
     out << separator;
     printTerm(out, args[i]);
   }
-  out << "\n";
+  out << (pfn->getResult() == d_false ? ")" : "") << "\n";
   // save proof step in map
   pfMap[pfn.get()] = id++;
 }
@@ -448,7 +448,9 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
     pfAssumpMap[convertedAssumptions[i]] = i;
     out << "fun lean_a" << i << " : ";
     printTerm(out, convertedAssumptions[i]);
-    out << " =>\n";
+    out << " =>";
+    // guarantee we use Lean's tactic mode by adding " by " after last assertion
+    out << (i == size - 1 ? " by" : "") << "\n";
   }
   std::stringstream ss;
   ss << out.rdbuf();
