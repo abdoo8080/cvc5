@@ -351,6 +351,9 @@ Node LeanNodeConverter::convert(Node n)
         }
         // binary operators
         case kind::XOR:
+        {
+          Unreachable() << "xor is not supported\n";
+        }
         case kind::IMPLIES:
         {
           resChildren.push_back(children[0]);
@@ -465,6 +468,7 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     }
     case kind::XOR:
     {
+      Unreachable() << "xor is not supported\n";
       return mkInternalSymbol("xorConst");
     }
     case kind::IMPLIES:
