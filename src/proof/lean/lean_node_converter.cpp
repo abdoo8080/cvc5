@@ -38,7 +38,7 @@ std::unordered_map<Kind, std::string> s_kindToString = {
     {kind::BITVECTOR_SIGN_EXTEND, "bvSignExt"},
     {kind::BITVECTOR_BITOF, "bitOf"},
     {kind::BITVECTOR_BB_TERM, "bbT"},
-    {kind::ITE, "fIte"},
+    {kind::ITE, "ite"},
     {kind::SELECT, "select"},
     {kind::STORE, "store"},
     {kind::NOT, "Not"},
@@ -239,12 +239,9 @@ Node LeanNodeConverter::convert(Node n)
           }
           else
           {
-            // purification skolem, thus we need to build the fake choice term
-            AlwaysAssert(!SkolemManager::getOriginalForm(cur).isNull());
-            res = nm->mkNode(kind::SEXPR,
-                             mkInternalSymbol("choice"),
-                             nm->mkConstInt(Rational(0)),
-                             d_cache[SkolemManager::getOriginalForm(cur)]);
+            // purification skolem, thus we retrieve the conversion of its
+            // original form
+            res = d_cache[SkolemManager::getOriginalForm(cur)];
           }
           AlwaysAssert(!res.isNull());
           break;

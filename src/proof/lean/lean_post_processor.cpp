@@ -274,24 +274,18 @@ bool LeanProofPostprocessCallback::update(Node res,
                   *cdp);
       break;
     }
-    // retrieve witness
+    // We handle this as a reflexivity step since the original form of the
+    // skolem at res[0] is res[1]
     case PfRule::SKOLEM_INTRO:
     {
-      // The skolem is res[0], its original form is res[1]. Create a "fake"
-      // choice term with spurious variable with id 0
       AlwaysAssert(res[1] == SkolemManager::getOriginalForm(res[0]));
       Trace("test-lean") << "skolem " << res[0] << ", kind " << res[0].getKind()
                          << ", has original form "
                          << SkolemManager::getOriginalForm(res[1]) << "\n";
-      Node original = d_lnc.convert(res[1]);
-      Node witness = nm->mkNode(kind::SEXPR,
-                                d_lnc.mkPrintableOp(kind::WITNESS),
-                                nm->mkConstInt(Rational(0)),
-                                original);
-      // arguments will be the id of the variable and its sort
+      Node newRes = res[1].eqNode(res[1]);
       addLeanStep(res,
-                  s_pfRuleToLeanRule.at(id),
-                  d_lnc.convert(res),
+                  res[0].getType().isBoolean() ? LeanRule::IFF_REFL : LeanRule::REFL,
+                  d_lnc.convert(newRes),
                   {},
                   {},
                   *cdp);
