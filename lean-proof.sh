@@ -1,5 +1,12 @@
 #!/bin/bash
 
+#### To use this it's necessary to:
+# cd ~/lean-smt
+# elan self update
+# lake build Smt:shared
+# LEAN_PATH=./build/lib:/home/hbarbosa/.elan/toolchains/leanprover--lean4---nightly-2022-09-05/lib/lean; export LEAN_PATH in shell (or ~/.bashrc)
+
+
 tfile="$(mktemp /tmp/foo.XXXXXXXXX)" || exit 1
 outfile="$(mktemp /tmp/foo.XXXXXXXXX)" || exit 1
 
