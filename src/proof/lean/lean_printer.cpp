@@ -365,7 +365,7 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
   out << "import Smt.Reconstruction.Certifying.Boolean\nimport "
          "Smt.Reconstruction.Certifying.Resolution\nimport "
          "Smt.Reconstruction.Certifying.Factor\nimport "
-         "Smt.Reconstruction.Certifying.PermutateOr";
+         "Smt.Reconstruction.Certifying.PermutateOr\n\nopen Classical";
   // increase recursion depth and heartbeats
   out << "\n\nset_option maxRecDepth 10000\nset_option maxHeartbeats 500000\n\n";
 
