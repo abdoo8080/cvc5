@@ -898,7 +898,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       std::vector<Node> resArgs{args[0].begin(), args[0].end()};
       addLeanStep(res,
                   LeanRule::CNF_OR_NEG,
-                  d_lnc.convert(nm->mkNode(kind::SEXPR, res[0], res[1])),
+                  d_lnc.convert(res),
                   children,
                   {d_lnc.convert(nm->mkNode(kind::SEXPR, resArgs)), args[1]},
                   *cdp);
