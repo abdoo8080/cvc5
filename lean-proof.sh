@@ -15,6 +15,10 @@ outfile="$(mktemp /tmp/foo.XXXXXXXXX)" || exit 1
 # the s-expression/string prefix
 
 ./prod/bin/cvc5 --dump-proofs --proof-format=lean --proof-granularity=theory-rewrite --dag-thresh=0 $@ | tail -n +2 | head -n -1 | sed 's/(proof \"//' > $tfile
+if ! grep -q -v "unsat" $tfile; then
+    echo "ERROR-CVC5"
+    exit
+fi
 
 cd ~/lean-smt
 lean --load-dynlib=/home/hbarbosa/lean-smt/build/lib/libSmt.so $tfile > $outfile
