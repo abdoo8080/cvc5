@@ -937,11 +937,13 @@ void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
       scopePf->getChildren();
   Assert(childrenPfs().size() == 1);
   cdp.addProof(childrenPfs[0]);
-  std::vector<Node> newArgs{scopePf->getArguments()};
+  const std::vector<Node> args = scopePf->getArguments();
+  std::vector<Node> newArgs{args[0], args[1], args[2]};
   for (const Node& a : d_cb->d_newAssumptions)
   {
     newArgs.push_back(a);
   }
+  newArgs.insert(newArgs.end(), args.begin() + 3, args.end());
   cdp.addStep(res, PfRule::LEAN_RULE, {childrenPfs[0]->getResult()}, newArgs);
   d_env.getProofNodeManager()->updateNode(pf.get(), cdp.getProofFor(res).get());
 };
