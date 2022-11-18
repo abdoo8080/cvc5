@@ -436,6 +436,15 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     // create clausal conclusion and remove arguments
     case PfRule::CNF_IMPLIES_POS:
+    {
+      addLeanStep(res,
+                  LeanRule::CNF_IMPLIES_POS,
+                  d_lnc.convert(res),
+                  children,
+                  {d_lnc.convert(args[0][0]), d_lnc.convert(args[0][1])},
+                  *cdp);
+      break;
+    }
     case PfRule::CNF_IMPLIES_NEG1:
     case PfRule::CNF_IMPLIES_NEG2:
     case PfRule::CNF_EQUIV_POS1:
