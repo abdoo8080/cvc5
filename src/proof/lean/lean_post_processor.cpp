@@ -944,7 +944,7 @@ void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
   Node res = pf->getResult();
   const std::vector<std::shared_ptr<ProofNode>>& childrenPfs =
       scopePf->getChildren();
-  Assert(childrenPfs().size() == 1);
+  Assert(childrenPfs.size() == 1);
   cdp.addProof(childrenPfs[0]);
   const std::vector<Node> args = scopePf->getArguments();
   std::vector<Node> newArgs{args[0], args[1], args[2]};
