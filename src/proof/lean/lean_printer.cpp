@@ -88,6 +88,7 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
           LeanRule::CONG,
           LeanRule::CONG_PARTIAL,
           LeanRule::AND_ELIM,
+          LeanRule::NOT_OR_ELIM
       }),
       d_lbind(options().printer.dagThresh ? options().printer.dagThresh + 1
                                           : 0),
