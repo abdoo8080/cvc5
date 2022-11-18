@@ -89,6 +89,12 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
                    const std::vector<Node>& children,
                    const std::vector<Node>& args,
                    CDProof& cdp);
+
+  Node getLastDiff(Node clause, Node pivot);
+  Node getLastDiffs(Node clause, Node pivot1, Node pivot2);
+  Node getSingletonPosition(Node clause,
+                            size_t pos,
+                            const std::vector<Node>& pivots);
 };
 
 /**

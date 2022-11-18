@@ -123,6 +123,49 @@ bool LeanProofPostprocessCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
   return pn->getRule() != PfRule::LEAN_RULE && pn->getRule() != PfRule::ASSUME;
 };
 
+Node LeanProofPostprocessCallback::getLastDiff(Node clause, Node pivot)
+{
+  for (size_t size = clause.getNumChildren(), i = size; i > 0; --i)
+  {
+    if (clause[i - 1] != pivot)
+    {
+      return clause[i - 1];
+    }
+  }
+  return Node::null();
+}
+
+Node LeanProofPostprocessCallback::getLastDiffs(Node clause,
+                                                Node pivot1,
+                                                Node pivot2)
+{
+  for (size_t size = clause.getNumChildren(), i = size; i > 0; --i)
+  {
+    if (clause[i - 1] != pivot1 && clause[i - 1] != pivot2)
+    {
+      return clause[i - 1];
+    }
+  }
+  return Node::null();
+}
+
+
+Node LeanProofPostprocessCallback::getSingletonPosition(
+    Node clause, size_t pos, const std::vector<Node>& pivots)
+{
+  NodeManager* nm = NodeManager::currentNM();
+  if (clause.getKind() != kind::OR
+      || (pivots[2 * (pos - 1)] == d_false && pivots[2 * (pos - 1) + 1] == clause))
+  {
+    return nm->mkConstInt(Rational(0));
+  }
+  if (clause[clause.getNumChildren() - 1].getKind() == kind::OR)
+  {
+    return nm->mkConstInt(Rational(clause.getNumChildren() - 1));
+  }
+  return nm->mkConstInt(Rational(-1));
+}
+
 bool LeanProofPostprocessCallback::update(Node res,
                                           PfRule id,
                                           const std::vector<Node>& children,
@@ -230,8 +273,7 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::CONTRA:
     {
-      addLeanStep(
-          res, LeanRule::CONTRADICTION, d_empty, children, {}, *cdp);
+      addLeanStep(res, LeanRule::CONTRADICTION, d_empty, children, {}, *cdp);
       break;
     }
     // minor reasoning to clean args
@@ -283,20 +325,20 @@ bool LeanProofPostprocessCallback::update(Node res,
                          << ", has original form "
                          << SkolemManager::getOriginalForm(res[1]) << "\n";
       Node newRes = res[1].eqNode(res[1]);
-      addLeanStep(res,
-                  res[0].getType().isBoolean() ? LeanRule::IFF_REFL : LeanRule::REFL,
-                  d_lnc.convert(newRes),
-                  {},
-                  {},
-                  *cdp);
+      addLeanStep(
+          res,
+          res[0].getType().isBoolean() ? LeanRule::IFF_REFL : LeanRule::REFL,
+          d_lnc.convert(newRes),
+          {},
+          {},
+          *cdp);
       break;
     }
     case PfRule::REMOVE_TERM_FORMULA_AXIOM:
     {
       AlwaysAssert(res.getKind() == kind::ITE)
           << "Only support removal of ITEs\n";
-      addLeanStep(
-          res, LeanRule::ITE_INTRO, d_lnc.convert(res), {}, {}, *cdp);
+      addLeanStep(res, LeanRule::ITE_INTRO, d_lnc.convert(res), {}, {}, *cdp);
       break;
     }
     // BV
@@ -307,12 +349,8 @@ bool LeanProofPostprocessCallback::update(Node res,
       {
         case kind::CONST_BITVECTOR:
         {
-          addLeanStep(res,
-                      LeanRule::BITBLAST_VAL,
-                      d_lnc.convert(res),
-                      {},
-                      {},
-                      *cdp);
+          addLeanStep(
+              res, LeanRule::BITBLAST_VAL, d_lnc.convert(res), {}, {}, *cdp);
           break;
         }
         case kind::VARIABLE:
@@ -341,14 +379,15 @@ bool LeanProofPostprocessCallback::update(Node res,
           // constant if its children are Boolean constants.
           bool hasValue = res[0][0][0].getKind() == kind::CONST_BOOLEAN
                           || res[0][1][0].getKind() == kind::CONST_BOOLEAN;
-          addLeanStep(res,
-                      hasValue? LeanRule::BITBLAST_ULT_VAL : LeanRule::BITBLAST_ULT,
-                      d_lnc.convert(res),
-                      {},
-                      // the size of the bv is the number of children of the
-                      // bitblasted term
-                      {nm->mkConstInt(Rational(res[0][0].getNumChildren()))},
-                      *cdp);
+          addLeanStep(
+              res,
+              hasValue ? LeanRule::BITBLAST_ULT_VAL : LeanRule::BITBLAST_ULT,
+              d_lnc.convert(res),
+              {},
+              // the size of the bv is the number of children of the
+              // bitblasted term
+              {nm->mkConstInt(Rational(res[0][0].getNumChildren()))},
+              *cdp);
           break;
         }
         case kind::EQUAL:
@@ -358,12 +397,13 @@ bool LeanProofPostprocessCallback::update(Node res,
                        && res[0][1].getKind() == kind::BITVECTOR_BB_TERM);
           bool hasValue = res[0][0][0].getKind() == kind::CONST_BOOLEAN
                           || res[0][1][0].getKind() == kind::CONST_BOOLEAN;
-          addLeanStep(res,
-                      hasValue? LeanRule::BITBLAST_EQ_VAL : LeanRule::BITBLAST_EQ,
-                      d_lnc.convert(res),
-                      {},
-                      {nm->mkConstInt(Rational(res[0][0].getNumChildren()))},
-                      *cdp);
+          addLeanStep(
+              res,
+              hasValue ? LeanRule::BITBLAST_EQ_VAL : LeanRule::BITBLAST_EQ,
+              d_lnc.convert(res),
+              {},
+              {nm->mkConstInt(Rational(res[0][0].getNumChildren()))},
+              *cdp);
           break;
         }
         case kind::BITVECTOR_AND:
@@ -373,12 +413,13 @@ bool LeanProofPostprocessCallback::update(Node res,
                        && res[0][1].getKind() == kind::BITVECTOR_BB_TERM);
           bool hasValue = res[0][0][0].getKind() == kind::CONST_BOOLEAN
                           || res[0][1][0].getKind() == kind::CONST_BOOLEAN;
-          addLeanStep(res,
-                      hasValue? LeanRule::BITBLAST_AND_VAL : LeanRule::BITBLAST_AND,
-                      d_lnc.convert(res),
-                      {},
-                      {nm->mkConstInt(Rational(res[0][0].getNumChildren()))},
-                      *cdp);
+          addLeanStep(
+              res,
+              hasValue ? LeanRule::BITBLAST_AND_VAL : LeanRule::BITBLAST_AND,
+              d_lnc.convert(res),
+              {},
+              {nm->mkConstInt(Rational(res[0][0].getNumChildren()))},
+              *cdp);
           break;
         }
         case kind::BITVECTOR_ADD:
@@ -412,7 +453,8 @@ bool LeanProofPostprocessCallback::update(Node res,
         {
           // argument must be a bitblasted term
           AlwaysAssert(res[0][0].getKind() == kind::BITVECTOR_BB_TERM);
-          std::vector<Node> newArgs{nm->mkConstInt(Rational(res[0][0].getNumChildren()))};
+          std::vector<Node> newArgs{
+              nm->mkConstInt(Rational(res[0][0].getNumChildren()))};
           addLeanStep(res,
                       LeanRule::BITBLAST_EXTRACT,
                       d_lnc.convert(res),
@@ -424,12 +466,8 @@ bool LeanProofPostprocessCallback::update(Node res,
         default:
         {
           Trace("test-lean") << "unhandled bitblasting kind " << k << "\n";
-          addLeanStep(res,
-                      LeanRule::UNKNOWN,
-                      Node::null(),
-                      children,
-                      args,
-                      *cdp);
+          addLeanStep(
+              res, LeanRule::UNKNOWN, Node::null(), children, args, *cdp);
         }
       }
       break;
@@ -732,12 +770,8 @@ bool LeanProofPostprocessCallback::update(Node res,
                     *cdp);
         cur = newCur;
       }
-      addLeanStep(res,
-                  LeanRule::AND_INTRO,
-                  d_lnc.convert(res),
-                  {first, cur},
-                  {},
-                  *cdp);
+      addLeanStep(
+          res, LeanRule::AND_INTRO, d_lnc.convert(res), {first, cur}, {}, *cdp);
       break;
     }
     //-------- clausal rules
@@ -745,8 +779,12 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::CHAIN_RESOLUTION:
     {
       Trace("test-lean") << push;
-      Node cur = children[0];
-      std::vector<Node> arePremisesSingletons{d_false, d_false};
+      Node cur = children[0], curLastLit;
+      Node minusOne = nm->mkConstInt(Rational(-1)),
+           zero = nm->mkConstInt(Rational(0));
+      size_t numCurLits = 0;
+      std::vector<Node> singletons{minusOne, minusOne};
+      std::vector<bool> ithPremiseSingleton(children.size());
       // Whether child 0 is a singleton list. The first child is used as an OR
       // non-singleton clause if it is not equal to its pivot L_1. Since it's
       // the first clause in the resolution it can only be equal to the pivot in
@@ -756,7 +794,20 @@ bool LeanProofPostprocessCallback::update(Node res,
       if (children[0].getKind() != kind::OR
           || (args[0] == d_true && children[0] == args[1]))
       {
-        arePremisesSingletons[0] = d_true;
+        singletons[0] = zero;
+        curLastLit = children[0];
+        numCurLits = 1;
+        ithPremiseSingleton[0] = true;
+      }
+      else
+      {
+        ithPremiseSingleton[0] = false;
+        numCurLits = children[0].getNumChildren();
+        curLastLit = children[0][numCurLits - 1];
+        if (curLastLit.getKind() == kind::OR)
+        {
+          singletons[0] = nm->mkConstInt(Rational(numCurLits - 1));
+        }
       }
       // For all other children C_i the procedure is simliar. There is however a
       // key difference in the choice of the pivot element which is now the
@@ -771,30 +822,22 @@ bool LeanProofPostprocessCallback::update(Node res,
                            << 2 * (i - 1) + 1 << "] " << args[2 * (i - 1)]
                            << ", " << args[2 * (i - 1) + 1] << ", child " << i
                            << " " << children[i] << "\n";
-        if (children[i].getKind() != kind::OR
-            || (args[2 * (i - 1)] == d_false
-                && args[2 * (i - 1) + 1] == children[i]))
-        {
-          Trace("test-lean") << "\t\t\t..child is singleton\n";
-          // mark that this premise is a singleton
-          arePremisesSingletons[1] = d_true;
-        }
+        singletons[1] = getSingletonPosition(children[i], i, args);
+        ithPremiseSingleton[i] = singletons[1] == zero;
         if (i < size - 1)
-        {  // create a (unique) placeholder for the resulting binary
+        {
+          // create a (unique) placeholder for the resulting binary
           // resolution. The placeholder is [res, i, pol, pivot], where pol and
           // pivot are relative to this part of the chain resolution
           Node pol = args[(i - 1) * 2];
-          // std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1]),
-          //                           arePremisesSingletons[0],
-          //                           arePremisesSingletons[1]};
-          // don't mark the singletons
-          std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1])};
+          std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1]),
+                                    d_lnc.mkList(singletons)};
           std::vector<Node> curChildren{
               res, nm->mkConstInt(Rational(i)), pol, curArgs[0]};
           Node newCur = nm->mkNode(kind::SEXPR, curChildren);
           Trace("test-lean")
               << "..res [internal] " << i << " has singleton premises "
-              << arePremisesSingletons << "\n";
+              << singletons << "\n";
           addLeanStep(newCur,
                       pol.getConst<bool>() ? LeanRule::R0_PARTIAL
                                            : LeanRule::R1_PARTIAL,
@@ -803,21 +846,93 @@ bool LeanProofPostprocessCallback::update(Node res,
                       curArgs,
                       *cdp);
           cur = newCur;
-          // all the other resolutions in the chain are with the placeholder
-          // clause as the first argument
-          arePremisesSingletons[0] = Node::null();
+          size_t pivotIndex = 2 * (i - 1);
+          // if the second premise is singleton, the new last current literal
+          // will be:
+          // - if the current last lit is not the pivot, it'll be the new last
+          // - otherwise it'll be the first non-pivot literal in a previous
+          // premise
+          if (ithPremiseSingleton[i])
+          {
+            // Note that since this is an internal resolution we cannot have
+            // that both premises are singletons
+            Assert(numCurLits > 1);
+            // we only update if curLastLit cannot remain the same
+            if (curLastLit
+                == (args[pivotIndex] == d_true
+                        ? args[pivotIndex + 1]
+                        : args[pivotIndex + 1].notNode()))
+            {
+              // search in a previous premise for the last current literal. For
+              // each j-th previous premise, we look, from last to first, at the
+              // literals that are different from the polarity (j-1)-th pivot
+              // and the !polarity (j-2)-th pivot. We ignore singleton premises
+              size_t j;
+              for (j = i; j > 0; --j)
+              {
+                if (ithPremiseSingleton[j - 1])
+                {
+                  continue;
+                }
+                Assert(children[j - 1]);
+                uint64_t curPivotIndex, prevPivotIndex;
+                Node curPivot, prevPivot, diffLit;
+                curPivotIndex = 2 * (j - 1);
+                curPivot = args[curPivotIndex] == d_true
+                               ? args[curPivotIndex]
+                               : args[curPivotIndex].notNode();
+                // we also exclude the previous res pivot if there was one,
+                // which is always the case except for the first premise
+                if (j > 1)
+                {
+                  prevPivotIndex = 2 * (j - 2);
+                  prevPivot = args[prevPivotIndex] == d_true
+                                  ? args[prevPivotIndex].notNode()
+                                  : args[prevPivotIndex];
+                  diffLit = getLastDiffs(children[j - 1], curPivot, prevPivot);
+                }
+                else
+                {
+                  diffLit = getLastDiff(children[j - 1], curPivot);
+                }
+                if (!diffLit.isNull())
+                {
+                  curLastLit = diffLit;
+                  break;
+                }
+              }
+            }
+          }
+          else
+          {
+            curLastLit = getLastDiff(children[i],
+                                     args[pivotIndex] == d_true
+                                         ? args[pivotIndex + 1].notNode()
+                                         : args[pivotIndex + 1]);
+          }
+          // The number of literals in working clause is what we had before,
+          // plus the literals in the new premise, minus the two literals
+          // removed from it and the new premise.
+          numCurLits =
+              numCurLits
+              + (ithPremiseSingleton[i] ? 1 : children[i].getNumChildren()) - 2;
+          // if the number of current literals is one, then singletons[0] == 0,
+          // otherwise it's != -1 if its last current literal is an OR,
+          // otherwise it's -1
+          singletons[0] = numCurLits == 1
+                              ? zero
+                              : (curLastLit.getKind() == kind::OR
+                                     ? nm->mkConstInt(Rational(numCurLits - 1))
+                                     : minusOne);
           // reset next child to be computed whether singleton
-          arePremisesSingletons[1] = d_false;
+          singletons[1] = minusOne;
         }
       }
       size_t i = children.size() - 1;
       Trace("test-lean") << "..res [final] " << i << " has singleton premises "
-                         << arePremisesSingletons << "\n";
-      // std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1]),
-      //                           arePremisesSingletons[0],
-      //                           arePremisesSingletons[1]};
-      // don't mark the singletons
-      std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1])};
+                         << singletons << "\n";
+      std::vector<Node> curArgs{d_lnc.convert(args[(i - 1) * 2 + 1]),
+                                d_lnc.mkList(singletons)};
       addLeanStep(
           res,
           args[(i - 1) * 2].getConst<bool>() ? LeanRule::R0 : LeanRule::R1,
@@ -857,12 +972,8 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::FACTORING:
     {
-      addLeanStep(res,
-                  LeanRule::FACTORING,
-                  d_lnc.convert(res),
-                  children,
-                  {},
-                  *cdp);
+      addLeanStep(
+          res, LeanRule::FACTORING, d_lnc.convert(res), children, {}, *cdp);
       break;
     }
     case PfRule::CNF_AND_POS:
