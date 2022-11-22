@@ -972,8 +972,23 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::FACTORING:
     {
+      // as an argument we pass whether the suffix of the factoring clause is a
+      // singleton. This is marked by a number as in resolution.
+      Node singleton,
+          lastPremiseLit = children[0][children[0].getNumChildren() - 1];
+      if (lastPremiseLit != res[res.getNumChildren() - 1])
+      {
+        // last lit must be repeated
+        Assert(std::find(children[0].begin(), children[0].end(), lastPremiseLit)
+               != children[0].end());
+        singleton = nm->mkConstInt(Rational(children[0].getNumChildren() - 1));
+      }
+      else
+      {
+        singleton = nm->mkConstInt(Rational(- 1));
+      }
       addLeanStep(
-          res, LeanRule::FACTORING, d_lnc.convert(res), children, {}, *cdp);
+          res, LeanRule::FACTORING, d_lnc.convert(res), children, {singleton}, *cdp);
       break;
     }
     case PfRule::CNF_AND_POS:
