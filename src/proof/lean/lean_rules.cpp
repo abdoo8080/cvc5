@@ -86,16 +86,16 @@ const char* toString(LeanRule id)
     case LeanRule::TH_TRUST: return "thTrust";
     case LeanRule::TH_TRUST_VALID: return "simp";
 
-    case LeanRule::CONG: return "smtCong";
-    case LeanRule::CONG_PARTIAL: return "smtCong";
+    case LeanRule::CONG: return "congr";
+    case LeanRule::CONG_PARTIAL: return "congr";
     case LeanRule::REFL: return "rfl";
-    case LeanRule::IFF_REFL: return "Iff.rfl";
+    case LeanRule::IFF_REFL: return "rfl";
     case LeanRule::TRANS: return "Eq.trans";
     case LeanRule::TRANS_PARTIAL: return "Eq.trans";
-    case LeanRule::IFF_TRANS: return "Iff.trans";
-    case LeanRule::IFF_TRANS_PARTIAL: return "Iff.trans";
+    case LeanRule::IFF_TRANS: return "Eq.trans";
+    case LeanRule::IFF_TRANS_PARTIAL: return "Eq.trans";
     case LeanRule::SYMM: return "Eq.symm";
-    case LeanRule::IFF_SYMM: return "Iff.symm";
+    case LeanRule::IFF_SYMM: return "Eq.symm";
     case LeanRule::NEG_SYMM: return "negSymm";
 
     case LeanRule::TRUE_INTRO: return "trueIntro";

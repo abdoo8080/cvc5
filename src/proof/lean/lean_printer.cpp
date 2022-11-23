@@ -85,8 +85,6 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
           LeanRule::FACTORING,
           LeanRule::LIFT_OR_N_TO_IMP,
           LeanRule::TH_TRUST_VALID,
-          LeanRule::CONG,
-          LeanRule::CONG_PARTIAL,
           LeanRule::AND_ELIM,
           LeanRule::NOT_OR_ELIM
       }),
