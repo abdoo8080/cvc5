@@ -257,7 +257,8 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> bvGrammar(const Solver& slv)
               slv.mkTerm(BITVECTOR_UDIV, {start, start}),
               slv.mkTerm(BITVECTOR_UREM, {start, start}),
               slv.mkTerm(BITVECTOR_SHL, {start, start}),
-              slv.mkTerm(BITVECTOR_LSHR, {start, start})};
+              slv.mkTerm(BITVECTOR_LSHR, {start, start}),
+              slv.mkTerm(ITE, {startBool, start, start})};
 
   g[startBool] = {slv.mkFalse(),
                   slv.mkTrue(),
@@ -297,7 +298,7 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
               slv.mkTerm(MULT, {start, start}),
               slv.mkTerm(INTS_DIVISION, {start, start}),
               slv.mkTerm(INTS_MODULUS, {start, start}),
-              // slv.mkTerm(ABS, {start}),
+              slv.mkTerm(ABS, {start}),
               slv.mkTerm(ITE, {startBool, start, start})};
 
   g[startBool] = {slv.mkFalse(),
@@ -357,8 +358,8 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
                   slv.mkTrue(),
                   slv.mkTerm(NOT, {startBool}),
                   slv.mkTerm(AND, {startBool, startBool}),
-                  // slv.mkTerm(STRING_LT, {start, start}),
-                  // slv.mkTerm(STRING_LEQ, {start, start}),
+                  slv.mkTerm(STRING_LT, {start, start}),
+                  slv.mkTerm(STRING_LEQ, {start, start}),
                   slv.mkTerm(STRING_PREFIX, {start, start}),
                   slv.mkTerm(STRING_SUFFIX, {start, start}),
                   slv.mkTerm(STRING_CONTAINS, {start, start}),
