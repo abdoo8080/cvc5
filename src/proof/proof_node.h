@@ -112,6 +112,12 @@ class ProofNode
    */
   void printDebug(std::ostream& os, bool printConclusion = false) const;
 
+  /** Print debug to a string
+   * @param printConclusion whether to print conclusions
+   * @return serialized proof node
+   */
+  std::string toString(bool printConclusion = false) const;
+
  private:
   /**
    * Set value, called to overwrite the contents of this ProofNode with the

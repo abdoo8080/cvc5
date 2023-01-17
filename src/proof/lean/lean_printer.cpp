@@ -458,7 +458,20 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
   Trace("test-lean") << "Before getting to proof node:\n"
                      << ss.str() << "==================\n\n";
   std::map<const ProofNode*, size_t> pfMap;
-  printProof(out, id, 0, innerPf, pfMap, pfAssumpMap);
+  // Handle corner case: False → False
+  if (innerPf->getRule() == PfRule::ASSUME)
+  {
+    Assert(innerPf->getResult() == d_false);
+    out << "show ";
+    printTerm(out, d_false);
+    out << " from ";
+    printStepId(out, innerPf.get(), pfMap, pfAssumpMap);
+    out << "\n";
+  }
+  else
+  {
+    printProof(out, id, 0, innerPf, pfMap, pfAssumpMap);
+  }
   ss.clear();
   ss << out.rdbuf();
   Trace("test-lean") << "After getting to proof node:\n"
