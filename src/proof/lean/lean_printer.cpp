@@ -27,16 +27,16 @@ namespace cvc5::internal {
 
 namespace proof {
 
-LetUpdaterPfCallback::LetUpdaterPfCallback(LetBinding& lbind,
+LeanLetUpdaterPfCallback::LeanLetUpdaterPfCallback(LetBinding& lbind,
                                            std::map<Node, Node>& skMap,
                                            std::set<LeanRule>& letRules)
     : d_lbind(lbind), d_skMap(skMap), d_letRules(letRules)
 {
 }
 
-LetUpdaterPfCallback::~LetUpdaterPfCallback() {}
+LeanLetUpdaterPfCallback::~LeanLetUpdaterPfCallback() {}
 
-bool LetUpdaterPfCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
+bool LeanLetUpdaterPfCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
                                         const std::vector<Node>& fa,
                                         bool& continueUpdate)
 {
@@ -46,7 +46,7 @@ bool LetUpdaterPfCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
                 == d_letRules.end();
 }
 
-bool LetUpdaterPfCallback::update(Node res,
+bool LeanLetUpdaterPfCallback::update(Node res,
                                   PfRule id,
                                   const std::vector<Node>& children,
                                   const std::vector<Node>& args,
@@ -91,7 +91,7 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
       d_lbind(options().printer.dagThresh ? options().printer.dagThresh + 1
                                           : 0),
       d_lnc(lnc),
-      d_cb(new LetUpdaterPfCallback(d_lbind, d_skMap, d_letRules))
+      d_cb(new LeanLetUpdaterPfCallback(d_lbind, d_skMap, d_letRules))
 {
   d_false = NodeManager::currentNM()->mkConst(false);
 }

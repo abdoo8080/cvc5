@@ -35,13 +35,13 @@ class CDProof;
 
 namespace proof {
 
-class LetUpdaterPfCallback : public ProofNodeUpdaterCallback
+class LeanLetUpdaterPfCallback : public ProofNodeUpdaterCallback
 {
  public:
-  LetUpdaterPfCallback(LetBinding& lbind,
+  LeanLetUpdaterPfCallback(LetBinding& lbind,
                        std::map<Node, Node>& skMap,
                        std::set<LeanRule>& letRules);
-  ~LetUpdaterPfCallback();
+  ~LeanLetUpdaterPfCallback();
   /**
    * Initialize, called once for each new ProofNode to process. This
    * initializes static information to be used by successive calls to update.
@@ -118,7 +118,7 @@ class LeanPrinter : protected EnvObj
 
   LeanNodeConverter& d_lnc;
 
-  std::unique_ptr<LetUpdaterPfCallback> d_cb;
+  std::unique_ptr<LeanLetUpdaterPfCallback> d_cb;
 };
 
 }  // namespace proof
