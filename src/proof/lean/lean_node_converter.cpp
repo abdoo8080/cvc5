@@ -47,6 +47,7 @@ std::unordered_map<Kind, std::string> s_kindToString = {
     {kind::XOR, "xor"},
     {kind::IMPLIES, "->"},
     {kind::DISTINCT, "distinct"},
+    {kind::EXISTS, "exists"},
     {kind::FORALL, "forall"},
     {kind::LAMBDA, "fun"},
     {kind::WITNESS, "choice"},
@@ -248,20 +249,7 @@ Node LeanNodeConverter::convert(Node n)
         }
         case kind::BOUND_VARIABLE:
         {
-          // don't convert internally generated
-          if (d_symbols.find(cur) == d_symbols.end())
-          {
-            // variables are (const id type)
-            resChildren.push_back(mkInternalSymbol("const"));
-            resChildren.push_back(
-                nm->mkConstInt(Rational(static_cast<int>(cur.getId()))));
-            resChildren.push_back(typeAsNode(cur.getType()));
-            res = nm->mkNode(kind::SEXPR, resChildren);
-          }
-          else
-          {
-            res = cur;
-          }
+          res = cur;
           break;
         }
         case kind::CONST_BOOLEAN:
@@ -295,26 +283,21 @@ Node LeanNodeConverter::convert(Node n)
           res = nm->mkNode(kind::SEXPR, resChildren);
           break;
         }
+        case kind::EXISTS:
         case kind::FORALL:
         case kind::LAMBDA:
         case kind::WITNESS:
         {
           AlwaysAssert(nChildren == 2);
-          Node binderOp = mkInternalSymbol(s_kindToString[k]);
-          size_t nVars = children[0].getNumChildren();
-          // iterate over variables, from last to second, and build layered
-          // binding
-          Node curChild = children[1];
-          Node convertedVar;
-          for (size_t i = 0; i < nVars; ++i)
+          resChildren.push_back(mkInternalSymbol(s_kindToString[k]));
+          std::vector<Node> newVars;
+          for (Node v : children[0])
           {
-            curChild = nm->mkNode(kind::SEXPR,
-                                  binderOp,
-                                  nm->mkConstInt(Rational(static_cast<int>(
-                                      children[0][nVars - i - 1].getId()))),
-                                  curChild);
+            newVars.push_back(nm->mkNode(kind::SEXPR, v, typeAsNode(v.getType())));
           }
-          res = curChild;
+          resChildren.push_back(nm->mkNode(kind::SEXPR, newVars));
+          resChildren.push_back(children[1]);
+          res = nm->mkNode(kind::SEXPR, resChildren);
           break;
         }
         // "indexed"

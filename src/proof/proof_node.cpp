@@ -15,6 +15,8 @@
 
 #include "proof/proof_node.h"
 
+#include <sstream>
+
 #include "proof/proof_node_algorithm.h"
 #include "proof/proof_node_to_sexpr.h"
 
@@ -62,6 +64,13 @@ void ProofNode::printDebug(std::ostream& os, bool printConclusion) const
   ProofNodeToSExpr pnts;
   Node ps = pnts.convertToSExpr(this, printConclusion);
   os << ps;
+}
+
+std::string ProofNode::toString(bool printConclusion) const
+{
+  std::stringstream ss;
+  printDebug(ss, printConclusion);
+  return ss.str();
 }
 
 std::ostream& operator<<(std::ostream& out, const ProofNode& pn)

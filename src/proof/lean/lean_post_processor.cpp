@@ -466,8 +466,7 @@ bool LeanProofPostprocessCallback::update(Node res,
         default:
         {
           Trace("test-lean") << "unhandled bitblasting kind " << k << "\n";
-          addLeanStep(
-              res, LeanRule::UNKNOWN, Node::null(), children, args, *cdp);
+          addLeanStep(res, LeanRule::UNKNOWN, d_empty, children, args, *cdp);
         }
       }
       break;
@@ -572,7 +571,7 @@ bool LeanProofPostprocessCallback::update(Node res,
           addLeanStep(varEq,
                       k == kind::FORALL ? LeanRule::BIND_PARTIAL
                                         : LeanRule::BIND_LAMBDA_PARTIAL,
-                      Node::null(),
+                      d_empty,
                       {currEq},
                       {},
                       *cdp);
@@ -664,7 +663,7 @@ bool LeanProofPostprocessCallback::update(Node res,
           // add step that justify equality of partial apps
           addLeanStep(argAppEq,
                       LeanRule::CONG_PARTIAL,
-                      Node::null(),
+                      d_empty,
                       {opEq, children[j]},
                       {},
                       *cdp);
@@ -689,7 +688,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                            nm->mkNode(kind::SEXPR, argAppEq, currEq[1]));
             addLeanStep(nextEq,
                         LeanRule::CONG_PARTIAL,
-                        Node::null(),
+                        d_empty,
                         {argAppEq, currEq},
                         {},
                         *cdp);
@@ -711,7 +710,7 @@ bool LeanProofPostprocessCallback::update(Node res,
         Node nextEq = nm->mkNode(kind::SEXPR, eqNode, curL, curR);
         addLeanStep(nextEq,
                     LeanRule::CONG_PARTIAL,
-                    Node::null(),
+                    d_empty,
                     {currEq, children[i]},
                     {},
                     *cdp);
@@ -737,7 +736,7 @@ bool LeanProofPostprocessCallback::update(Node res,
         addLeanStep(
             newCur,
             useIff ? LeanRule::IFF_TRANS_PARTIAL : LeanRule::TRANS_PARTIAL,
-            Node::null(),
+            d_empty,
             {cur, children[i]},
             {},
             *cdp);
@@ -761,7 +760,7 @@ bool LeanProofPostprocessCallback::update(Node res,
         Node newCur = nm->mkNode(kind::AND, children[j], cur);
         addLeanStep(newCur,
                     LeanRule::AND_INTRO_PARTIAL,
-                    Node::null(),
+                    d_empty,
                     {
                         children[j],
                         cur,
@@ -841,7 +840,7 @@ bool LeanProofPostprocessCallback::update(Node res,
           addLeanStep(newCur,
                       pol.getConst<bool>() ? LeanRule::R0_PARTIAL
                                            : LeanRule::R1_PARTIAL,
-                      Node::null(),
+                      d_empty,
                       {cur, children[i]},
                       curArgs,
                       *cdp);
@@ -874,7 +873,6 @@ bool LeanProofPostprocessCallback::update(Node res,
                 {
                   continue;
                 }
-                Assert(children[j - 1]);
                 uint64_t curPivotIndex, prevPivotIndex;
                 Node curPivot, prevPivot, diffLit;
                 curPivotIndex = 2 * (j - 1);
@@ -1047,8 +1045,7 @@ bool LeanProofPostprocessCallback::update(Node res,
       Node newVar = nm->mkBoundVar(ss.str(), nm->sExprType());
       std::vector<Node> newArgs{newVar};
       newArgs.insert(newArgs.end(), args.begin(), args.end());
-      addLeanStep(
-          res, LeanRule::UNKNOWN, Node::null(), children, newArgs, *cdp);
+      addLeanStep(res, LeanRule::UNKNOWN, d_empty, children, newArgs, *cdp);
     }
   };
   return true;
