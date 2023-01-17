@@ -482,6 +482,21 @@ bool LeanProofPostprocessCallback::update(Node res,
                   *cdp);
       break;
     }
+    case PfRule::NOT_AND:
+    {
+      // build as an argument a list of the literals in the conjunction, i.e.,
+      // the children the AND under the NOT in the premise
+      Assert(children.size() == 1 && children[0].getKind() == kind::NOT
+             && children[0][0].getKind() == kind::AND);
+      std::vector<Node> lits{children[0][0].begin(), children[0][0].end()};
+      addLeanStep(res,
+                  s_pfRuleToLeanRule.at(id),
+                  d_lnc.convert(res),
+                  children,
+                  {d_lnc.convert(nm->mkNode(kind::SEXPR, lits))},
+                  *cdp);
+      break;
+    }
     case PfRule::CNF_IMPLIES_NEG1:
     case PfRule::CNF_IMPLIES_NEG2:
     case PfRule::CNF_EQUIV_POS1:
@@ -498,7 +513,6 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::CNF_ITE_NEG1:
     case PfRule::CNF_ITE_NEG2:
     case PfRule::CNF_ITE_NEG3:
-    case PfRule::NOT_AND:
     case PfRule::EQUIV_ELIM1:
     case PfRule::EQUIV_ELIM2:
     case PfRule::NOT_EQUIV_ELIM1:

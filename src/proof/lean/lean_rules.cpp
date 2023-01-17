@@ -59,7 +59,7 @@ const char* toString(LeanRule id)
     case LeanRule::ITE_ELIM2: return "iteElim2";
     case LeanRule::NOT_ITE_ELIM1: return "notIteElim1";
     case LeanRule::NOT_ITE_ELIM2: return "notIteElim2";
-    case LeanRule::NOT_AND: return "notAnd";
+    case LeanRule::NOT_AND: return "flipNotAnd";
     case LeanRule::CNF_AND_POS: return "@cnfAndPos";
     case LeanRule::CNF_AND_NEG: return "cnfAndNeg";
     case LeanRule::CNF_OR_POS: return "@cnfOrPos";
