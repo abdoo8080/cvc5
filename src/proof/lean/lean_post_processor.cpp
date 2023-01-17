@@ -985,10 +985,16 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::FACTORING:
     {
       // as an argument we pass whether the suffix of the factoring clause is a
-      // singleton. This is marked by a number as in resolution.
+      // singleton *repeated* literal. This is marked by a number as in
+      // resolution.
       Node singleton,
           lastPremiseLit = children[0][children[0].getNumChildren() - 1];
-      if (lastPremiseLit != res[res.getNumChildren() - 1])
+      // For the last premise literal to be a singleton repeated literal, the
+      // end of the original clause must be different from the end of the
+      // resulting one. If the result is *not* a clause, then it is not
+      // possible.
+      if (res.getKind() == kind::OR
+          && lastPremiseLit != res[res.getNumChildren() - 1])
       {
         // last lit must be repeated
         Assert(std::find(children[0].begin(), children[0].end(), lastPremiseLit)
