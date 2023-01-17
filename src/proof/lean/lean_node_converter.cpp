@@ -118,8 +118,7 @@ std::vector<Node> LeanNodeConverter::getOperatorIndices(Kind k, Node n)
     }
     case kind::BITVECTOR_BITOF:
     {
-      indices.push_back(
-          mkInt(n.getConst<BitVectorBitOf>().d_bitIndex));
+      indices.push_back(mkInt(n.getConst<BitVectorBitOf>().d_bitIndex));
       break;
     }
       // case kind::BITVECTOR_ROTATE_LEFT:
@@ -171,25 +170,6 @@ Node LeanNodeConverter::convert(Node n)
       }
       d_cache[cur] = Node::null();
       visit.push_back(cur);
-      if (k == kind::SKOLEM || k == kind::BOOLEAN_TERM_VARIABLE)
-      {
-        Trace("lean-conv") << "LeanConverter: handling skolem " << cur << "\n";
-        Node wi = SkolemManager::getWitnessForm(cur);
-        // true skolem with witness form, just convert that
-        if (!wi.isNull())
-        {
-          Trace("lean-conv") << "LeanNodeConverter::postConvert: skolem " << cur
-                             << " has witness form " << wi << "\n";
-          visit.push_back(wi);
-        }
-        else
-        {
-          // purification skolem, thus we need to build the fake choice term
-          AlwaysAssert(!SkolemManager::getOriginalForm(cur).isNull());
-          visit.push_back(SkolemManager::getOriginalForm(cur));
-        }
-        continue;
-      }
       if (cur.getMetaKind() == kind::metakind::PARAMETERIZED)
       {
         visit.push_back(cur.getOperator());
@@ -229,22 +209,24 @@ Node LeanNodeConverter::convert(Node n)
         case kind::BOOLEAN_TERM_VARIABLE:
         {
           Trace("lean-conv")
-              << "LeanConverter: handling skolem " << cur << "\n";
-          Node wi = SkolemManager::getWitnessForm(cur);
-          // true skolem with witness form, just convert that
-          if (!wi.isNull())
+              << "LeanConverter: handling \"skolem\" " << cur << "\n";
+          Node wi = SkolemManager::getUnpurifiedForm(cur);
+          if (wi == cur)
           {
-            Trace("lean-conv") << "LeanNodeConverter::postConvert: skolem " << n
-                               << " has witness form " << wi << "\n";
-            res = d_cache[wi];
+            // if it is not a purification skolem, maybe it is a witness skolem
+            wi = SkolemManager::getWitnessForm(cur);
+          }
+          // true skolem with witness form, just convert that
+          if (!wi.isNull() && wi != n)
+          {
+            Trace("lean-conv") << "LeanNodeConverter::postConvert: skolem "
+                               << cur << " has witness form " << wi << "\n";
+            res = convert(wi);
           }
           else
           {
-            // purification skolem, thus we retrieve the conversion of its
-            // original form
-            res = d_cache[SkolemManager::getOriginalForm(cur)];
+            res = cur;
           }
-          AlwaysAssert(!res.isNull());
           break;
         }
         case kind::BOUND_VARIABLE:
@@ -254,8 +236,9 @@ Node LeanNodeConverter::convert(Node n)
         }
         case kind::CONST_BOOLEAN:
         {
-          res = cur.getConst<bool>() ? mkInternalSymbol("True")
-                                     : mkInternalSymbol("False");
+          res = cur.getConst<bool>()
+                    ? mkInternalSymbol("True", nm->booleanType())
+                    : mkInternalSymbol("False", nm->booleanType());
           break;
         }
         case kind::CONST_RATIONAL:
@@ -288,16 +271,18 @@ Node LeanNodeConverter::convert(Node n)
         case kind::LAMBDA:
         case kind::WITNESS:
         {
+          // we must make it to be printed with the respective kind name, so we
+          // create an operator with that name and the correct type and do a
+          // function application
           AlwaysAssert(nChildren == 2);
-          resChildren.push_back(mkInternalSymbol(s_kindToString[k]));
-          std::vector<Node> newVars;
-          for (Node v : children[0])
+          std::vector<TypeNode> childrenTypes;
+          for (const Node& c : cur)
           {
-            newVars.push_back(nm->mkNode(kind::SEXPR, v, typeAsNode(v.getType())));
+            childrenTypes.push_back(c.getType());
           }
-          resChildren.push_back(nm->mkNode(kind::SEXPR, newVars));
-          resChildren.push_back(children[1]);
-          res = nm->mkNode(kind::SEXPR, resChildren);
+          TypeNode fType = nm->mkFunctionType(childrenTypes, cur.getType());
+          Node op = mkInternalSymbol(s_kindToString[k], fType);
+          res = nm->mkNode(kind::APPLY_UF, op, children[0], children[1]);
           break;
         }
         // "indexed"
@@ -325,12 +310,11 @@ Node LeanNodeConverter::convert(Node n)
         // which must be represented as Iff
         case kind::EQUAL:
         {
-          // resChildren.push_back(mkInternalSymbol(
-          //     cur[0].getType().isBoolean() ? "Iff" : s_kindToString[k]));
-          resChildren.push_back(mkInternalSymbol(s_kindToString[k]));
-          resChildren.push_back(children[0]);
-          resChildren.push_back(children[1]);
-          res = nm->mkNode(kind::SEXPR, resChildren);
+          TypeNode childrenType = cur[0].getType();
+          TypeNode fType = nm->mkFunctionType({childrenType, childrenType},
+                                              nm->booleanType());
+          Node op = mkInternalSymbol(s_kindToString[k], fType);
+          res = nm->mkNode(kind::APPLY_UF, op, children[0], children[1]);
           break;
         }
         // binary operators
@@ -340,10 +324,10 @@ Node LeanNodeConverter::convert(Node n)
         }
         case kind::IMPLIES:
         {
-          resChildren.push_back(children[0]);
-          resChildren.push_back(mkInternalSymbol(s_kindToString[k]));
-          resChildren.push_back(children[1]);
-          res = nm->mkNode(kind::SEXPR, resChildren);
+          TypeNode binBoolOpType = nm->mkFunctionType(
+              {nm->booleanType(), nm->booleanType()}, nm->booleanType());
+          Node op = mkInternalSymbol("implies", binBoolOpType);
+          res = nm->mkNode(kind::APPLY_UF, op, children[0], children[1]);
           break;
         }
         case kind::BITVECTOR_CONCAT:
@@ -363,6 +347,13 @@ Node LeanNodeConverter::convert(Node n)
         }
         // unary
         case kind::NOT:
+        {
+          TypeNode fType =
+              nm->mkFunctionType(nm->booleanType(), nm->booleanType());
+          Node op = mkInternalSymbol(s_kindToString[k], fType);
+          res = nm->mkNode(kind::APPLY_UF, {op, children[0]});
+          break;
+        }
         case kind::BITVECTOR_NEG:
         case kind::STRING_LENGTH:
         {
@@ -373,6 +364,15 @@ Node LeanNodeConverter::convert(Node n)
         }
         // ternary
         case kind::ITE:
+        {
+          TypeNode retType = cur[1].getType();
+          TypeNode fType = nm->mkFunctionType(
+              {nm->booleanType(), retType, retType}, retType);
+          Node op = mkInternalSymbol(s_kindToString[k], fType);
+          children.insert(children.begin(), op);
+          res = nm->mkNode(kind::APPLY_UF, children);
+          break;
+        }
         case kind::STORE:
         {
           resChildren.push_back(mkInternalSymbol(s_kindToString[k]));
@@ -386,12 +386,14 @@ Node LeanNodeConverter::convert(Node n)
         case kind::OR:
         case kind::AND:
         {
+          TypeNode fType = nm->mkFunctionType(
+              {nm->booleanType(), nm->booleanType()}, nm->booleanType());
+          Node op = mkInternalSymbol(k == kind::OR ? "Or" : "And", fType);
           Node newCur = children.back();
-          Node connective = mkInternalSymbol(k == kind::OR? "Or" : "And");
           for (size_t i = nChildren - 1; i > 0; --i)
           {
             newCur =
-                nm->mkNode(kind::SEXPR, {connective, children[i - 1], newCur});
+                nm->mkNode(kind::APPLY_UF, op, children[i - 1], newCur);
           }
           res = newCur;
           break;
@@ -404,6 +406,18 @@ Node LeanNodeConverter::convert(Node n)
         }
         default:
         {
+          if (k == kind::APPLY_UF)
+          {
+            TypeNode ftn = cur.getOperator().getType();
+            Assert(ftn == children[0].getType()) << "Diff op types " << ftn << " / " << children[0].getType();
+            std::vector<TypeNode> argTypes = ftn.getArgTypes();
+            for (size_t i = 0, size = argTypes.size(); i < size; ++i)
+            {
+              Assert(argTypes[i] == children[i + 1].getType())
+                  << "i : " << i << ", argType: " << argTypes[i]
+                  << ", child type: " << children[i + 1].getType();
+            }
+          }
           res = childChanged ? nm->mkNode(k, children) : Node(cur);
         }
       }
@@ -457,7 +471,7 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     }
     case kind::IMPLIES:
     {
-      return mkInternalSymbol("Implies");
+      return mkInternalSymbol("implies");
     }
     case kind::ITE:
     {
@@ -600,15 +614,21 @@ Node LeanNodeConverter::typeAsNode(TypeNode tn)
 
 Node LeanNodeConverter::mkInternalSymbol(const std::string& name)
 {
-  std::unordered_map<std::string, Node>::iterator it = d_symbolsMap.find(name);
+  return mkInternalSymbol(name, NodeManager::currentNM()->sExprType());
+}
+
+Node LeanNodeConverter::mkInternalSymbol(const std::string& name, TypeNode tn)
+{
+  std::pair<TypeNode, std::string> key(tn, name);
+  std::map<std::pair<TypeNode, std::string>, Node>::iterator it =
+      d_symbolsMap.find(key);
   if (it != d_symbolsMap.end())
   {
     return it->second;
   }
   NodeManager* nm = NodeManager::currentNM();
-  Node sym = nm->mkBoundVar(name, nm->sExprType());
-  d_symbols.insert(sym);
-  d_symbolsMap[name] = sym;
+  Node sym = nm->mkBoundVar(name, tn);
+  d_symbolsMap[key] = sym;
   return sym;
 }
 
@@ -621,8 +641,8 @@ Node LeanNodeConverter::mkInternalSymbol(TNode n)
   }
   options::ioutils::applyOutputLanguage(ss, Language::LANG_SMTLIB_V2_6);
   n.toStream(ss);
-  return mkInternalSymbol(ss.str());
+  return mkInternalSymbol(ss.str(), n.getType());
 }
 
 }  // namespace proof
-}  // namespace cvc5
+}  // namespace cvc5::internal

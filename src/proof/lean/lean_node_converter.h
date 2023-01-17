@@ -47,6 +47,11 @@ class LeanNodeConverter
   /** As above but uses the stream of n to make the symbol. */
   Node mkInternalSymbol(TNode n);
 
+  /**
+   * Make or get an internal symbol with custom name and type.
+   */
+  Node mkInternalSymbol(const std::string& name, TypeNode tn);
+
   /** Type as node */
   Node typeAsNode(TypeNode tn);
 
@@ -65,9 +70,8 @@ class LeanNodeConverter
 
   std::vector<Node> getOperatorIndices(Kind k, Node n);
 
-  /** the set of all internally generated symbols */
-  std::unordered_set<Node> d_symbols;
-  std::unordered_map<std::string, Node> d_symbolsMap;
+  /** Maps from internally generated symbols to the built nodes. */
+  std::map<std::pair<TypeNode, std::string>, Node> d_symbolsMap;
 
   /** Node cache for convert */
   std::unordered_map<Node, Node> d_cache;
