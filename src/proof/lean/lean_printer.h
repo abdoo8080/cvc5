@@ -96,7 +96,8 @@ class LeanPrinter : protected EnvObj
                   uint64_t offset,
                   std::shared_ptr<ProofNode> pfn,
                   std::map<const ProofNode*, size_t>& pfMap,
-                  std::map<Node, size_t>& pfAssumpMap);
+                  std::map<Node, size_t>& pfAssumpMap,
+                  bool firstScope = false);
 
   void printOffset(std::ostream& out, uint64_t offset) const;
 

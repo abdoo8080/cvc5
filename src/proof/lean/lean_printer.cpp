@@ -213,7 +213,8 @@ void LeanPrinter::printProof(std::ostream& out,
                              uint64_t offset,
                              std::shared_ptr<ProofNode> pfn,
                              std::map<const ProofNode*, size_t>& pfMap,
-                             std::map<Node, size_t>& pfAssumpMap)
+                             std::map<Node, size_t>& pfAssumpMap,
+                             bool firstScope)
 {
   std::map<const ProofNode*, size_t>::const_iterator pfIt =
       pfMap.find(pfn.get());
@@ -323,9 +324,11 @@ void LeanPrinter::printProof(std::ostream& out,
   }
   else
   {
+    Assert(!firstScope || pfn->getResult() == d_false);
     if (pfn->getResult() == d_false)
     {
-      out << "exact (show False from " << (isTactic ? "by " : "") << rule;
+      out << (firstScope? "exact (" : "");
+      out << "show False from " << (isTactic ? "by " : "") << rule;
     }
     else
     {
@@ -345,7 +348,7 @@ void LeanPrinter::printProof(std::ostream& out,
     out << separator;
     printTerm(out, args[i]);
   }
-  out << (pfn->getResult() == d_false ? ")" : "") << "\n";
+  out << (firstScope ? ")" : "") << "\n";
   // save proof step in map
   pfMap[pfn.get()] = id++;
 }
@@ -470,7 +473,7 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
   }
   else
   {
-    printProof(out, id, 0, innerPf, pfMap, pfAssumpMap);
+    printProof(out, id, 0, innerPf, pfMap, pfAssumpMap, true);
   }
   ss.clear();
   ss << out.rdbuf();
