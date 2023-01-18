@@ -280,10 +280,22 @@ bool LeanProofPostprocessCallback::update(Node res,
       break;
     }
     // minor reasoning to clean args
-    case PfRule::PREPROCESS:
+    case PfRule::TRUST_FLATTENING_REWRITE:
     case PfRule::THEORY_REWRITE:
     {
-      d_newAssumptions.insert(d_lnc.convert(res));
+      d_newRewriteAssumptions.insert(d_lnc.convert(res));
+      // Make this an assumption
+      cdp->addStep(res, PfRule::ASSUME, {}, {res}, false, CDPOverwrite::ALWAYS);
+      break;
+    }
+    case PfRule::PREPROCESS:
+    case PfRule::THEORY_PREPROCESS:
+    case PfRule::THEORY_LEMMA:
+    case PfRule::TRUST_SUBS:
+    case PfRule::TRUST_SUBS_MAP:
+    case PfRule::TRUST_SUBS_EQ:
+    {
+      d_newHoleAssumptions.insert(d_lnc.convert(res));
       // Make this an assumption
       cdp->addStep(res, PfRule::ASSUME, {}, {res}, false, CDPOverwrite::ALWAYS);
       break;
@@ -534,9 +546,13 @@ bool LeanProofPostprocessCallback::update(Node res,
     // minor reasoning to pick the rule
     case PfRule::SYMM:
     {
-      AlwaysAssert(res.getKind() == kind::EQUAL)
-          << "No support yet for NEG_SYMM";
-      addLeanStep(res, LeanRule::SYMM, d_lnc.convert(res), children, {}, *cdp);
+      addLeanStep(
+          res,
+          res.getKind() == kind::EQUAL ? LeanRule::SYMM : LeanRule::NEG_SYMM,
+          d_lnc.convert(res),
+          children,
+          {},
+          *cdp);
       break;
     }
     //-------------- bigger conversions
@@ -1069,11 +1085,11 @@ void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
   ProofNodeUpdater updater(d_env, *(d_cb.get()), false, false);
   updater.process(pf);
   // The resulting proof is the one under the original scope.  Since our
-  // processing of scope converts it into two rules (scope and lifnOrNToImp), we
-  // wil exclude this outer one. Furthermore, we will add new assumptions as
-  // arguments of that scope. This is done by rebuilding the proof node but with
-  // different arguments. We do not care about the original conclusion, so this
-  // is fine
+  // processing of scope converts it into two rules (scope and
+  // lifnOrNToImp/lifnOrNToNeg), we wil exclude this outer one. Furthermore, we
+  // will add new assumptions as arguments of that scope. This is done by
+  // rebuilding the proof node but with different arguments. We do not care
+  // about the original conclusion, so this is fine
   CDProof cdp(
       d_env, nullptr, "LeanProofPostprocess::CDProofForNewAssumptions", false);
   std::shared_ptr<ProofNode> scopePf = pf->getChildren()[0];
@@ -1084,7 +1100,20 @@ void LeanProofPostprocess::process(std::shared_ptr<ProofNode> pf)
   cdp.addProof(childrenPfs[0]);
   const std::vector<Node> args = scopePf->getArguments();
   std::vector<Node> newArgs{args[0], args[1], args[2]};
-  for (const Node& a : d_cb->d_newAssumptions)
+  NodeManager* nm = NodeManager::currentNM();
+  newArgs.push_back(nm->mkConstInt(Rational(d_cb->d_newHoleAssumptions.size())));
+  Trace("test")
+      << newArgs.back().getConst<Rational>().getNumerator().toUnsignedInt()
+      << "\n";
+  for (const Node& a : d_cb->d_newHoleAssumptions)
+  {
+    newArgs.push_back(a);
+  }
+  newArgs.push_back(nm->mkConstInt(Rational(d_cb->d_newRewriteAssumptions.size())));
+  Trace("test")
+      << newArgs.back().getConst<Rational>().getNumerator().toUnsignedInt()
+      << "\n";
+  for (const Node& a : d_cb->d_newRewriteAssumptions)
   {
     newArgs.push_back(a);
   }

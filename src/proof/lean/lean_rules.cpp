@@ -82,9 +82,7 @@ const char* toString(LeanRule id)
     case LeanRule::CNF_ITE_NEG1: return "cnfIteNeg1";
     case LeanRule::CNF_ITE_NEG2: return "cnfIteNeg2";
     case LeanRule::CNF_ITE_NEG3: return "cnfIteNeg3";
-    case LeanRule::TRUST: return "trust";
-    case LeanRule::TH_TRUST: return "thTrust";
-    case LeanRule::TH_TRUST_VALID: return "simp";
+    case LeanRule::TRUST: return "sorry";
 
     case LeanRule::CONG: return "congr";
     case LeanRule::CONG_PARTIAL: return "congr";

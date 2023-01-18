@@ -55,12 +55,14 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
 
   /** New assumptions added during post-processing
    *
-   * Currently these are the rewrite steps used in the proof.
+   * Currently these are the rewrite steps used in the proof and holes
+   * THEORY_LEMMA, PREPROCESS.
    *
    * These assumptions are added as arguments of the outer scope so that they
    * are properly printed.
    */
-  std::unordered_set<Node> d_newAssumptions;
+  std::unordered_set<Node> d_newRewriteAssumptions;
+  std::unordered_set<Node> d_newHoleAssumptions;
  protected:
   /** The node converter */
   LeanNodeConverter& d_lnc;

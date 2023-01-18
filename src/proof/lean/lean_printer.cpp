@@ -199,7 +199,10 @@ void LeanPrinter::printStepId(std::ostream& out,
     Node conv = d_lnc.convert(pfn->getResult());
     AlwaysAssert(pfAssumpMap.find(conv) != pfAssumpMap.end())
         << "Original: " << pfn->getResult() << "\nConverted: " << conv;
-    out << "a" << pfAssumpMap.find(conv)->second;
+    size_t id = pfAssumpMap.find(conv)->second;
+    out << (id < d_nNewAssumptions[0] ? "h"
+                                      : id < d_nNewAssumptions[1] ? "r" : "a");
+    out << id;
   }
   else
   {
@@ -430,32 +433,72 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
   // ProofNodeUpdater updater(d_env, *(d_cb.get()), false, false);
   // updater.process(innerPf);
 
-  std::vector<Node> convertedAssumptions;
-  for (size_t i = 3, size = assumptions.size(); i < size; ++i)
+  // To provide more information, we use differente prefixes to whether the
+  // added assumptions are coming from holes or from rewrites. These are the
+  // first two arrays, the last is for the original assumptions
+  std::vector<Node> convertedAssumptions[3];
+  uint32_t nHoles =
+      assumptions[3].getConst<Rational>().getNumerator().toUnsignedInt() + 4;
+  uint32_t nRewrites = assumptions[nHoles]
+                           .getConst<Rational>()
+                           .getNumerator()
+                           .toUnsignedInt()
+                       + nHoles + 1;
+  d_nNewAssumptions[0] = nHoles - 4;
+  d_nNewAssumptions[1] = nRewrites - 5;
+  Trace("test") << "nHoles: " << nHoles - 4 << ", " << assumptions[3] << "\n";
+  Trace("test") << "nRewrites: " << nRewrites - nHoles - 1 << ", "
+                << assumptions[nHoles] << "\n";
+  Trace("test") << "nNewASsumptions: " << d_nNewAssumptions[0] << ", "
+                << d_nNewAssumptions[1] << "\n";
+  size_t i = 4;
+  for (; i < nHoles; ++i)
   {
-    convertedAssumptions.push_back(d_lnc.convert(assumptions[i]));
-    d_lbind.process(convertedAssumptions.back());
+    convertedAssumptions[0].push_back(d_lnc.convert(assumptions[i]));
+    d_lbind.process(convertedAssumptions[0].back());
+  }
+  // to skip the position with the number of rewrites
+  ++i;
+  Trace("test") << "Went from 4 to " << i << ", " << assumptions[i] << "\n";
+  for (; i < nRewrites; ++i)
+  {
+    convertedAssumptions[1].push_back(d_lnc.convert(assumptions[i]));
+    d_lbind.process(convertedAssumptions[1].back());
+  }
+  Trace("test") << "Went to " << i << ", " << assumptions [i] << "\n";
+  for (size_t size = assumptions.size(); i < size; ++i)
+  {
+    convertedAssumptions[2].push_back(d_lnc.convert(assumptions[i]));
+    d_lbind.process(convertedAssumptions[2].back());
   }
   printLetList(out);
   // print theorem statement, which is to get proofs of all the assumptions
   // and conclude a proof of False. The assumptions are args[3..]
   out << "\ntheorem th0 : ";
-  for (const Node& a : convertedAssumptions)
+  for (size_t j = 0; j < 3; ++j)
   {
-    printTerm(out, d_lnc.convert(a));
-    out << " → ";
+    for (const Node& a : convertedAssumptions[j])
+    {
+      printTerm(out, d_lnc.convert(a));
+      out << " → ";
+    }
   }
   out << "False :=\n";
   // print initial assumptions
   std::map<Node, size_t> pfAssumpMap;
-  for (size_t i = 0, size = convertedAssumptions.size(); i < size; ++i)
+  for (size_t j = 0, id = 0; j < 3; ++j)
   {
-    pfAssumpMap[convertedAssumptions[i]] = i;
-    out << "fun lean_a" << i << " : ";
-    printTerm(out, convertedAssumptions[i]);
-    out << " =>";
-    // guarantee we use Lean's tactic mode by adding " by " after last assertion
-    out << (i == size - 1 ? " by" : "") << "\n";
+    std::string prefix = j == 0 ? "h" : j == 1 ? "r" : "a";
+    for (size_t k = 0, size = convertedAssumptions[j].size(); k < size; ++k)
+    {
+      pfAssumpMap[convertedAssumptions[j][k]] = id;
+      out << "fun lean_" << prefix << id++ << " : ";
+      printTerm(out, convertedAssumptions[j][k]);
+      out << " =>";
+      // guarantee we use Lean's tactic mode by adding " by " after last
+      // assertion
+      out << (j == 2 && k == size - 1 ? " by" : "") << "\n";
+  }
   }
   std::stringstream ss;
   ss << out.rdbuf();

@@ -120,6 +120,7 @@ class LeanPrinter : protected EnvObj
   LeanNodeConverter& d_lnc;
 
   std::unique_ptr<LeanLetUpdaterPfCallback> d_cb;
+  size_t d_nNewAssumptions[2];
 };
 
 }  // namespace proof
