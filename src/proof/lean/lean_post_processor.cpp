@@ -256,7 +256,7 @@ bool LeanProofPostprocessCallback::update(Node res,
     {
       addLeanStep(
           res,
-          res[0].getType().isBoolean() ? LeanRule::IFF_REFL : LeanRule::REFL,
+          LeanRule::REFL,
           d_lnc.convert(res),
           children,
           {},
@@ -328,13 +328,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                          << ", has original form "
                          << SkolemManager::getOriginalForm(res[1]) << "\n";
       Node newRes = res[1].eqNode(res[1]);
-      addLeanStep(
-          res,
-          res[0].getType().isBoolean() ? LeanRule::IFF_REFL : LeanRule::REFL,
-          d_lnc.convert(newRes),
-          {},
-          {},
-          *cdp);
+      addLeanStep(res, LeanRule::REFL, d_lnc.convert(newRes), {}, {}, *cdp);
       break;
     }
     case PfRule::REMOVE_TERM_FORMULA_AXIOM:
@@ -542,13 +536,7 @@ bool LeanProofPostprocessCallback::update(Node res,
     {
       AlwaysAssert(res.getKind() == kind::EQUAL)
           << "No support yet for NEG_SYMM";
-      addLeanStep(
-          res,
-          res[0].getType().isBoolean() ? LeanRule::IFF_SYMM : LeanRule::SYMM,
-          d_lnc.convert(res),
-          children,
-          {},
-          *cdp);
+      addLeanStep(res, LeanRule::SYMM, d_lnc.convert(res), children, {}, *cdp);
       break;
     }
     //-------------- bigger conversions
@@ -743,22 +731,20 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::TRANS:
     {
-      bool useIff = res[0].getType().isBoolean();
       Node cur = children[0], first = children[0][0];
       for (size_t i = 1, size = children.size(); i < size - 1; ++i)
       {
         Node newCur = nm->mkNode(kind::EQUAL, first, children[i][1]);
-        addLeanStep(
-            newCur,
-            useIff ? LeanRule::IFF_TRANS_PARTIAL : LeanRule::TRANS_PARTIAL,
-            d_empty,
-            {cur, children[i]},
-            {},
-            *cdp);
+        addLeanStep(newCur,
+                    LeanRule::TRANS_PARTIAL,
+                    d_empty,
+                    {cur, children[i]},
+                    {},
+                    *cdp);
         cur = newCur;
       }
       addLeanStep(res,
-                  useIff ? LeanRule::IFF_TRANS : LeanRule::TRANS,
+                  LeanRule::TRANS,
                   d_lnc.convert(res),
                   {cur, children.back()},
                   {},
