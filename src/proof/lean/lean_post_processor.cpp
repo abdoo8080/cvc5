@@ -989,14 +989,18 @@ bool LeanProofPostprocessCallback::update(Node res,
       // resolution.
       Node singleton,
           lastPremiseLit = children[0][children[0].getNumChildren() - 1];
-      // For the last premise literal to be a singleton-OR repeated literal,
-      // either it is equal to the result (in which case the premise was just n
+      // For the last premise literal to be a singleton repeated literal, either
+      // it is equal to the result (in which case the premise was just n
       // occurrences of it), or the end of the original clause is different from
-      // the end of the resulting one. Note that if the result is *not* an OR
-      // term, neither is possible.
-      if (res.getKind() == kind::OR
-          && (lastPremiseLit != res[res.getNumChildren() - 1]
-              || lastPremiseLit == res))
+      // the end of the resulting one. In principle we'd need to add the
+      // singleton information only for OR nodes, so we could avoid this test if
+      // the result is not an OR node. However given the presence of
+      // purification boolean variables which can stand for OR nodes (and could
+      // thus be ambiguous in the final step, with the purification remove), we
+      // do the general test.
+      if (lastPremiseLit == res
+          || (res.getKind() == kind::OR
+              && lastPremiseLit != res[res.getNumChildren() - 1]))
       {
         // last lit must be repeated
         Assert(std::find(children[0].begin(), children[0].end(), lastPremiseLit)
