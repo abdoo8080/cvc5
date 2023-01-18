@@ -84,6 +84,7 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
           LeanRule::REORDER,
           LeanRule::FACTORING,
           LeanRule::LIFT_OR_N_TO_IMP,
+          LeanRule::LIFT_OR_N_TO_NEG,
           LeanRule::TH_TRUST_VALID,
           LeanRule::AND_ELIM,
           LeanRule::NOT_OR_ELIM
@@ -367,7 +368,9 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
   out << "import Smt.Reconstruction.Certifying.Boolean\nimport "
          "Smt.Reconstruction.Certifying.Resolution\nimport "
          "Smt.Reconstruction.Certifying.Factor\nimport "
-         "Smt.Reconstruction.Certifying.PermutateOr\n\nopen Classical";
+         "Smt.Reconstruction.Certifying.PermutateOr\nimport "
+         "Smt.Reconstruction.Certifying.LiftOrNToNeg\n\nopen "
+         "Classical\n\nabbrev Implies (p q : Prop) := p -> q\n";
   // increase recursion depth and heartbeats
   out << "\n\nset_option maxRecDepth 10000\nset_option maxHeartbeats 500000\n\n";
 

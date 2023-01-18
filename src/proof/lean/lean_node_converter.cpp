@@ -326,7 +326,7 @@ Node LeanNodeConverter::convert(Node n)
         {
           TypeNode binBoolOpType = nm->mkFunctionType(
               {nm->booleanType(), nm->booleanType()}, nm->booleanType());
-          Node op = mkInternalSymbol("implies", binBoolOpType);
+          Node op = mkInternalSymbol("Implies", binBoolOpType);
           res = nm->mkNode(kind::APPLY_UF, op, children[0], children[1]);
           break;
         }
@@ -471,7 +471,7 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     }
     case kind::IMPLIES:
     {
-      return mkInternalSymbol("implies");
+      return mkInternalSymbol("Implies");
     }
     case kind::ITE:
     {

@@ -220,7 +220,10 @@ bool LeanProofPostprocessCallback::update(Node res,
       // add a lifting step from the OR above to the original conclusion. It
       // takes as arguments the number of assumptions and subproof conclusion
       newArgs.clear();
-      newArgs.push_back(nm->mkConstInt(Rational(args.size())));
+      if (!negation)
+      {
+        newArgs.push_back(nm->mkConstInt(Rational(args.size())));
+      }
       addLeanStep(
           res,
           negation ? LeanRule::LIFT_OR_N_TO_NEG : LeanRule::LIFT_OR_N_TO_IMP,
@@ -526,11 +529,9 @@ bool LeanProofPostprocessCallback::update(Node res,
     case PfRule::NOT_ITE_ELIM1:
     case PfRule::NOT_ITE_ELIM2:
     {
-      std::vector<Node> resLits{res.begin(), res.end()};
       addLeanStep(res,
                   s_pfRuleToLeanRule.at(id),
-                  // TODO make a "convert clause" which takes the vector?
-                  d_lnc.convert(nm->mkNode(kind::SEXPR, resLits)),
+                  d_lnc.convert(res),
                   children,
                   {},
                   *cdp);
