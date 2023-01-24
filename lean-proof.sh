@@ -7,8 +7,9 @@
 # LEAN_PATH=./build/lib:/home/hbarbosa/.elan/toolchains/leanprover--lean4---nightly-2022-09-05/lib/lean; export LEAN_PATH in shell (or ~/.bashrc)
 
 
-tfile="$(mktemp /tmp/foo.XXXXXXXXX)" || exit 1
-outfile="$(mktemp /tmp/foo.XXXXXXXXX)" || exit 1
+tfile="$(mktemp /tmp/fooXXXXXXXXX.lean)" || exit 1
+# tfile="/home/hbarbosa/cvc/wt-leanPrinter/pf.lean" || exit 1
+outfile="$(mktemp /tmp/fooXXXXXXXXX)" || exit 1
 
 # produce proof, remove first like (which is "unsat"), then remove
 # last line (which is closing the s-expression string), then remove
@@ -20,8 +21,13 @@ if ! grep -q -v "unsat" $tfile; then
     exit
 fi
 
+cp $tfile ~/lean-smt/Smt/
+
+fileName="$(echo $tfile | rev | cut -d'/' -f1 | rev | cut -d'.' -f1)"
+# echo $fileName
+
 cd ~/lean-smt
-lean --load-dynlib=/home/hbarbosa/lean-smt/build/lib/libSmt.so $tfile > $outfile
+lake build +Smt.$fileName > $outfile
 cd - > /dev/null
 if ! grep -q "error" $outfile; then
   echo "SUCCESS"
