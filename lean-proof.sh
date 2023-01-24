@@ -8,8 +8,9 @@
 
 
 tfile="$(mktemp /tmp/fooXXXXXXXXX.lean)" || exit 1
+fileName="$(echo $tfile | rev | cut -d'/' -f1 | rev | cut -d'.' -f1)"
+echo $fileName
 # tfile="/home/hbarbosa/cvc/wt-leanPrinter/pf.lean" || exit 1
-outfile="$(mktemp /tmp/fooXXXXXXXXX)" || exit 1
 
 # produce proof, remove first like (which is "unsat"), then remove
 # last line (which is closing the s-expression string), then remove
@@ -22,14 +23,12 @@ if ! grep -q -v "unsat" $tfile; then
 fi
 
 cp $tfile ~/lean-smt/Smt/
-
-fileName="$(echo $tfile | rev | cut -d'/' -f1 | rev | cut -d'.' -f1)"
-# echo $fileName
+cp $tfile .
 
 cd ~/lean-smt
-lake build +Smt.$fileName > $outfile
+lake build +Smt.$fileName &> /tmp/$fileName
 cd - > /dev/null
-if ! grep -q "error" $outfile; then
+if ! grep -q "error" /tmp/$fileName; then
   echo "SUCCESS"
 else
   echo "ERROR-LEAN"
