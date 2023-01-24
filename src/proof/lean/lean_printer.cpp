@@ -367,12 +367,7 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
     Trace("test-lean-pf") << ss.str() << "\n";
   }
   // Print preamble
-  out << "import Smt.Reconstruction.Certifying.Boolean\nimport "
-         "Smt.Reconstruction.Certifying.Resolution\nimport "
-         "Smt.Reconstruction.Certifying.Factor\nimport "
-         "Smt.Reconstruction.Certifying.PermutateOr\nimport "
-         "Smt.Reconstruction.Certifying.LiftOrNToNeg\n\nopen "
-         "Classical\n\nabbrev Implies (p q : Prop) := p -> q\n";
+  out << "import Smt.Reconstruction.Certifying\n\nopen Classical\n\n";
   // increase recursion depth and heartbeats
   out << "\n\nset_option maxRecDepth 10000\nset_option maxHeartbeats 500000\n\n";
 
