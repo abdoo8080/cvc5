@@ -85,6 +85,7 @@ const char* toString(LeanRule id)
     case LeanRule::TRUST: return "sorry";
 
     case LeanRule::CONG: return "congr";
+    case LeanRule::CONG_ITE: return "congrIte";
     case LeanRule::CONG_PARTIAL: return "congr";
     case LeanRule::REFL: return "rfl";
     case LeanRule::TRANS: return "Eq.trans";

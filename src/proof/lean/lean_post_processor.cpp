@@ -620,6 +620,12 @@ bool LeanProofPostprocessCallback::update(Node res,
         op = children[0][0];
         opEq = children[0];
       }
+      else if (k == kind::ITE)
+      {
+        addLeanStep(
+            res, LeanRule::CONG_ITE, d_lnc.convert(res), children, {}, *cdp);
+        break;
+      }
       else
       {
         Node opConverted;

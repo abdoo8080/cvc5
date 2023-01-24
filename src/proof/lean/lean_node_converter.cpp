@@ -475,7 +475,7 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     }
     case kind::ITE:
     {
-      return mkInternalSymbol("fIteConst");
+      return mkInternalSymbol("ite");
     }
     case kind::ADD:
     {
