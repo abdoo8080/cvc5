@@ -966,11 +966,10 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::REORDERING:
     {
+      Assert(res.getNumChildren() == children[0].getNumChildren());
       size_t size = res.getNumChildren();
-      // We also pass as an argument whether the suffix of the premise clause is
-      // a singleton literal. This is marked by a number as in resolution.
       Node singleton = nm->mkConstInt(Rational(
-          children[0][size - 1].getKind() == kind::OR ? size - 1 : -1));
+          children[0][size - 1].getKind() == kind::OR ? int(size - 1) : (-1)));
       // for each literal in the resulting clause, get its position in the
       // premise
       std::vector<Node> pos;
