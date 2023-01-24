@@ -633,19 +633,12 @@ bool LeanProofPostprocessCallback::update(Node res,
         // the congruence operator
         if (args.size() == 1 && res[0].getKind() == kind::EQUAL)
         {
-          if (false)
-          {
-            opConverted = d_lnc.mkInternalSymbol("Iff");
-          }
-          else
-          {
-            // We print equality hardcoding its type, so that Lean's type
-            // checker does not get confused with which type it's supposed to
-            // have when we have a term such as (Eq Eq Eq)
-            opConverted = nm->mkNode(kind::SEXPR,
-                                     d_lnc.mkInternalSymbol("@Eq"),
-                                     d_lnc.typeAsNode(res[0][0].getType()));
-          }
+          // We print equality hardcoding its type, so that Lean's type
+          // checker does not get confused with which type it's supposed to
+          // have when we have a term such as (Eq Eq Eq)
+          opConverted = nm->mkNode(kind::SEXPR,
+                                   d_lnc.mkInternalSymbol("@Eq"),
+                                   d_lnc.typeAsNode(res[0][0].getType()));
         }
         else
         {
