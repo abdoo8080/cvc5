@@ -350,6 +350,13 @@ bool LeanProofPostprocessCallback::update(Node res,
       addLeanStep(res, LeanRule::ITE_INTRO, d_lnc.convert(res), {}, {}, *cdp);
       break;
     }
+    // Arith
+    case PfRule::ARITH_TRICHOTOMY:
+    {
+      addLeanStep(
+          res, LeanRule::TRICHOTOMY, d_lnc.convert(res), children, {}, *cdp);
+      break;
+    }
     // BV
     case PfRule::BV_BITBLAST_STEP:
     {

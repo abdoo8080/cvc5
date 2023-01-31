@@ -86,7 +86,9 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
           LeanRule::LIFT_OR_N_TO_NEG,
           LeanRule::TH_TRUST_VALID,
           LeanRule::AND_ELIM,
-          LeanRule::NOT_OR_ELIM
+          LeanRule::NOT_OR_ELIM,
+          LeanRule::SUM_BOUNDS,
+          LeanRule::TRICHOTOMY,
       }),
       d_lbind(options().printer.dagThresh ? options().printer.dagThresh + 1
                                           : 0),
