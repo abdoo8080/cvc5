@@ -9,7 +9,7 @@
 
 tfile="$(mktemp /tmp/fooXXXXXXXXX.lean)" || exit 1
 fileName="$(echo $tfile | rev | cut -d'/' -f1 | rev | cut -d'.' -f1)"
-echo $fileName
+echo "/tmp/$fileName"
 # tfile="/home/hbarbosa/cvc/wt-leanPrinter/pf.lean" || exit 1
 
 # produce proof, remove first like (which is "unsat"), then remove
