@@ -101,6 +101,11 @@ const char* toString(LeanRule id)
     case LeanRule::SKOLEM_INTRO: return "skolemIntro";
     case LeanRule::ITE_INTRO: return "iteIntro";
 
+    case LeanRule::SUM_BOUNDS: return "subBounds";
+    case LeanRule::INT_TIGHT_UB: return "intTightUb";
+    case LeanRule::INT_TIGHT_LB: return "intTightLb";
+    case LeanRule::TRICHOTOMY: return "trichotomy";
+
     case LeanRule::READ_OVER_WRITE: return "readOverWrite";
     case LeanRule::READ_OVER_WRITE_CONTRA: return "readOverWriteContra";
     case LeanRule::READ_OVER_WRITE_ID: return "readOverWriteIdentity";

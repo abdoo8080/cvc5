@@ -100,6 +100,11 @@ enum class LeanRule : uint32_t
   // skolems
   SKOLEM_INTRO,
   ITE_INTRO,
+  // arith
+  SUM_BOUNDS,
+  INT_TIGHT_UB,
+  INT_TIGHT_LB,
+  TRICHOTOMY,
   // arrays
   READ_OVER_WRITE,
   READ_OVER_WRITE_CONTRA,
