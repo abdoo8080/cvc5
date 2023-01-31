@@ -80,6 +80,7 @@ class LeanNodeConverter
   std::map<TypeNode, Node> d_typeAsNode;
 
   Node d_brack[2];
+  Node d_colon;
   Node d_comma;
   Node d_true;
   Node d_false;

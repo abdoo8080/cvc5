@@ -56,10 +56,11 @@ std::unordered_map<Kind, std::string> s_kindToString = {
 // have underlying node converter *not* force type preservation
 LeanNodeConverter::LeanNodeConverter()
 {
-  d_brack[0] = mkInternalSymbol("__LEAN_TMP[");
-  d_brack[1] = mkInternalSymbol("__LEAN_TMP]");
-  d_comma = mkInternalSymbol("__LEAN_TMP,");
   NodeManager* nm = NodeManager::currentNM();
+  d_brack[0] = nm->mkRawSymbol("[", nm->sExprType());
+  d_brack[1] = nm->mkRawSymbol("]", nm->sExprType());
+  d_comma = nm->mkRawSymbol(",", nm->sExprType());
+  d_colon = nm->mkRawSymbol(":", nm->sExprType());
   d_true = nm->mkConst(true);
   d_false = nm->mkConst(false);
 }
@@ -137,12 +138,12 @@ std::vector<Node> LeanNodeConverter::getOperatorIndices(Kind k, Node n)
 
 bool LeanNodeConverter::shouldTraverse(Node n)
 {
-  Kind k = n.getKind();
-  // don't convert bound variable list directly
-  if (k == kind::BOUND_VAR_LIST)
-  {
-    return false;
-  }
+  // Kind k = n.getKind();
+  // // don't convert bound variable list directly
+  // if (k == kind::BOUND_VAR_LIST)
+  // {
+  //   return false;
+  // }
   return true;
 }
 
@@ -266,15 +267,20 @@ Node LeanNodeConverter::convert(Node n)
           res = nm->mkNode(kind::SEXPR, resChildren);
           break;
         }
-        case kind::EXISTS:
-        case kind::FORALL:
         case kind::LAMBDA:
         case kind::WITNESS:
         {
+          Unreachable() << "Lambdas, choice are not yet supported";
+        }
+        case kind::EXISTS:
+        case kind::FORALL:
+        {
           // we must make it to be printed with the respective kind name, so we
           // create an operator with that name and the correct type and do a
-          // function application
-          AlwaysAssert(nChildren == 2);
+          // function application.
+          //
+          // Moreover, each variable must itself be converted, because the
+          // expected syntax is "forall/exists (v1 : T1) ... (vn : Tn), F"
           std::vector<TypeNode> childrenTypes;
           for (const Node& c : cur)
           {
