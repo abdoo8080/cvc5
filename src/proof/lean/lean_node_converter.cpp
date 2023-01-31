@@ -51,6 +51,12 @@ std::unordered_map<Kind, std::string> s_kindToString = {
     {kind::FORALL, "forall"},
     {kind::LAMBDA, "fun"},
     {kind::WITNESS, "choice"},
+    {kind::LT, "LT.lt"},
+    {kind::LEQ, "LE.le"},
+    {kind::GT, "GT.gt"},
+    {kind::GEQ, "GE.ge"},
+    {kind::ADD, "HAdd.hAdd"},
+    {kind::MULT, "HMul.hMul"},
 };
 
 // have underlying node converter *not* force type preservation
@@ -160,10 +166,10 @@ Node LeanNodeConverter::convert(Node n)
     cur = visit.back();
     visit.pop_back();
     it = d_cache.find(cur);
-    Trace("lean-conv2") << "convert " << cur << std::endl;
     Kind k = cur.getKind();
     if (it == d_cache.end())
     {
+      Trace("lean-conv2") << "convert " << cur << ", type " << cur.getType() << std::endl;
       if (!shouldTraverse(cur))
       {
         d_cache[cur] = cur;
@@ -244,8 +250,6 @@ Node LeanNodeConverter::convert(Node n)
         }
         case kind::CONST_RATIONAL:
         {
-          TypeNode tn = cur.getType();
-          AlwaysAssert(tn.isInteger()) << "Only support integer rationals\n";
           res = cur;
           break;
         }
@@ -265,6 +269,20 @@ Node LeanNodeConverter::convert(Node n)
               kind::SEXPR, mkInternalSymbol("value.bitvec"), mkList(bits)));
           resChildren.push_back(typeAsNode(cur.getType()));
           res = nm->mkNode(kind::SEXPR, resChildren);
+          break;
+        }
+        // binary arith operators
+        case kind::GEQ:
+        case kind::GT:
+        case kind::LEQ:
+        case kind::LT:
+        case kind::ADD:
+        case kind::MULT:
+        {
+          TypeNode binArithOpType = nm->mkFunctionType(
+              {children[0].getType(), children[1].getType()}, cur.getType());
+          Node op = mkInternalSymbol(s_kindToString[k], binArithOpType);
+          res = nm->mkNode(kind::APPLY_UF, op, children[0], children[1]);
           break;
         }
         case kind::LAMBDA:
@@ -427,6 +445,7 @@ Node LeanNodeConverter::convert(Node n)
           res = childChanged ? nm->mkNode(k, children) : Node(cur);
         }
       }
+      Trace("lean-conv2") << "..result is " << res << ", type " << res.getType() << "\n";
       d_cache[cur] = res;
       // force idempotency
       d_cache[res] = res;
@@ -599,6 +618,10 @@ Node LeanNodeConverter::typeAsNode(TypeNode tn)
   else if (tn.isInteger())
   {
     res = mkInternalSymbol("Int");
+  }
+  else if (tn.isReal())
+  {
+    res = mkInternalSymbol("Rat");
   }
   else if (tn.isBitVector())
   {
