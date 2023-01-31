@@ -57,6 +57,8 @@ std::unordered_map<Kind, std::string> s_kindToString = {
     {kind::GEQ, "GE.ge"},
     {kind::ADD, "HAdd.hAdd"},
     {kind::MULT, "HMul.hMul"},
+    {kind::DIVISION, "HDiv.hDiv"},
+    {kind::INTS_DIVISION, "HDiv.hDiv"},
 };
 
 // have underlying node converter *not* force type preservation
@@ -278,6 +280,8 @@ Node LeanNodeConverter::convert(Node n)
         case kind::LT:
         case kind::ADD:
         case kind::MULT:
+        case kind::DIVISION:
+        case kind::INTS_DIVISION:
         {
           TypeNode binArithOpType = nm->mkFunctionType(
               {children[0].getType(), children[1].getType()}, cur.getType());
@@ -504,11 +508,36 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     }
     case kind::ADD:
     {
-      return mkInternalSymbol("plusConst");
+      return mkInternalSymbol("HAdd.hAdd");
     }
     case kind::SUB:
     {
-      return mkInternalSymbol("minusConst");
+      return mkInternalSymbol("HSub.hSub");
+    }
+    case kind::MULT:
+    {
+      return mkInternalSymbol("HMul.hMul");
+    }
+    case kind::INTS_DIVISION:
+    case kind::DIVISION:
+    {
+      return mkInternalSymbol("HDiv.hDiv");
+    }
+    case kind::GEQ:
+    {
+      return mkInternalSymbol("GE.ge");
+    }
+    case kind::GT:
+    {
+      return mkInternalSymbol("GT.gt");
+    }
+    case kind::LEQ:
+    {
+      return mkInternalSymbol("LE.le");
+    }
+    case kind::LT:
+    {
+      return mkInternalSymbol("LT.lt");
     }
     case kind::SELECT:
     {
