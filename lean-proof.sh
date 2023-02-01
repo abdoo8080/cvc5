@@ -3,16 +3,18 @@
 #### To use this it's necessary to:
 # cd ~/lean-smt
 # elan self update
-# lake build Smt:shared
-# LEAN_PATH=./build/lib:/home/hbarbosa/.elan/toolchains/leanprover--lean4---nightly-2022-09-05/lib/lean; export LEAN_PATH in shell (or ~/.bashrc)
+# LEAN_PATH=./build/lib:./lake-packages/std/build/lib:./lake-packages/mathlib/build/lib:./lake-packages/Qq/build/lib:./lake-packages/aesop/build/lib:/home/hbarbosa/.elan/toolchains/leanprover--lean4---nightly-2023-01-16/lib/lean; export LEAN_PATH
+# lean $tfile
 
+### Alternatively, without setting the LEAN_PATH, could do (after copying the proof to ~/lean-smt/Smt/):
+# lake build +Smt.$fileName &> /tmp/$fileName
 
 tfile="$(mktemp /tmp/fooXXXXXXXXX.lean)" || exit 1
 fileName="$(echo $tfile | rev | cut -d'/' -f1 | rev | cut -d'.' -f1)"
 echo "/tmp/$fileName"
 # tfile="/home/hbarbosa/cvc/wt-leanPrinter/pf.lean" || exit 1
 
-# produce proof, remove first like (which is "unsat"), then remove
+# produce proof, remove first line (which is "unsat"), then remove
 # last line (which is closing the s-expression string), then remove
 # the s-expression/string prefix
 
@@ -22,11 +24,8 @@ if ! grep -q -v "unsat" $tfile; then
     exit
 fi
 
-cp $tfile ~/lean-smt/Smt/
-cp $tfile .
-
 cd ~/lean-smt
-lake build +Smt.$fileName &> /tmp/$fileName
+lean $tfile &> /tmp/$fileName
 cd - > /dev/null
 if ! grep -q "error" /tmp/$fileName; then
   echo "SUCCESS"
