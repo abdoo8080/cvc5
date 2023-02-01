@@ -146,12 +146,13 @@ std::vector<Node> LeanNodeConverter::getOperatorIndices(Kind k, Node n)
 
 bool LeanNodeConverter::shouldTraverse(Node n)
 {
-  // Kind k = n.getKind();
-  // // don't convert bound variable list directly
-  // if (k == kind::BOUND_VAR_LIST)
-  // {
-  //   return false;
-  // }
+  Kind k = n.getKind();
+  // don't convert bound variable list directly, it'll be converted as part of
+  // the binder
+  if (k == kind::BOUND_VAR_LIST)
+  {
+    return false;
+  }
   return true;
 }
 
@@ -312,14 +313,23 @@ Node LeanNodeConverter::convert(Node n)
           //
           // Moreover, each variable must itself be converted, because the
           // expected syntax is "forall/exists (v1 : T1) ... (vn : Tn), F"
+          std::vector<Node> newChildren;
           std::vector<TypeNode> childrenTypes;
-          for (const Node& c : cur)
+          for (const Node& v : cur[0])
           {
-            childrenTypes.push_back(c.getType());
+            childrenTypes.push_back(nm->sExprType());
+            newChildren.push_back(
+                nm->mkNode(kind::SEXPR, v, d_colon, typeAsNode(v.getType())));
           }
+          childrenTypes.push_back(nm->sExprType());
+          newChildren.push_back(d_comma);
+
+          childrenTypes.push_back(children[1].getType());
+          newChildren.push_back(children[1]);
           TypeNode fType = nm->mkFunctionType(childrenTypes, cur.getType());
           Node op = mkInternalSymbol(s_kindToString[k], fType);
-          res = nm->mkNode(kind::APPLY_UF, op, children[0], children[1]);
+          newChildren.insert(newChildren.begin(), op);
+          res = nm->mkNode(kind::APPLY_UF, newChildren);
           break;
         }
         // "indexed"

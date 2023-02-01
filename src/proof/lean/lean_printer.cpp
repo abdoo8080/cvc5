@@ -385,6 +385,7 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
   }
   // uninterpreted sorts
   std::unordered_set<TypeNode> sts;
+  NodeManager* nm = NodeManager::currentNM();
   for (const Node& s : syms)
   {
     TypeNode st = s.getType();
@@ -392,6 +393,11 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
     expr::getComponentTypes(st, ctypes);
     for (const TypeNode& stc : ctypes)
     {
+      // ignore expression type
+      if (stc == nm->sExprType())
+      {
+        continue;
+      }
       // only collect non-predefined sorts for declaration
       if (stc.isUninterpretedSort() && stc.getKind() != kind::TYPE_CONSTANT)
       {
@@ -412,6 +418,11 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
   // uninterpreted functions
   for (const Node& s : syms)
   {
+    // ignore symbolic stuff
+    if (s.getType() == nm->sExprType())
+    {
+      continue;
+    }
     out << "variable {" << s << " : ";
     printSort(out, s.getType());
     out << "}\n";

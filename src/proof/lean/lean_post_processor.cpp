@@ -570,45 +570,12 @@ bool LeanProofPostprocessCallback::update(Node res,
       Kind k = res[0].getKind();
       if (res[0].isClosure())
       {
-        // For now we only support the case where the variables are the same.
-        // Renaming will be done afterwards
-        AlwaysAssert(children[0][0] == children[0][1])
-            << "Lean printing without support for congruence over closures "
-               "with renaming\n";
-        AlwaysAssert(k == kind::FORALL || k == kind::LAMBDA)
-            << "Lean printing only supports FORALL/LAMBDA binders for now. "
-               "Found kind "
-            << k << "\n";
-        // break down n-ary binder into chain of binds. Start with term
-        Node opBinder = args.size() == 2 ? args[1] : args[0];
-        Node currEq = children[1];
-        // iterate over variable list
-        for (size_t i = 1, nVars = children[0][0].getNumChildren(); i < nVars;
-             ++i)
-        {
-          size_t j = nVars - i;
-          AlwaysAssert(j > 0);
-          // build dummy equality of partial apps of var j
-          Node varEq = nm->mkNode(
-              kind::SEXPR,
-              nm->mkNode(kind::SEXPR, opBinder, children[0][0][j], currEq[0]),
-              nm->mkNode(kind::SEXPR, opBinder, children[0][0][j], currEq[1]));
-          // add step that justify equality of partial apps
-          addLeanStep(varEq,
-                      k == kind::FORALL ? LeanRule::BIND_PARTIAL
-                                        : LeanRule::BIND_LAMBDA_PARTIAL,
-                      d_empty,
-                      {currEq},
-                      {},
-                      *cdp);
-          currEq = varEq;
-        }
-        addLeanStep(res,
-                    k == kind::FORALL ? LeanRule::BIND : LeanRule::BIND_LAMBDA,
-                    d_lnc.convert(res),
-                    {currEq},
-                    {},
-                    *cdp);
+        // For now no proper support
+        d_newHoleAssumptions.insert(d_lnc.convert(res));
+        // Make this an assumption
+        cdp->addStep(
+            res, PfRule::ASSUME, {}, {res}, false, CDPOverwrite::ALWAYS);
+        break;
       }
       size_t nchildren = children.size();
       Node eqNode = ProofRuleChecker::mkKindNode(kind::EQUAL);
