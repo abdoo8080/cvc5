@@ -171,7 +171,8 @@ Node LeanNodeConverter::convert(Node n)
     Kind k = cur.getKind();
     if (it == d_cache.end())
     {
-      Trace("lean-conv2") << "convert " << cur << ", type " << cur.getType() << std::endl;
+      Trace("lean-conv2") << "convert " << cur << ", type " << cur.getType()
+                          << std::endl;
       if (!shouldTraverse(cur))
       {
         d_cache[cur] = cur;
@@ -252,7 +253,15 @@ Node LeanNodeConverter::convert(Node n)
         }
         case kind::CONST_RATIONAL:
         {
-          res = cur;
+          TypeNode tn = cur.getType();
+          Rational r = cur.getConst<Rational>();
+          std::stringstream ss;
+          ss << "__LEAN_TMP" << r.getNumerator();
+          if (!r.getDenominator().isOne())
+          {
+             ss << "/" << r.getDenominator();
+          }
+          res = mkInternalSymbol(ss.str(), tn);
           break;
         }
         case kind::CONST_BITVECTOR:
@@ -420,8 +429,7 @@ Node LeanNodeConverter::convert(Node n)
           Node newCur = children.back();
           for (size_t i = nChildren - 1; i > 0; --i)
           {
-            newCur =
-                nm->mkNode(kind::APPLY_UF, op, children[i - 1], newCur);
+            newCur = nm->mkNode(kind::APPLY_UF, op, children[i - 1], newCur);
           }
           res = newCur;
           break;
@@ -437,7 +445,8 @@ Node LeanNodeConverter::convert(Node n)
           if (k == kind::APPLY_UF)
           {
             TypeNode ftn = cur.getOperator().getType();
-            Assert(ftn == children[0].getType()) << "Diff op types " << ftn << " / " << children[0].getType();
+            Assert(ftn == children[0].getType())
+                << "Diff op types " << ftn << " / " << children[0].getType();
             std::vector<TypeNode> argTypes = ftn.getArgTypes();
             for (size_t i = 0, size = argTypes.size(); i < size; ++i)
             {
@@ -449,7 +458,8 @@ Node LeanNodeConverter::convert(Node n)
           res = childChanged ? nm->mkNode(k, children) : Node(cur);
         }
       }
-      Trace("lean-conv2") << "..result is " << res << ", type " << res.getType() << "\n";
+      Trace("lean-conv2") << "..result is " << res << ", type " << res.getType()
+                          << "\n";
       d_cache[cur] = res;
       // force idempotency
       d_cache[res] = res;
