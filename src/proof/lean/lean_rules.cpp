@@ -101,7 +101,7 @@ const char* toString(LeanRule id)
     case LeanRule::SKOLEM_INTRO: return "skolemIntro";
     case LeanRule::ITE_INTRO: return "iteIntro";
 
-    case LeanRule::SUM_BOUNDS: return "subBounds";
+    case LeanRule::SUM_BOUNDS: return "sumBounds";
     case LeanRule::INT_TIGHT_UB: return "intTightUb";
     case LeanRule::INT_TIGHT_LB: return "intTightLb";
     case LeanRule::TRICHOTOMY: return "trichotomy";

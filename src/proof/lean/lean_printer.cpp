@@ -66,29 +66,27 @@ bool LeanLetUpdaterPfCallback::update(Node res,
 
 LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
     : EnvObj(env),
-      d_letRules({
-          LeanRule::R0_PARTIAL,
-          LeanRule::R1_PARTIAL,
-          LeanRule::CONG_PARTIAL,
-          LeanRule::BIND_PARTIAL,
-          LeanRule::BIND_LAMBDA_PARTIAL,
-          LeanRule::TRANS_PARTIAL,
-          LeanRule::AND_INTRO_PARTIAL
-      }),
+      d_letRules({LeanRule::R0_PARTIAL,
+                  LeanRule::R1_PARTIAL,
+                  LeanRule::CONG_PARTIAL,
+                  LeanRule::BIND_PARTIAL,
+                  LeanRule::BIND_LAMBDA_PARTIAL,
+                  LeanRule::TRANS_PARTIAL,
+                  LeanRule::AND_INTRO_PARTIAL}),
       d_tacticRules({
-          LeanRule::R0,
-          LeanRule::R0_PARTIAL,
-          LeanRule::R1,
-          LeanRule::R1_PARTIAL,
-          LeanRule::REORDER,
-          LeanRule::FACTORING,
-          LeanRule::LIFT_OR_N_TO_IMP,
-          LeanRule::LIFT_OR_N_TO_NEG,
-          LeanRule::TH_TRUST_VALID,
-          LeanRule::AND_ELIM,
-          LeanRule::NOT_OR_ELIM,
-          LeanRule::SUM_BOUNDS,
-          LeanRule::TRICHOTOMY,
+          {LeanRule::R0, false},
+          {LeanRule::R0_PARTIAL, false},
+          {LeanRule::R1, false},
+          {LeanRule::R1_PARTIAL, false},
+          {LeanRule::REORDER, false},
+          {LeanRule::FACTORING, false},
+          {LeanRule::LIFT_OR_N_TO_IMP, false},
+          {LeanRule::LIFT_OR_N_TO_NEG, false},
+          {LeanRule::TH_TRUST_VALID, false},
+          {LeanRule::AND_ELIM, false},
+          {LeanRule::NOT_OR_ELIM, false},
+          {LeanRule::SUM_BOUNDS, true},
+          {LeanRule::TRICHOTOMY, false},
       }),
       d_lbind(options().printer.dagThresh ? options().printer.dagThresh + 1
                                           : 0),
@@ -320,7 +318,9 @@ void LeanPrinter::printProof(std::ostream& out,
   }
   Trace("test-lean") << pop;
   printOffset(out, offset);
-  bool isTactic = d_tacticRules.find(rule) != d_tacticRules.end();
+  auto it = d_tacticRules.find(rule);
+  bool isTactic = it != d_tacticRules.end();
+  bool isNaryTactic = isTactic && it->second;
   // print conclusion: proof node concludes `false`, print as show ... rather
   // than have s....
   if (d_letRules.find(rule) != d_letRules.end())
@@ -345,9 +345,10 @@ void LeanPrinter::printProof(std::ostream& out,
   std::string separator = isTactic ? ", " : " ";
   for (size_t i = 0, size = children.size(); i < size; ++i)
   {
-    out << (i == 0 ? " " : separator);
+    out << (i == 0 ? (isNaryTactic ? " [" : " ") : separator);
     printStepId(out, children[i].get(), pfMap, pfAssumpMap);
   }
+  out << (isNaryTactic ? "]" : "");
   for (size_t i = 3, size = args.size(); i < size; ++i)
   {
     out << separator;

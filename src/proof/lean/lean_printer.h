@@ -111,7 +111,8 @@ class LeanPrinter : protected EnvObj
   Node d_false;
 
   std::set<LeanRule> d_letRules;
-  std::set<LeanRule> d_tacticRules;
+  /** Tactic rules and whether they are n-ary */
+  std::map<LeanRule, bool> d_tacticRules;
 
   LetBinding d_lbind;
 

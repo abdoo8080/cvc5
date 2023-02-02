@@ -80,6 +80,8 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::ARRAYS_READ_OVER_WRITE_1, LeanRule::READ_OVER_WRITE_ID},
     {PfRule::ARRAYS_EXT, LeanRule::ARRAY_EXT},
     {PfRule::SKOLEM_INTRO, LeanRule::SKOLEM_INTRO},
+    {PfRule::ARITH_SUM_UB, LeanRule::SUM_BOUNDS},
+    {PfRule::ARITH_TRICHOTOMY, LeanRule::TRICHOTOMY},
 };
 
 LeanProofPostprocess::LeanProofPostprocess(Env& env, LeanNodeConverter& lnc)
@@ -351,10 +353,15 @@ bool LeanProofPostprocessCallback::update(Node res,
       break;
     }
     // Arith
+    case PfRule::ARITH_SUM_UB:
     case PfRule::ARITH_TRICHOTOMY:
     {
-      addLeanStep(
-          res, LeanRule::TRICHOTOMY, d_lnc.convert(res), children, {}, *cdp);
+      addLeanStep(res,
+                  s_pfRuleToLeanRule.at(id),
+                  d_lnc.convert(res),
+                  children,
+                  {},
+                  *cdp);
       break;
     }
     // BV
