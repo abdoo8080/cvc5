@@ -5,7 +5,12 @@ time=""
 ulimit="ulimit -S -t 30"
 # file="qflia-liageneric-nocutlemmas.txt"
 # file="qflia-liageneric.txt"
-file="leanUfRegressions.txt"
+
+#### Get all files containing "unsat" but not "(xor" nor "(distinct", which we do not and will not support
+# grep -L "(xor\|(distinct\|--incremental" $(grep -l -nr "unsat" test/regress/cli/regress0/uflra/)
+
+# file="leanUfRegressions.txt"
+file="leanUflraRegressions-smaller.txt"
 
 echo "Options: $options"
 echo
