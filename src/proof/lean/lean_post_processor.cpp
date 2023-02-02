@@ -284,6 +284,7 @@ bool LeanProofPostprocessCallback::update(Node res,
     // minor reasoning to clean args
     case PfRule::TRUST_FLATTENING_REWRITE:
     case PfRule::THEORY_REWRITE:
+    case PfRule::EVALUATE:
     {
       d_newRewriteAssumptions.insert(d_lnc.convert(res));
       // Make this an assumption
