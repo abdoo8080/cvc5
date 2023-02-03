@@ -82,6 +82,8 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::SKOLEM_INTRO, LeanRule::SKOLEM_INTRO},
     {PfRule::ARITH_SUM_UB, LeanRule::SUM_BOUNDS},
     {PfRule::ARITH_TRICHOTOMY, LeanRule::TRICHOTOMY},
+    {PfRule::INT_TIGHT_UB, LeanRule::INT_TIGHT_UB},
+    {PfRule::INT_TIGHT_LB, LeanRule::INT_TIGHT_LB},
 };
 
 LeanProofPostprocess::LeanProofPostprocess(Env& env, LeanNodeConverter& lnc)
@@ -354,8 +356,17 @@ bool LeanProofPostprocessCallback::update(Node res,
       break;
     }
     // Arith
+    case PfRule::ARITH_MULT_POS:
+    case PfRule::ARITH_MULT_NEG:
+    {
+      d_newHoleAssumptions.insert(d_lnc.convert(res));
+      cdp->addStep(res, PfRule::ASSUME, {}, {res}, false, CDPOverwrite::ALWAYS);
+      break;
+    }
     case PfRule::ARITH_SUM_UB:
     case PfRule::ARITH_TRICHOTOMY:
+    case PfRule::INT_TIGHT_UB:
+    case PfRule::INT_TIGHT_LB:
     {
       addLeanStep(res,
                   s_pfRuleToLeanRule.at(id),
