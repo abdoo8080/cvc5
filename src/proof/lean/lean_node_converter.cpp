@@ -157,6 +157,37 @@ bool LeanNodeConverter::shouldTraverse(Node n)
   return true;
 }
 
+Node LeanNodeConverter::mkBinArithApp(Kind k,
+                                      Node c0,
+                                      Node c1,
+                                      TypeNode retType)
+{
+  // requires special case when the first element is an integer
+  // constant... due to particularities of Lean the coercion algorithm
+  // (between Nat and Int) is less powerful with (op n (+ x y)), when n
+  // is a non-negative integer and x or y is an integer term, which well
+  // make n a nat and not try coercing it to int. But (binrel% op n (+ x
+  // y)) will do the coercion.
+  NodeManager* nm = NodeManager::currentNM();
+  Trace("test") << c0.getType() << "\n" ;
+  // (binrel% op c0 c1) vs (op 0 c1)
+  std::vector<Node> children =
+      c0.getType().isInteger() && c0.isConst()
+          ? std::vector<Node>{mkInternalSymbol(
+                                  "binrel%",
+                                  nm->mkFunctionType({nm->sExprType(),
+                                                      c0.getType(),
+                                                      c1.getType()},
+                                                     retType)),
+                              mkInternalSymbol(s_kindToString[k])}
+          : std::vector<Node>{mkInternalSymbol(
+              s_kindToString[k],
+              nm->mkFunctionType({c0.getType(), c1.getType()}, retType))};
+  children.push_back(c0);
+  children.push_back(c1);
+  return nm->mkNode(kind::APPLY_UF, children);
+}
+
 Node LeanNodeConverter::convert(Node n)
 {
   Trace("lean-conv") << "LeanConverter::convert: " << n << std::endl;
@@ -289,37 +320,24 @@ Node LeanNodeConverter::convert(Node n)
         case kind::GT:
         case kind::LEQ:
         case kind::LT:
-        case kind::ADD:
-        case kind::MULT:
         case kind::SUB:
         case kind::DIVISION:
         case kind::INTS_DIVISION:
         {
-          // requires special case when the first element is an integer
-          // constant... due to particularities of Lean the coercion algorithm
-          // (between Nat and Int) is less powerful with (op n (+ x y)), when n
-          // is a non-negative integer and x or y is an integer term, which well
-          // make n a nat and not try coercing it to int. But (binrel% op n (+ x
-          // y)) will do the coercion.
-          TypeNode fType;
-          Node op;
-          if (children[0].getType().isInteger() && children[0].isConst())
-          {
-            fType = nm->mkFunctionType(
-                {nm->sExprType(), children[0].getType(), children[1].getType()},
-                cur.getType());
-            children.insert(children.begin(),
-                            mkInternalSymbol(s_kindToString[k]));
-            op = mkInternalSymbol("binrel%", fType);
-          }
-          else
-          {
-            fType = nm->mkFunctionType(
-                {children[0].getType(), children[1].getType()}, cur.getType());
-            op = mkInternalSymbol(s_kindToString[k], fType);
-          }
-          children.insert(children.begin(), op);
-          res = nm->mkNode(kind::APPLY_UF, children);
+          res = mkBinArithApp(k, children[0], children[1], cur.getType());
+          break;
+        }
+        // n-ary arith kinds
+        case kind::ADD:
+        case kind::MULT:
+        {
+          TypeNode retType = cur.getType();
+          size_t i = 1, size = cur.getNumChildren();
+          Node newCur = children[size - 1];
+          do {
+            newCur = mkBinArithApp(k, children[size - 1 - i++], newCur, retType);
+          } while (i < size);
+          res = newCur;
           break;
         }
         case kind::NEG:
@@ -417,11 +435,6 @@ Node LeanNodeConverter::convert(Node n)
           res = nm->mkNode(kind::APPLY_UF, children);
           break;
         }
-        // binary operators
-        case kind::XOR:
-        {
-          Unreachable() << "xor is not supported\n";
-        }
         case kind::IMPLIES:
         {
           TypeNode binBoolOpType = nm->mkFunctionType(
@@ -438,7 +451,10 @@ Node LeanNodeConverter::convert(Node n)
         case kind::BITVECTOR_ULE:
         case kind::DISTINCT:
         case kind::SELECT:
+        case kind::XOR:
+        case kind::NONLINEAR_MULT:
         {
+          Unreachable() << "Kind " << k << " is not supported\n";
           resChildren.push_back(mkInternalSymbol(s_kindToString[k]));
           resChildren.push_back(children[0]);
           resChildren.push_back(children[1]);
