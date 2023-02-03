@@ -81,6 +81,8 @@ std::unordered_map<PfRule, LeanRule, PfRuleHashFunction> s_pfRuleToLeanRule = {
     {PfRule::ARRAYS_EXT, LeanRule::ARRAY_EXT},
     {PfRule::SKOLEM_INTRO, LeanRule::SKOLEM_INTRO},
     {PfRule::ARITH_SUM_UB, LeanRule::SUM_BOUNDS},
+    {PfRule::ARITH_MULT_POS, LeanRule::ARITH_MULT_POS},
+    {PfRule::ARITH_MULT_NEG, LeanRule::ARITH_MULT_NEG},
     {PfRule::ARITH_TRICHOTOMY, LeanRule::TRICHOTOMY},
     {PfRule::INT_TIGHT_UB, LeanRule::INT_TIGHT_UB},
     {PfRule::INT_TIGHT_LB, LeanRule::INT_TIGHT_LB},
@@ -356,17 +358,26 @@ bool LeanProofPostprocessCallback::update(Node res,
       break;
     }
     // Arith
+    case PfRule::ARITH_SUM_UB:
     case PfRule::ARITH_MULT_POS:
     case PfRule::ARITH_MULT_NEG:
-    {
-      d_newHoleAssumptions.insert(d_lnc.convert(res));
-      cdp->addStep(res, PfRule::ASSUME, {}, {res}, false, CDPOverwrite::ALWAYS);
-      break;
-    }
-    case PfRule::ARITH_SUM_UB:
-    case PfRule::ARITH_TRICHOTOMY:
     case PfRule::INT_TIGHT_UB:
     case PfRule::INT_TIGHT_LB:
+    {
+      std::vector<Node> newArgs;
+      for (const Node& a : args)
+      {
+        newArgs.push_back(d_lnc.convert(a));
+      }
+      addLeanStep(res,
+                  s_pfRuleToLeanRule.at(id),
+                  d_lnc.convert(res),
+                  children,
+                  newArgs,
+                  *cdp);
+      break;
+    }
+    case PfRule::ARITH_TRICHOTOMY:
     {
       addLeanStep(res,
                   s_pfRuleToLeanRule.at(id),

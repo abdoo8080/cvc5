@@ -102,9 +102,11 @@ const char* toString(LeanRule id)
     case LeanRule::ITE_INTRO: return "iteIntro";
 
     case LeanRule::SUM_BOUNDS: return "sumBounds";
+    case LeanRule::ARITH_MULT_POS: return "arithMulPos";
+    case LeanRule::ARITH_MULT_NEG: return "arithMulNeg";
+    case LeanRule::TRICHOTOMY: return "trichotomy";
     case LeanRule::INT_TIGHT_UB: return "intTightUb";
     case LeanRule::INT_TIGHT_LB: return "intTightLb";
-    case LeanRule::TRICHOTOMY: return "trichotomy";
 
     case LeanRule::READ_OVER_WRITE: return "readOverWrite";
     case LeanRule::READ_OVER_WRITE_CONTRA: return "readOverWriteContra";
