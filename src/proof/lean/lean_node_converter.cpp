@@ -50,12 +50,13 @@ std::unordered_map<Kind, std::string> s_kindToString = {
     {kind::EXISTS, "exists"},
     {kind::FORALL, "forall"},
     {kind::LAMBDA, "fun"},
-    {kind::WITNESS, "choice"},
+    {kind::WITNESS, "epsilon"},
     {kind::LT, "LT.lt"},
     {kind::LEQ, "LE.le"},
     {kind::GT, "GT.gt"},
     {kind::GEQ, "GE.ge"},
     {kind::ADD, "HAdd.hAdd"},
+    {kind::SUB, "HSub.hSub"},
     {kind::MULT, "HMul.hMul"},
     {kind::DIVISION, "HDiv.hDiv"},
     {kind::INTS_DIVISION, "HDiv.hDiv"},
@@ -290,20 +291,54 @@ Node LeanNodeConverter::convert(Node n)
         case kind::LT:
         case kind::ADD:
         case kind::MULT:
+        case kind::SUB:
         case kind::DIVISION:
         case kind::INTS_DIVISION:
         {
-          TypeNode binArithOpType = nm->mkFunctionType(
-              {children[0].getType(), children[1].getType()}, cur.getType());
-          Node op = mkInternalSymbol(s_kindToString[k], binArithOpType);
-          res = nm->mkNode(kind::APPLY_UF, op, children[0], children[1]);
+          // requires special case when the first element is an integer
+          // constant... due to particularities of Lean the coercion algorithm
+          // (between Nat and Int) is less powerful with (op n (+ x y)), when n
+          // is a non-negative integer and x or y is an integer term, which well
+          // make n a nat and not try coercing it to int. But (binrel% op n (+ x
+          // y)) will do the coercion.
+          TypeNode fType;
+          Node op;
+          if (children[0].getType().isInteger() && children[0].isConst())
+          {
+            fType = nm->mkFunctionType(
+                {nm->sExprType(), children[0].getType(), children[1].getType()},
+                cur.getType());
+            children.insert(children.begin(),
+                            mkInternalSymbol(s_kindToString[k]));
+            op = mkInternalSymbol("binrel%", fType);
+          }
+          else
+          {
+            fType = nm->mkFunctionType(
+                {children[0].getType(), children[1].getType()}, cur.getType());
+            op = mkInternalSymbol(s_kindToString[k], fType);
+          }
+          children.insert(children.begin(), op);
+          res = nm->mkNode(kind::APPLY_UF, children);
           break;
         }
-        case kind::LAMBDA:
+        case kind::NEG:
+        {
+          Node op = mkInternalSymbol(
+              "Neg.neg",
+              nm->mkFunctionType(children[0].getType(), cur.getType()));
+          res = nm->mkNode(kind::APPLY_UF, op, children[0]);
+          break;
+        }
         case kind::WITNESS:
+        case kind::LAMBDA:
         {
           Unreachable() << "Lambdas, choice are not yet supported";
         }
+        // {
+        //   // (witness ((x1 T1) ... (xn Tn)) F) will become (epsilon (fun x1 => ))
+        //   break;
+        // }
         case kind::EXISTS:
         case kind::FORALL:
         {
@@ -353,15 +388,33 @@ Node LeanNodeConverter::convert(Node n)
           res = nm->mkNode(kind::SEXPR, resChildren);
           break;
         }
-        // requires special case for equality between Props (the Booleans here),
-        // which must be represented as Iff
+          // requires special case for equality when the first element is an
+          // integer constant... due to particularities of Lean the coercion
+          // algorithm (between Nat and Int) is less powerful with (Eq n (+ x
+          // y)), when n is a non-negative integer and x or y is an integer
+          // term, which well make n a nat and not try coercing it to int. But
+          // (binrel% Eq n (+ x y)) will do the coercion.
         case kind::EQUAL:
         {
           TypeNode childrenType = cur[0].getType();
-          TypeNode fType = nm->mkFunctionType({childrenType, childrenType},
-                                              nm->booleanType());
-          Node op = mkInternalSymbol(s_kindToString[k], fType);
-          res = nm->mkNode(kind::APPLY_UF, op, children[0], children[1]);
+          TypeNode fType;
+          Node op;
+          if (childrenType.isInteger() && children[0].isConst())
+          {
+            fType = nm->mkFunctionType(
+                {nm->sExprType(), childrenType, childrenType},
+                nm->booleanType());
+            children.insert(children.begin(), mkInternalSymbol("Eq"));
+            op = mkInternalSymbol("binrel%", fType);
+          }
+          else
+          {
+            fType = nm->mkFunctionType({childrenType, childrenType},
+                                       nm->booleanType());
+            op = mkInternalSymbol(s_kindToString[k], fType);
+          }
+          children.insert(children.begin(), op);
+          res = nm->mkNode(kind::APPLY_UF, children);
           break;
         }
         // binary operators
