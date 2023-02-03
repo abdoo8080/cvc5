@@ -3,7 +3,7 @@
 #### To use this it's necessary to:
 # cd ~/lean-smt
 # elan self update
-# LEAN_PATH=./build/lib:./lake-packages/std/build/lib:./lake-packages/mathlib/build/lib:./lake-packages/Qq/build/lib:./lake-packages/aesop/build/lib:/home/hbarbosa/.elan/toolchains/leanprover--lean4---nightly-2023-01-16/lib/lean; export LEAN_PATH
+LEAN_PATH=./build/lib:./lake-packages/std/build/lib:./lake-packages/mathlib/build/lib:./lake-packages/Qq/build/lib:./lake-packages/aesop/build/lib:/home/hbarbosa/.elan/toolchains/leanprover--lean4---nightly-2023-01-16/lib/lean; export LEAN_PATH
 # lean $tfile
 
 ### Alternatively, without setting the LEAN_PATH, could do (after copying the proof to ~/lean-smt/Smt/):
