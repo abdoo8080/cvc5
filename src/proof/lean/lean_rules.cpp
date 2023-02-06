@@ -98,6 +98,9 @@ const char* toString(LeanRule id)
     case LeanRule::FALSE_INTRO: return "falseIntro";
     case LeanRule::FALSE_ELIM: return "falseElim";
 
+    case LeanRule::INST_FORALL_PARTIAL: return "flipInstForall";
+    case LeanRule::INST_FORALL: return "flipInstForall";
+
     case LeanRule::SKOLEM_INTRO: return "skolemIntro";
     case LeanRule::ITE_INTRO: return "iteIntro";
 

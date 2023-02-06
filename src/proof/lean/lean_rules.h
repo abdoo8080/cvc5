@@ -97,6 +97,9 @@ enum class LeanRule : uint32_t
   TRUE_ELIM,
   FALSE_INTRO,
   FALSE_ELIM,
+  // quant
+  INST_FORALL_PARTIAL,
+  INST_FORALL,
   // skolems
   SKOLEM_INTRO,
   ITE_INTRO,

@@ -357,6 +357,68 @@ bool LeanProofPostprocessCallback::update(Node res,
       addLeanStep(res, LeanRule::ITE_INTRO, d_lnc.convert(res), {}, {}, *cdp);
       break;
     }
+    // Quantifiers
+  case PfRule::INSTANTIATE:
+    {
+      // We need to stratify the instantiation. For each variable in the bound
+      // var list of the quantifier (which is necessarity being instantiated) we
+      // will create a step. Only the last is not a partial one.
+      //
+      // We insantiate from the first variable up.
+      Node quant = children[0];
+      Node currPremise = quant;
+      std::vector<Node> bVars{quant[0].begin(), quant[0].end()};
+      std::vector<Node> currInstVars;
+      std::vector<Node> currInstTerms;
+      // the body of the lambda is the quant body with all the previously
+      // instantiated variables replaced by the respective terms
+      Node lambdaBody = quant[1];
+      size_t i = 0;
+      for (size_t size = quant[0].getNumChildren(); i < size - 1; ++i)
+      {
+        Node currVar = quant[0][i];
+        Node currTerm = args[i];
+        Node ithBVars =
+            nm->mkNode(kind::BOUND_VAR_LIST,
+                       std::vector<Node>{bVars.begin() + i + 1, bVars.end()});
+        Node currLambda =
+            nm->mkNode(kind::LAMBDA,
+                       nm->mkNode(kind::BOUND_VAR_LIST, currVar),
+                       nm->mkNode(kind::FORALL, ithBVars, lambdaBody));
+        // create a unique placeholder for the partial instantiation and add the
+        // step
+        Node newConclusion = nm->mkNode(kind::SEXPR, quant, currLambda);
+        addLeanStep(newConclusion,
+                    LeanRule::INST_FORALL_PARTIAL,
+                    newConclusion,
+                    {currPremise},
+                    {d_lnc.convert(currLambda), d_lnc.convert(currTerm)},
+                    *cdp);
+        currPremise = newConclusion;
+        // Add the instantiated variable to the substitution and update the
+        // lambda body
+        currInstVars.push_back(currVar);
+        currInstTerms.push_back(currTerm);
+        lambdaBody = quant[1].substitute(currInstVars.begin(),
+                                         currInstVars.end(),
+                                         currInstTerms.begin(),
+                                         currInstTerms.end());
+      }
+      // the last step is such that all but the last variable has been
+      // instantiated. The instantiated body will have no free variables but the
+      // variable in the lambda
+      Node currLambda =
+          nm->mkNode(kind::LAMBDA,
+                     nm->mkNode(kind::BOUND_VAR_LIST, quant[0][i]),
+                     lambdaBody);
+      addLeanStep(res,
+                  LeanRule::INST_FORALL,
+                  d_lnc.convert(res),
+                  {currPremise},
+                  {d_lnc.convert(currLambda), d_lnc.convert(args[i])},
+                  *cdp);
+      break;
+    }
     // Arith
     case PfRule::ARITH_SUM_UB:
     case PfRule::ARITH_MULT_POS:

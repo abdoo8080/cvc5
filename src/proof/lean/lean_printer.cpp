@@ -72,7 +72,9 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
                   LeanRule::BIND_PARTIAL,
                   LeanRule::BIND_LAMBDA_PARTIAL,
                   LeanRule::TRANS_PARTIAL,
-                  LeanRule::AND_INTRO_PARTIAL}),
+                  LeanRule::AND_INTRO_PARTIAL,
+                  LeanRule::INST_FORALL_PARTIAL,
+      }),
       d_tacticRules({
           {LeanRule::R0, false},
           {LeanRule::R0_PARTIAL, false},

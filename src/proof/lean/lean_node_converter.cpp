@@ -348,15 +348,36 @@ Node LeanNodeConverter::convert(Node n)
           res = nm->mkNode(kind::APPLY_UF, op, children[0]);
           break;
         }
-        case kind::WITNESS:
         case kind::LAMBDA:
         {
-          Unreachable() << "Lambdas, choice are not yet supported";
+          // Must be stratified s.t. (lambda ((x1 T1) ... (xn Tn)) F) becomes
+          // (fun x1 : T1 => (fun x2 : T2 => ... => (fun xn : Tn => F) ...))
+          TypeNode bodyType = cur[1].getType();
+          TypeNode fType = nm->mkFunctionType(
+              {nm->sExprType(), nm->sExprType(), bodyType}, bodyType);
+          Node op = mkInternalSymbol("fun", fType);
+          // get the converted body as the starting point
+          Node vars = children[0];
+          Node currBody = children[1];
+          Node arrow = mkInternalSymbol("=>");
+          for (size_t size = vars.getNumChildren(), i = size; i > 0; --i)
+          {
+            currBody = nm->mkNode(kind::APPLY_UF,
+                                  {op,
+                                   nm->mkNode(kind::SEXPR,
+                                              vars[i - 1],
+                                              d_colon,
+                                              typeAsNode(vars[i - 1].getType())),
+                                   arrow,
+                                   currBody});
+          }
+          res = currBody;
+          break;
         }
-        // {
-        //   // (witness ((x1 T1) ... (xn Tn)) F) will become (epsilon (fun x1 => ))
-        //   break;
-        // }
+        case kind::WITNESS:
+        {
+          Unreachable() << "Choice are not yet supported";
+        }
         case kind::EXISTS:
         case kind::FORALL:
         {
