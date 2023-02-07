@@ -388,12 +388,13 @@ bool LeanProofPostprocessCallback::update(Node res,
         // create a unique placeholder for the partial instantiation and add the
         // step
         Node newConclusion = nm->mkNode(kind::SEXPR, quant, currLambda);
-        addLeanStep(newConclusion,
-                    LeanRule::INST_FORALL_PARTIAL,
-                    newConclusion,
-                    {currPremise},
-                    {d_lnc.convert(currLambda), d_lnc.convert(currTerm)},
-                    *cdp);
+        addLeanStep(
+            newConclusion,
+            LeanRule::INST_FORALL_PARTIAL,
+            newConclusion,
+            {currPremise},
+            {d_lnc.convert(nm->mkNode(kind::SEXPR, currLambda, currTerm))},
+            *cdp);
         currPremise = newConclusion;
         // Add the instantiated variable to the substitution and update the
         // lambda body
@@ -415,7 +416,7 @@ bool LeanProofPostprocessCallback::update(Node res,
                   LeanRule::INST_FORALL,
                   d_lnc.convert(res),
                   {currPremise},
-                  {d_lnc.convert(currLambda), d_lnc.convert(args[i])},
+                  {d_lnc.convert(nm->mkNode(kind::SEXPR, currLambda, args[i]))},
                   *cdp);
       break;
     }
