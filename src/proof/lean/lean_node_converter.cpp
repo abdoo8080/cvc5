@@ -70,6 +70,7 @@ LeanNodeConverter::LeanNodeConverter()
   d_brack[1] = nm->mkRawSymbol("]", nm->sExprType());
   d_comma = nm->mkRawSymbol(",", nm->sExprType());
   d_colon = nm->mkRawSymbol(":", nm->sExprType());
+  d_Arrow = nm->mkRawSymbol("=>", nm->sExprType());
   d_true = nm->mkConst(true);
   d_false = nm->mkConst(false);
 }
@@ -289,11 +290,14 @@ Node LeanNodeConverter::convert(Node n)
           TypeNode tn = cur.getType();
           Rational r = cur.getConst<Rational>();
           std::stringstream ss;
-          ss << "__LEAN_TMP" << r.getNumerator();
+          Integer i = r.getNumerator();
+          bool negative = i.strictlyNegative();
+          ss << "__LEAN_TMP" << (negative ? "(" : "") << i;
           if (!r.getDenominator().isOne())
           {
-             ss << "/" << r.getDenominator();
+            ss << "/" << r.getDenominator();
           }
+          ss << (negative ? ")" : "");
           res = mkInternalSymbol(ss.str(), tn);
           break;
         }
@@ -359,7 +363,6 @@ Node LeanNodeConverter::convert(Node n)
           // get the converted body as the starting point
           Node vars = children[0];
           Node currBody = children[1];
-          Node arrow = mkInternalSymbol("=>");
           for (size_t size = vars.getNumChildren(), i = size; i > 0; --i)
           {
             currBody = nm->mkNode(kind::APPLY_UF,
@@ -368,7 +371,7 @@ Node LeanNodeConverter::convert(Node n)
                                               vars[i - 1],
                                               d_colon,
                                               typeAsNode(vars[i - 1].getType())),
-                                   arrow,
+                                   d_Arrow,
                                    currBody});
           }
           res = currBody;
@@ -376,7 +379,20 @@ Node LeanNodeConverter::convert(Node n)
         }
         case kind::WITNESS:
         {
-          Unreachable() << "Choice are not yet supported";
+          Assert(cur[0].getNumChildren() == 1);
+          TypeNode fType =
+              nm->mkFunctionType(nm->sExprType(), cur[1].getType());
+          Node op = mkInternalSymbol("epsilon", fType);
+          Node funDecl = nm->mkNode(
+              kind::SEXPR, cur[0][0], d_colon, typeAsNode(cur[0][0].getType()));
+          res = nm->mkNode(kind::APPLY_UF,
+                           op,
+                           nm->mkNode(kind::SEXPR,
+                                      mkInternalSymbol("fun"),
+                                      funDecl,
+                                      d_Arrow,
+                                      children[1]));
+          break;
         }
         case kind::EXISTS:
         case kind::FORALL:

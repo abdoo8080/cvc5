@@ -84,6 +84,7 @@ class LeanNodeConverter
   Node d_brack[2];
   Node d_colon;
   Node d_comma;
+  Node d_Arrow;
   Node d_true;
   Node d_false;
 };

@@ -7,7 +7,6 @@ test/regress/cli/regress0/quantifiers/issue8609-subtype-assert.smt2
 test/regress/cli/regress0/quantifiers/ex3.smt2
 test/regress/cli/regress0/quantifiers/is-int.smt2
 test/regress/cli/regress0/quantifiers/issue4086-infs.smt2
-test/regress/cli/regress0/quantifiers/cegqi-nl-simp.cvc.smt2
 test/regress/cli/regress0/quantifiers/partial-trigger.smt2
 test/regress/cli/regress0/quantifiers/issue6999-deq-elim.smt2
 test/regress/cli/regress0/quantifiers/is-even-pred.smt2
