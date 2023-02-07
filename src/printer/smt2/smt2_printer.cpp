@@ -2074,7 +2074,7 @@ void Smt2Printer::toStreamCmdSynthFun(std::ostream& out,
                                       Node f,
                                       const std::vector<Node>& vars,
                                       bool isInv,
-                                      TypeNode sygusType) const
+                                      std::string grammar) const
 {
   out << '(' << (isInv ? "synth-inv " : "synth-fun ") << f << ' ';
   // print variable list
@@ -2086,13 +2086,7 @@ void Smt2Printer::toStreamCmdSynthFun(std::ostream& out,
     TypeNode range = ftn.isFunction() ? ftn.getRangeType() : ftn;
     out << ' ' << range;
   }
-  out << '\n';
-  // print grammar, if any
-  if (!sygusType.isNull())
-  {
-    out << sygusGrammarString(sygusType);
-  }
-  out << ')' << std::endl;
+  out << '\n' << grammar << ')' << std::endl;
 }
 
 void Smt2Printer::toStreamCmdDeclareVar(std::ostream& out,

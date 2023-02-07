@@ -517,7 +517,7 @@ sygusCommand returns [std::unique_ptr<cvc5::parser::Command> cmd]
     )?
     {
       Trace("parser-sygus") << "Define synth fun : " << name << std::endl;
-
+      Grammar* randomGrammar = PARSER_STATE->randomizeGrammar(grammar);
       fun = isInv ? (grammar == nullptr
                          ? SOLVER->synthInv(name, sygusVars)
                          : SOLVER->synthInv(name, sygusVars, *grammar))
@@ -529,7 +529,7 @@ sygusCommand returns [std::unique_ptr<cvc5::parser::Command> cmd]
       PARSER_STATE->popScope();
       // we do not allow overloading for synth fun
       cmd = std::unique_ptr<cvc5::parser::Command>(
-          new SynthFunCommand(name, fun, sygusVars, range, isInv, grammar));
+          new SynthFunCommand(name, fun, sygusVars, range, isInv, randomGrammar));
     }
   | /* constraint */
     ( CONSTRAINT_TOK { isAssume = false; } | ASSUME_TOK { isAssume = true; } )

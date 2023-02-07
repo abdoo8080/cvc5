@@ -170,7 +170,7 @@ class CVC5_EXPORT Printer
                                    Node f,
                                    const std::vector<Node>& vars,
                                    bool isInv,
-                                   TypeNode sygusType = TypeNode::null()) const;
+                                   std::string grammar) const;
 
   /** Print constraint command */
   virtual void toStreamCmdConstraint(std::ostream& out, Node n) const;

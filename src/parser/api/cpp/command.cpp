@@ -560,7 +560,7 @@ void SynthFunCommand::toStream(std::ostream& out) const
       termToNode(d_fun),
       nodeVars,
       d_isInv,
-      d_grammar == nullptr ? TypeNode::null() : grammarToTypeNode(d_grammar));
+      d_grammar == nullptr ? "" : d_grammar->toString());
 }
 
 /* -------------------------------------------------------------------------- */

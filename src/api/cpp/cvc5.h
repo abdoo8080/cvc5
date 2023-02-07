@@ -2769,6 +2769,21 @@ class CVC5_EXPORT Grammar
   void addAnyVariable(const Term& ntSymbol);
 
   /**
+   * @return Variables of the grammar.
+   */
+  const std::vector<Term>& getBoundVars() const;
+
+  /**
+   * @return Non-terminal symbols of the grammar.
+   */
+  const std::vector<Term>& getNtSymbols() const;
+
+  /**
+   * @return A mapping from non-terminals to rules.
+   */
+  const std::unordered_map<Term, std::vector<Term>>& getGrammar() const;
+
+  /**
    * @return A string representation of this grammar.
    */
   std::string toString() const;

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 
+#include "../../examples/api/cpp/random-grammars.cpp"
 #include "base/check.h"
 #include "base/output.h"
 #include "parser/api/cpp/command.h"
@@ -936,6 +937,30 @@ Grammar* Smt2State::mkGrammar(const std::vector<Term>& boundVars,
 {
   d_allocGrammars.emplace_back(
       new Grammar(d_solver->mkGrammar(boundVars, ntSymbols)));
+  return d_allocGrammars.back().get();
+}
+
+Grammar* Smt2State::randomizeGrammar(Grammar* g)
+{
+  Grammar rg = *g;
+  for (const Term& nonterminal : rg.getNtSymbols())
+  {
+    const Sort& sort = nonterminal.getSort();
+    if (sort.isBoolean())
+    {
+      rg.addRule(nonterminal, d_solver->mkFalse());
+    }
+    else if (sort.isInteger())
+    {
+      rg.addRule(nonterminal, d_solver->mkInteger(0));
+    }
+    else if (sort.isBitVector())
+    {
+      uint32_t size = sort.getBitVectorSize();
+      rg.addRule(nonterminal, d_solver->mkBitVector(size, 0));
+    }
+  }
+  d_allocGrammars.emplace_back(new Grammar(randomize(*d_solver, rg)));
   return d_allocGrammars.back().get();
 }
 

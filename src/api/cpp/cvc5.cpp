@@ -4493,6 +4493,33 @@ void Grammar::addAnyVariable(const Term& ntSymbol)
   CVC5_API_TRY_CATCH_END;
 }
 
+const std::vector<Term>& Grammar::getBoundVars() const
+{
+  CVC5_API_TRY_CATCH_BEGIN;
+  //////// all checks before this line
+  return d_sygusVars;
+  ////////
+  CVC5_API_TRY_CATCH_END;
+}
+
+const std::vector<Term>& Grammar::getNtSymbols() const
+{
+  CVC5_API_TRY_CATCH_BEGIN;
+  //////// all checks before this line
+  return d_ntSyms;
+  ////////
+  CVC5_API_TRY_CATCH_END;
+}
+
+const std::unordered_map<Term, std::vector<Term>>& Grammar::getGrammar() const
+{
+  CVC5_API_TRY_CATCH_BEGIN;
+  //////// all checks before this line
+  return d_ntsToTerms;
+  ////////
+  CVC5_API_TRY_CATCH_END;
+}
+
 /**
  * This function concatenates the outputs of calling f on each element between
  * first and last, seperated by sep.

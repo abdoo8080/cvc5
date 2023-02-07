@@ -169,35 +169,6 @@ Term findOriginalNonterminal(std::unordered_map<Term, std::vector<Term>> pools,
   }
 }
 
-/** Generate a somewhat random grammar from the provided one. */
-G randomize(const Solver& slv, const std::vector<Term>& sygusVars, G& g)
-{
-  std::unordered_map<Term, std::vector<Term>> pools;
-  std::vector<Term> stack;
-  for (const std::pair<const Term, std::vector<Term>>& production : g)
-  {
-    Term nonterminal = production.first;
-    pools[nonterminal].push_back(nonterminal);
-    stack.push_back(nonterminal);
-  }
-  G gp;
-  while (!stack.empty())
-  {
-    Term currNonterminal = stack.back();
-    stack.pop_back();
-    std::vector<Term> mutatedRules, newNonteriminals;
-    std::tie(mutatedRules, newNonteriminals) =
-        mutateRules(slv,
-                    sygusVars,
-                    pools,
-                    g[findOriginalNonterminal(pools, currNonterminal)]);
-    gp[currNonterminal] = mutatedRules;
-    stack.insert(
-        stack.cend(), newNonteriminals.cbegin(), newNonteriminals.cend());
-  }
-  return gp;
-}
-
 std::tuple<std::vector<Term>, std::vector<Term>, G> update(
     const Solver& slv,
     std::vector<Term> vars,
@@ -230,7 +201,38 @@ Grammar mapToGrammar(const Solver& slv,
   return g;
 }
 
-std::tuple<std::vector<Term>, std::vector<Term>, G> bvGrammar(const Solver& slv)
+/** Generate a somewhat random grammar from the provided one. */
+Grammar randomize(const Solver& slv, const Grammar& g)
+{
+  const std::vector<Term>& sygusVars = g.getBoundVars();
+  const std::vector<Term>& nonterminals = g.getNtSymbols();
+  const G& gMap = g.getGrammar();
+  std::unordered_map<Term, std::vector<Term>> pools;
+  std::vector<Term> stack;
+  for (const Term& nonterminal : nonterminals)
+  {
+    pools[nonterminal].push_back(nonterminal);
+    stack.push_back(nonterminal);
+  }
+  G gp;
+  while (!stack.empty())
+  {
+    Term currNonterminal = stack.back();
+    stack.pop_back();
+    std::vector<Term> mutatedRules, newNonteriminals;
+    std::tie(mutatedRules, newNonteriminals) =
+        mutateRules(slv,
+                    sygusVars,
+                    pools,
+                    gMap.at(findOriginalNonterminal(pools, currNonterminal)));
+    gp[currNonterminal] = mutatedRules;
+    stack.insert(
+        stack.cend(), newNonteriminals.cbegin(), newNonteriminals.cend());
+  }
+  return mapToGrammar(slv, sygusVars, nonterminals, gp);
+}
+
+Grammar bvGrammar(const Solver& slv)
 {
   Sort boolean = slv.getBooleanSort();
   Sort bitVec8 = slv.mkBitVectorSort(8);
@@ -241,9 +243,10 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> bvGrammar(const Solver& slv)
   Term start = slv.mkVar(bitVec8, "Start");
   Term startBool = slv.mkVar(boolean, "StartBool");
 
-  G g;
+  Grammar g = slv.mkGrammar({x, y}, {start, startBool});
 
-  g[start] = {x,
+  g.addRules(start,
+             {x,
               y,
               slv.mkBitVector(8, "00", 16),
               slv.mkBitVector(8, "01", 16),
@@ -258,20 +261,20 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> bvGrammar(const Solver& slv)
               slv.mkTerm(BITVECTOR_UREM, {start, start}),
               slv.mkTerm(BITVECTOR_SHL, {start, start}),
               slv.mkTerm(BITVECTOR_LSHR, {start, start}),
-              slv.mkTerm(ITE, {startBool, start, start})};
+              slv.mkTerm(ITE, {startBool, start, start})});
 
-  g[startBool] = {slv.mkFalse(),
-                  slv.mkTrue(),
-                  slv.mkTerm(NOT, {startBool}),
-                  slv.mkTerm(AND, {startBool, startBool}),
-                  slv.mkTerm(OR, {startBool, startBool}),
-                  slv.mkTerm(BITVECTOR_ULT, {start, start})};
+  g.addRules(startBool,
+             {slv.mkFalse(),
+              slv.mkTrue(),
+              slv.mkTerm(NOT, {startBool}),
+              slv.mkTerm(AND, {startBool, startBool}),
+              slv.mkTerm(OR, {startBool, startBool}),
+              slv.mkTerm(BITVECTOR_ULT, {start, start})});
 
-  return {{x, y}, {start, startBool}, g};
+  return g;
 }
 
-std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
-    const Solver& slv)
+Grammar niaGrammar(const Solver& slv)
 {
   Sort boolean = slv.getBooleanSort();
   Sort integer = slv.getIntegerSort();
@@ -282,9 +285,10 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
   Term start = slv.mkVar(integer, "Start");
   Term startBool = slv.mkVar(boolean, "StartBool");
 
-  G g;
+  Grammar g = slv.mkGrammar({x, y}, {start, startBool});
 
-  g[start] = {x,
+  g.addRules(start,
+             {x,
               y,
               slv.mkInteger(0),
               slv.mkInteger(1),
@@ -299,24 +303,24 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> niaGrammar(
               slv.mkTerm(INTS_DIVISION, {start, start}),
               slv.mkTerm(INTS_MODULUS, {start, start}),
               slv.mkTerm(ABS, {start}),
-              slv.mkTerm(ITE, {startBool, start, start})};
+              slv.mkTerm(ITE, {startBool, start, start})});
 
-  g[startBool] = {slv.mkFalse(),
-                  slv.mkTrue(),
-                  slv.mkTerm(NOT, {startBool}),
-                  slv.mkTerm(AND, {startBool, startBool}),
-                  slv.mkTerm(OR, {startBool, startBool}),
-                  slv.mkTerm(LT, {start, start}),
-                  slv.mkTerm(LEQ, {start, start}),
-                  slv.mkTerm(EQUAL, {start, start}),
-                  slv.mkTerm(GEQ, {start, start}),
-                  slv.mkTerm(GT, {start, start})};
+  g.addRules(startBool,
+             {slv.mkFalse(),
+              slv.mkTrue(),
+              slv.mkTerm(NOT, {startBool}),
+              slv.mkTerm(AND, {startBool, startBool}),
+              slv.mkTerm(OR, {startBool, startBool}),
+              slv.mkTerm(LT, {start, start}),
+              slv.mkTerm(LEQ, {start, start}),
+              slv.mkTerm(EQUAL, {start, start}),
+              slv.mkTerm(GEQ, {start, start}),
+              slv.mkTerm(GT, {start, start})});
 
-  return {{x, y}, {start, startBool}, g};
+  return g;
 }
 
-std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
-    const Solver& slv)
+Grammar sliaGrammar(const Solver& slv)
 {
   Sort boolean = slv.getBooleanSort();
   Sort integer = slv.getIntegerSort();
@@ -329,9 +333,10 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
   Term startInt = slv.mkVar(integer, "StartInt");
   Term startBool = slv.mkVar(boolean, "StartBool");
 
-  G g;
+  Grammar g = slv.mkGrammar({x, y}, {start, startInt, startBool});
 
-  g[start] = {x,
+  g.addRules(start,
+             {x,
               y,
               slv.mkString(""),
               slv.mkString("0"),
@@ -345,30 +350,32 @@ std::tuple<std::vector<Term>, std::vector<Term>, G> stringGrammar(
               // slv.mkTerm(STRING_REPLACE_ALL, {start, start, start}),
               // slv.mkTerm(STRING_FROM_CODE, {startInt}),
               slv.mkTerm(STRING_FROM_INT, {startInt}),
-              slv.mkTerm(ITE, {startBool, start, start})};
+              slv.mkTerm(ITE, {startBool, start, start})});
 
-  g[startInt] = {slv.mkInteger(0),
-                 slv.mkInteger(1),
-                 slv.mkTerm(STRING_LENGTH, {start}),
-                 slv.mkTerm(STRING_INDEXOF, {start, start, startInt}),
-                //  slv.mkTerm(STRING_TO_CODE, {start}),
-                 slv.mkTerm(STRING_TO_INT, {start})};
+  g.addRules(startInt,
+             {slv.mkInteger(0),
+              slv.mkInteger(1),
+              slv.mkTerm(STRING_LENGTH, {start}),
+              slv.mkTerm(STRING_INDEXOF, {start, start, startInt}),
+              //  slv.mkTerm(STRING_TO_CODE, {start}),
+              slv.mkTerm(STRING_TO_INT, {start})});
 
-  g[startBool] = {slv.mkFalse(),
-                  slv.mkTrue(),
-                  slv.mkTerm(NOT, {startBool}),
-                  slv.mkTerm(AND, {startBool, startBool}),
-                  slv.mkTerm(STRING_LT, {start, start}),
-                  slv.mkTerm(STRING_LEQ, {start, start}),
-                  slv.mkTerm(STRING_PREFIX, {start, start}),
-                  slv.mkTerm(STRING_SUFFIX, {start, start}),
-                  slv.mkTerm(STRING_CONTAINS, {start, start}),
-                  // slv.mkTerm(STRING_IS_DIGIT, {start}),
-                  slv.mkTerm(EQUAL, {start, start}),
-                  slv.mkTerm(EQUAL, {startInt, startInt}),
-                  slv.mkTerm(LEQ, {startInt, startInt})};
+  g.addRules(startBool,
+             {slv.mkFalse(),
+              slv.mkTrue(),
+              slv.mkTerm(NOT, {startBool}),
+              slv.mkTerm(AND, {startBool, startBool}),
+              slv.mkTerm(STRING_LT, {start, start}),
+              slv.mkTerm(STRING_LEQ, {start, start}),
+              slv.mkTerm(STRING_PREFIX, {start, start}),
+              slv.mkTerm(STRING_SUFFIX, {start, start}),
+              slv.mkTerm(STRING_CONTAINS, {start, start}),
+              // slv.mkTerm(STRING_IS_DIGIT, {start}),
+              slv.mkTerm(EQUAL, {start, start}),
+              slv.mkTerm(EQUAL, {startInt, startInt}),
+              slv.mkTerm(LEQ, {startInt, startInt})});
 
-  return {{x, y}, {start, startInt, startBool}, g};
+  return g;
 }
 
 int main(int argc, char* argv[])
@@ -381,21 +388,15 @@ int main(int argc, char* argv[])
   }
 
   Solver slv;
-  std::vector<Term> sygusVars, nonterminals;
-  G g;
-
-  std::string x = "s";
 
   if (strcmp(argv[1], "bv") == 0)
   {
-    std::tie(sygusVars, nonterminals, g) = bvGrammar(slv);
-    G ng = randomize(slv, sygusVars, g);
+    Grammar g = randomize(slv, bvGrammar(slv));
     std::cout << "(set-logic BV)" << std::endl
               << std::endl
               << "(synth-fun f ((x (_ BitVec 8)) (y (_ BitVec 8))) (_ BitVec 8)"
               << std::endl
-              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
-              << std::endl
+              << g << ')' << std::endl
               << std::endl
               << "(declare-var x (_ BitVec 8))" << std::endl
               << "(declare-var y (_ BitVec 8))" << std::endl
@@ -403,27 +404,23 @@ int main(int argc, char* argv[])
   }
   else if (strcmp(argv[1], "nia") == 0)
   {
-    std::tie(sygusVars, nonterminals, g) = niaGrammar(slv);
-    G ng = randomize(slv, sygusVars, g);
+    Grammar g = randomize(slv, niaGrammar(slv));
     std::cout << "(set-logic NIA)" << std::endl
               << std::endl
               << "(synth-fun f ((x Int) (y Int)) Int" << std::endl
-              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
-              << std::endl
+              << g << ')' << std::endl
               << std::endl
               << "(declare-var x Int)" << std::endl
               << "(declare-var y Int)" << std::endl
               << std::endl;
   }
-  else if (strcmp(argv[1], "string") == 0)
+  else if (strcmp(argv[1], "slia") == 0)
   {
-    std::tie(sygusVars, nonterminals, g) = stringGrammar(slv);
-    G ng = randomize(slv, sygusVars, g);
+    Grammar g = randomize(slv, sliaGrammar(slv));
     std::cout << "(set-logic SLIA)" << std::endl
               << std::endl
               << "(synth-fun f ((x String) (y String)) String" << std::endl
-              << mapToGrammar(slv, sygusVars, nonterminals, ng) << ')'
-              << std::endl
+              << g << ')' << std::endl
               << std::endl
               << "(declare-var x String)" << std::endl
               << "(declare-var y String)" << std::endl
@@ -431,7 +428,7 @@ int main(int argc, char* argv[])
   }
   else
   {
-    std::cerr << "Unknown option!\nUsage: " << argv[0] << " [bv|nia|string]"
+    std::cerr << "Unknown option!\nUsage: " << argv[0] << " [bv|nia|slia]"
               << std::endl;
     return 2;
   }
