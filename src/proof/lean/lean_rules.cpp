@@ -100,6 +100,7 @@ const char* toString(LeanRule id)
 
     case LeanRule::INST_FORALL_PARTIAL: return "flipInstForall";
     case LeanRule::INST_FORALL: return "flipInstForall";
+    case LeanRule::SKOLEMIZE_PARTIAL: return "smtSkolem";
 
     case LeanRule::SKOLEM_INTRO: return "skolemIntro";
     case LeanRule::ITE_INTRO: return "iteIntro";

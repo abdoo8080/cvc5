@@ -172,6 +172,30 @@ Node LeanProofPostprocessCallback::getSingletonPosition(
   return nm->mkConstInt(Rational(-1));
 }
 
+void LeanProofPostprocessCallback::buildTransitivyChain(
+    Node conclusion, const std::vector<Node>& links, CDProof* cdp)
+{
+  NodeManager* nm = NodeManager::currentNM();
+  Node cur = links[0];
+  // it's important to go the route of creating exotic intermediary terms to
+  // guarantee that they will not clash with other terms from the proof
+  TypeNode tn = conclusion[0].getType();
+  Node op = d_lnc.mkInternalSymbol("Eq", nm->mkFunctionType({tn, tn}, tn));
+  for (size_t i = 1, size = links.size(); i < size - 1; ++i)
+  {
+    Node newCur = nm->mkNode(kind::APPLY_UF, op, links[i][0], links[i][1]);
+    addLeanStep(
+        newCur, LeanRule::TRANS_PARTIAL, d_empty, {cur, links[i]}, {}, *cdp);
+    cur = newCur;
+  }
+  addLeanStep(conclusion,
+              LeanRule::TRANS,
+              d_lnc.convert(conclusion),
+              {cur, links.back()},
+              {},
+              *cdp);
+}
+
 bool LeanProofPostprocessCallback::update(Node res,
                                           PfRule id,
                                           const std::vector<Node>& children,
@@ -422,68 +446,101 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::SKOLEMIZE:
     {
-      if (res.getKind() == kind::NOT)
-      {
-        Unreachable() << "For now we only support skolemization of existentials";
-      }
       // We need to stratify the skolemization. For each variable in the bound
       // var list of the quantifier (which is necessarily being skolemized) we
       // will create a step. Only the last is not a partial one.
       //
       // We skolemize from the first variable up, accumulate the skolemization
       // steps and do a transitivity chain.
-      Node quant = children[0];
-      Node currPremise = quant;
-      std::vector<Node> bVars{quant[0].begin(), quant[0].end()};
-      std::vector<Node> currInstVars;
-      std::vector<Node> currInstTerms;
+      //
+      // if the skolemization is of a negated forall, we add a conversion step
+      // to work on an existential
+      Node quant;
+      std::vector<Node> skolemSteps;
+      if (children[0].getKind() == kind::EXISTS)
+      {
+        quant = children[0];
+      }
+      else
+      {
+        quant = nm->mkNode(
+            kind::EXISTS, children[0][0][0], children[0][0][1].notNode());
+        skolemSteps.push_back(children[0].eqNode(quant));
+        // Make this an assumption
+        d_newHoleAssumptions.insert(d_lnc.convert(skolemSteps.back()));
+        cdp->addStep(skolemSteps.back(),
+                     PfRule::ASSUME,
+                     {},
+                     {skolemSteps.back()},
+                     false,
+                     CDPOverwrite::ALWAYS);
+      }
       // the body of the lambda is the quant body with all the previously
-      // instantiated variables replaced by the respective terms
+      // skolemized variables replaced by the respective epsilon terms
       Node lambdaBody = quant[1];
+      std::vector<Node> bVars{quant[0].begin(), quant[0].end()};
+      std::vector<Node> currSkoVars;
+      std::vector<Node> currSkoEpsilons;
       size_t i = 0;
-      for (size_t size = quant[0].getNumChildren(); i < size - 1; ++i)
+      for (size_t size = quant[0].getNumChildren(); i < size; ++i)
       {
         Node currVar = quant[0][i];
-        Node currTerm = args[i];
-        Node ithBVars =
-            nm->mkNode(kind::BOUND_VAR_LIST,
-                       std::vector<Node>{bVars.begin() + i + 1, bVars.end()});
-        Node currLambda =
-            nm->mkNode(kind::LAMBDA,
-                       nm->mkNode(kind::BOUND_VAR_LIST, currVar),
-                       nm->mkNode(kind::FORALL, ithBVars, lambdaBody));
+        Node currLambda;
+        if (i < size - 1)
+        {
+          Node ithBVars =
+              nm->mkNode(kind::BOUND_VAR_LIST,
+                         std::vector<Node>{bVars.begin() + i + 1, bVars.end()});
+          currLambda =
+              nm->mkNode(kind::LAMBDA,
+                         nm->mkNode(kind::BOUND_VAR_LIST, currVar),
+                         nm->mkNode(kind::EXISTS, ithBVars, lambdaBody));
+        }
+        else
+        {
+          currLambda = nm->mkNode(kind::LAMBDA,
+                                  nm->mkNode(kind::BOUND_VAR_LIST, currVar),
+                                  lambdaBody);
+        }
         // create a unique placeholder for the partial instantiation and add the
         // step
         Node newConclusion = nm->mkNode(kind::SEXPR, quant, currLambda);
-        addLeanStep(
-            newConclusion,
-            LeanRule::INST_FORALL_PARTIAL,
-            newConclusion,
-            {currPremise},
-            {d_lnc.convert(nm->mkNode(kind::SEXPR, currLambda, currTerm))},
-            *cdp);
-        currPremise = newConclusion;
-        // Add the instantiated variable to the substitution and update the
-        // lambda body
-        currInstVars.push_back(currVar);
-        currInstTerms.push_back(currTerm);
-        lambdaBody = quant[1].substitute(currInstVars.begin(),
-                                         currInstVars.end(),
-                                         currInstTerms.begin(),
-                                         currInstTerms.end());
+        addLeanStep(newConclusion,
+                    LeanRule::SKOLEMIZE_PARTIAL,
+                    newConclusion,
+                    {},
+                    {d_lnc.convert(currLambda)},
+                    *cdp);
+        skolemSteps.push_back(newConclusion);
+        // create the choice for the next round if there is a next round
+        if (i == size)
+        {
+          continue;
+        }
+        // Map the skolemized variable in the substitution with its epsilon term
+        // and update the lambda body
+        Node currEpsilon = nm->mkNode(kind::WITNESS,
+                                      nm->mkNode(kind::BOUND_VAR_LIST, currVar),
+                                      lambdaBody);
+        currSkoVars.push_back(currVar);
+        currSkoEpsilons.push_back(currEpsilon);
+        lambdaBody = quant[1].substitute(currSkoVars.begin(),
+                                         currSkoVars.end(),
+                                         currSkoEpsilons.begin(),
+                                         currSkoEpsilons.end());
       }
-      // the last step is such that all but the last variable has been
-      // instantiated. The instantiated body will have no free variables but the
-      // variable in the lambda
-      Node currLambda =
-          nm->mkNode(kind::LAMBDA,
-                     nm->mkNode(kind::BOUND_VAR_LIST, quant[0][i]),
-                     lambdaBody);
+      // A chain of the skolemization equalities will give us the skolemized
+      // formula. A transitivity chain will equate that to the premise.
+      Node equiv = children[0].eqNode(res);
+      // build the chain
+      buildTransitivyChain(equiv, skolemSteps, cdp);
+      // do equality resolution between the premise and the equiv to have the
+      // original skolemized formula as the conclusion
       addLeanStep(res,
-                  LeanRule::INST_FORALL,
+                  LeanRule::EQ_RESOLVE,
                   d_lnc.convert(res),
-                  {currPremise},
-                  {d_lnc.convert(nm->mkNode(kind::SEXPR, currLambda, args[i]))},
+                  {children[0], equiv},
+                  {},
                   *cdp);
       break;
     }
@@ -880,24 +937,7 @@ bool LeanProofPostprocessCallback::update(Node res,
     }
     case PfRule::TRANS:
     {
-      Node cur = children[0], first = children[0][0];
-      for (size_t i = 1, size = children.size(); i < size - 1; ++i)
-      {
-        Node newCur = nm->mkNode(kind::EQUAL, first, children[i][1]);
-        addLeanStep(newCur,
-                    LeanRule::TRANS_PARTIAL,
-                    d_empty,
-                    {cur, children[i]},
-                    {},
-                    *cdp);
-        cur = newCur;
-      }
-      addLeanStep(res,
-                  LeanRule::TRANS,
-                  d_lnc.convert(res),
-                  {cur, children.back()},
-                  {},
-                  *cdp);
+      buildTransitivyChain(res, children, cdp);
       break;
     }
     case PfRule::AND_INTRO:

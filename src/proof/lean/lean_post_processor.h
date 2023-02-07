@@ -97,6 +97,9 @@ class LeanProofPostprocessCallback : public ProofNodeUpdaterCallback
   Node getSingletonPosition(Node clause,
                             size_t pos,
                             const std::vector<Node>& pivots);
+  void buildTransitivyChain(Node conclusion,
+                            const std::vector<Node>& links,
+                            CDProof* cdp);
 };
 
 /**

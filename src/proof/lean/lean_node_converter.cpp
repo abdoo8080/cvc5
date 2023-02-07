@@ -380,18 +380,20 @@ Node LeanNodeConverter::convert(Node n)
         case kind::WITNESS:
         {
           Assert(cur[0].getNumChildren() == 1);
-          TypeNode fType =
-              nm->mkFunctionType(nm->sExprType(), cur[1].getType());
-          Node op = mkInternalSymbol("epsilon", fType);
+          TypeNode bodyType = children[1].getType();
+          Node op = mkInternalSymbol(
+              "epsilon", nm->mkFunctionType(nm->sExprType(), cur.getType()));
           Node funDecl = nm->mkNode(
               kind::SEXPR, cur[0][0], d_colon, typeAsNode(cur[0][0].getType()));
+          TypeNode fType = nm->mkFunctionType(
+              {nm->sExprType(), nm->sExprType(), bodyType}, nm->sExprType());
           res = nm->mkNode(kind::APPLY_UF,
                            op,
-                           nm->mkNode(kind::SEXPR,
-                                      mkInternalSymbol("fun"),
-                                      funDecl,
-                                      d_Arrow,
-                                      children[1]));
+                           nm->mkNode(kind::APPLY_UF,
+                                      {mkInternalSymbol("fun", fType),
+                                       funDecl,
+                                       d_Arrow,
+                                       children[1]}));
           break;
         }
         case kind::EXISTS:

@@ -100,6 +100,7 @@ enum class LeanRule : uint32_t
   // quant
   INST_FORALL_PARTIAL,
   INST_FORALL,
+  SKOLEMIZE_PARTIAL,
   // skolems
   SKOLEM_INTRO,
   ITE_INTRO,
