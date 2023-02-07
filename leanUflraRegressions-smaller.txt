@@ -1,0 +1,8 @@
+test/regress/cli/regress0/uflra/simple.02.cvc.smt2
+test/regress/cli/regress0/uflra/constants0.smtv1.smt2
+test/regress/cli/regress0/uflra/simple.04.cvc.smt2
+test/regress/cli/regress0/uflia/xs-09-16-3-4-1-5.delta01.smtv1.smt2
+test/regress/cli/regress0/arith/integers/arith-int-079.cvc.smt2
+test/regress/cli/regress0/arith/integers/arith-interval.cvc.smt2
+test/regress/cli/regress0/arith/integers/arith-int-042.min.cvc.smt2
+test/regress/cli/regress0/arith/integers/arith-int-042.cvc.smt2

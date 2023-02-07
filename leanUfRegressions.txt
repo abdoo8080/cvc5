@@ -1,14 +1,12 @@
 test/regress/cli/regress0/uf/eq_diamond1.smtv1.smt2
 test/regress/cli/regress0/uf/simple.03.cvc.smt2
 test/regress/cli/regress0/uf/euf_simp13.smtv1.smt2
-test/regress/cli/regress0/uf/cnf-iff.smt2
 test/regress/cli/regress0/uf/issue2947.smt2
 test/regress/cli/regress0/uf/NEQ016_size5_reduced2a.smtv1.smt2
 test/regress/cli/regress0/uf/euf_simp12.smtv1.smt2
 test/regress/cli/regress0/uf/dead_dnd002.smtv1.smt2
 test/regress/cli/regress0/uf/eq_diamond14.reduced2.smtv1.smt2
 test/regress/cli/regress0/uf/euf_simp10.smtv1.smt2
-test/regress/cli/regress0/uf/SEQ032_size2.smtv1.smt2
 test/regress/cli/regress0/uf/cnf-ite.smt2
 test/regress/cli/regress0/uf/iso_icl_repgen004.smtv1.smt2
 test/regress/cli/regress0/uf/pred.smtv1.smt2

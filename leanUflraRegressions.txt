@@ -1,0 +1,9 @@
+test/regress/cli/regress0/uflra/simple.02.cvc.smt2
+test/regress/cli/regress0/uflra/bug293.cvc.smt2
+test/regress/cli/regress0/uflra/constants0.smtv1.smt2
+test/regress/cli/regress0/uflra/pb_real_10_0200_10_26.smtv1.smt2
+test/regress/cli/regress0/uflra/pb_real_10_0200_10_25.smtv1.smt2
+test/regress/cli/regress0/uflra/pb_real_10_0200_10_27.smtv1.smt2
+test/regress/cli/regress0/uflra/simple.04.cvc.smt2
+test/regress/cli/regress0/uflra/pb_real_10_0200_10_29.smtv1.smt2
+test/regress/cli/regress0/uflra/pb_real_10_0200_10_22.smtv1.smt2
