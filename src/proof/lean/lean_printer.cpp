@@ -69,6 +69,7 @@ LeanPrinter::LeanPrinter(Env& env, LeanNodeConverter& lnc)
       d_letRules({LeanRule::R0_PARTIAL,
                   LeanRule::R1_PARTIAL,
                   LeanRule::CONG_PARTIAL,
+                  LeanRule::CONG_ARG_PARTIAL,
                   LeanRule::BIND_PARTIAL,
                   LeanRule::BIND_LAMBDA_PARTIAL,
                   LeanRule::TRANS_PARTIAL,
