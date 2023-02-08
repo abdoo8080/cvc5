@@ -456,6 +456,20 @@ Node LeanNodeConverter::convert(Node n)
           TypeNode childrenType = cur[0].getType();
           TypeNode fType;
           Node op;
+          // when both children are non-negative integer values v, we the first
+          // one to "(Int.ofNat v)". This avoids that Lean inefrs the equality
+          // being between natural numbers.
+          if (childrenType.isInteger() && children[0].isConst()
+              && children[1].isConst()
+              && children[0].getConst<Rational>().sgn() >= 0)
+          {
+            children[0] =
+                nm->mkNode(kind::APPLY_UF,
+                           mkInternalSymbol(
+                               "Int.ofNat",
+                               nm->mkFunctionType(childrenType, childrenType)),
+                           children[0]);
+          }
           if (childrenType.isInteger() && children[0].isConst())
           {
             fType = nm->mkFunctionType(
