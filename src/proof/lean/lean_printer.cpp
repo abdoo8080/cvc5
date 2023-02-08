@@ -108,6 +108,7 @@ void LeanPrinter::cleanSymbols(std::string& s)
   size_t startPos = 0;
   while ((startPos = s.find("|__LEAN_TMP", startPos)) != std::string::npos)
   {
+    Unreachable();
     // stuff is "|__LEAN_TMP$WHATICARE|", so it's needed to kill one after
     // this prefix as well, which after the first replacement is just one after
     // startPos

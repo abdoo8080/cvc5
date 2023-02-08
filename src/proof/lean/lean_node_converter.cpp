@@ -170,23 +170,13 @@ Node LeanNodeConverter::mkBinArithApp(Kind k,
   // make n a nat and not try coercing it to int. But (binrel% op n (+ x
   // y)) will do the coercion.
   NodeManager* nm = NodeManager::currentNM();
-  Trace("test") << c0.getType() << "\n" ;
   // (binrel% op c0 c1) vs (op 0 c1)
-  std::vector<Node> children =
-      c0.getType().isInteger() && c0.isConst()
-          ? std::vector<Node>{mkInternalSymbol(
-                                  "binrel%",
-                                  nm->mkFunctionType({nm->sExprType(),
-                                                      c0.getType(),
-                                                      c1.getType()},
-                                                     retType)),
-                              mkInternalSymbol(s_kindToString[k])}
-          : std::vector<Node>{mkInternalSymbol(
-              s_kindToString[k],
-              nm->mkFunctionType({c0.getType(), c1.getType()}, retType))};
-  children.push_back(c0);
-  children.push_back(c1);
-  return nm->mkNode(kind::APPLY_UF, children);
+  return nm->mkNode(kind::APPLY_UF, {
+      mkInternalSymbol(
+          "binrel%",
+          nm->mkFunctionType({nm->sExprType(), c0.getType(), c1.getType()},
+                             retType)),
+      mkInternalSymbol(s_kindToString[k]), c0, c1});
 }
 
 Node LeanNodeConverter::convert(Node n)
@@ -289,16 +279,24 @@ Node LeanNodeConverter::convert(Node n)
         {
           TypeNode tn = cur.getType();
           Rational r = cur.getConst<Rational>();
-          std::stringstream ss;
           Integer i = r.getNumerator();
           bool negative = i.strictlyNegative();
-          ss << "__LEAN_TMP" << (negative ? "(" : "") << i;
-          if (!r.getDenominator().isOne())
+          bool fraction = !r.getDenominator().isOne();
+          Node toConvert;
+          std::stringstream ss;
+          if (!fraction)
           {
-            ss << "/" << r.getDenominator();
+            ss << "__LEAN_TMP" << i.abs();
+            toConvert = mkInternalSymbol(ss.str(), tn);
           }
-          ss << (negative ? ")" : "");
-          res = mkInternalSymbol(ss.str(), tn);
+          else
+          {
+            toConvert = nm->mkNode(kind::DIVISION,
+                                   nm->mkConstInt(i.abs()),
+                                   nm->mkConstInt(r.getDenominator()));
+          }
+          toConvert = negative? nm->mkNode(kind::NEG, toConvert) : toConvert;
+          res = (fraction || negative) ? convert(toConvert) : toConvert;
           break;
         }
         case kind::CONST_BITVECTOR:
@@ -339,8 +337,8 @@ Node LeanNodeConverter::convert(Node n)
           size_t i = 1, size = cur.getNumChildren();
           Node newCur = children[size - 1];
           do {
-            newCur = mkBinArithApp(k, children[size - 1 - i++], newCur, retType);
-          } while (i < size);
+            newCur = mkBinArithApp(k, children[size - 1 - i], newCur, retType);
+          }  while (++i < size);
           res = newCur;
           break;
         }
@@ -457,11 +455,16 @@ Node LeanNodeConverter::convert(Node n)
           TypeNode fType;
           Node op;
           // when both children are non-negative integer values v, we the first
-          // one to "(Int.ofNat v)". This avoids that Lean inefrs the equality
+          // one to "(Int.ofNat v)". This avoids that Lean infers the equality
           // being between natural numbers.
-          if (childrenType.isInteger() && children[0].isConst()
-              && children[1].isConst()
-              && children[0].getConst<Rational>().sgn() >= 0)
+          //
+          // Note that rational constants that are integral need to pass the
+          // test as well
+          if (cur[0].isConst() && cur[1].isConst()
+              && (childrenType.isInteger()
+                  || (childrenType.isReal()
+                      && cur[0].getConst<Rational>().getDenominator().isOne()))
+              && cur[0].getConst<Rational>().sgn() >= 0)
           {
             children[0] =
                 nm->mkNode(kind::APPLY_UF,
