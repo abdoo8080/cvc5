@@ -158,10 +158,8 @@ bool LeanNodeConverter::shouldTraverse(Node n)
   return true;
 }
 
-Node LeanNodeConverter::mkBinArithApp(Kind k,
-                                      Node c0,
-                                      Node c1,
-                                      TypeNode retType)
+Node LeanNodeConverter::mkBinArithApp(
+    Kind k, Node c0, Node c1, TypeNode retType, bool intConstArgs)
 {
   // requires special case when the first element is an integer
   // constant... due to particularities of Lean the coercion algorithm
@@ -170,6 +168,13 @@ Node LeanNodeConverter::mkBinArithApp(Kind k,
   // make n a nat and not try coercing it to int. But (binrel% op n (+ x
   // y)) will do the coercion.
   NodeManager* nm = NodeManager::currentNM();
+  if (intConstArgs)
+  {
+    TypeNode tn = c0.getType();
+    c0 = nm->mkNode(kind::APPLY_UF,
+                    mkInternalSymbol("Int.ofNat", nm->mkFunctionType(tn, tn)),
+                    c0);
+  }
   // (binrel% op c0 c1) vs (op 0 c1)
   return nm->mkNode(kind::APPLY_UF, {
       mkInternalSymbol(
@@ -326,7 +331,19 @@ Node LeanNodeConverter::convert(Node n)
         case kind::DIVISION:
         case kind::INTS_DIVISION:
         {
-          res = mkBinArithApp(k, children[0], children[1], cur.getType());
+          TypeNode tn = cur[0].getType();
+          res = mkBinArithApp(k,
+                              children[0],
+                              children[1],
+                              cur.getType(),
+                              cur[0].isConst() && cur[1].isConst()
+                                  && (tn.isInteger()
+                                      || (tn.isReal()
+                                          && cur[0]
+                                                 .getConst<Rational>()
+                                                 .getDenominator()
+                                                 .isOne()))
+                                  && cur[0].getConst<Rational>().sgn() >= 0);
           break;
         }
         // n-ary arith kinds
@@ -337,7 +354,18 @@ Node LeanNodeConverter::convert(Node n)
           size_t i = 1, size = cur.getNumChildren();
           Node newCur = children[size - 1];
           do {
-            newCur = mkBinArithApp(k, children[size - 1 - i], newCur, retType);
+            TypeNode tn = cur[size - 1 - i].getType();
+            bool instConstArgs =
+                cur[size - 1 - i].isConst() && newCur.isConst()
+                && (tn.isInteger()
+                    || (tn.isReal()
+                        && cur[size - 1 - i]
+                               .getConst<Rational>()
+                               .getDenominator()
+                               .isOne()))
+                && cur[size - 1 - i].getConst<Rational>().sgn() >= 0;
+            newCur = mkBinArithApp(
+                k, children[size - 1 - i], newCur, retType, instConstArgs);
           }  while (++i < size);
           res = newCur;
           break;

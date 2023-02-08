@@ -70,7 +70,8 @@ class LeanNodeConverter
 
   std::vector<Node> getOperatorIndices(Kind k, Node n);
 
-  Node mkBinArithApp(Kind k, Node c0, Node c1, TypeNode retType);
+  Node mkBinArithApp(
+      Kind k, Node c0, Node c1, TypeNode retType, bool intConstArgs);
 
   /** Maps from internally generated symbols to the built nodes. */
   std::map<std::pair<TypeNode, std::string>, Node> d_symbolsMap;
