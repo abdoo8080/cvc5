@@ -37,30 +37,39 @@ LeanLetUpdaterPfCallback::LeanLetUpdaterPfCallback(LetBinding& lbind,
 LeanLetUpdaterPfCallback::~LeanLetUpdaterPfCallback() {}
 
 bool LeanLetUpdaterPfCallback::shouldUpdate(std::shared_ptr<ProofNode> pn,
-                                        const std::vector<Node>& fa,
-                                        bool& continueUpdate)
+                                            const std::vector<Node>& fa,
+                                            bool& continueUpdate)
 {
-  // only process non-let, non-assume rules
-  return pn->getRule() != PfRule::ASSUME
-         && d_letRules.find(getLeanRule(pn->getArguments()[0]))
-                == d_letRules.end();
-}
-
-bool LeanLetUpdaterPfCallback::update(Node res,
-                                  PfRule id,
-                                  const std::vector<Node>& children,
-                                  const std::vector<Node>& args,
-                                  CDProof* cdp,
-                                  bool& continueUpdate)
-{
-  // Letification done on the converted terms
-  AlwaysAssert(args.size() > 2) << "res: " << res << "\nid: " << id;
-  d_lbind.process(args[2]);
-  // Skolem rules
-  // if (id == PfRule::ARRAYS_EXT)
-  // {
-  //   d_skMap[res[0][0][1]] = SkolemManager::getWitnessForm(k);
-  // }
+  const std::vector<Node>& args = pn->getArguments();
+  // Letification done on the converted terms (thus from the converted
+  // conclusion) and potentially on arguments, which means to ignore the first
+  // two arguments (which are the Lean rule id and the original conclusion).
+  //
+  // Also, ignore conclusions of partial steps
+  size_t i = d_letRules.find(getLeanRule(args[0])) == d_letRules.end() ? 2 : 3;
+  for (size_t size = args.size(); i < size; ++i)
+  {
+    Trace("lean-printer") << "Process " << args[i] << "\n";
+    // We do not process directly "lists", which we use only to aggregate
+    // arguments. We assume that s-expressions as *proof node arguments* with a
+    // raw symbol as first argument are all of the form ([ ... ]).
+    //
+    // Note that we could be sure of the shape if we were to print into a string
+    // the argument (as we do e.g. in printTerm), then check if its first
+    // positions are "([". This is alike to what is done in cleanSymbols to
+    // normalize the printed stuff.
+    if (args[i].getKind() == kind::SEXPR
+        && args[i][0].getKind() == kind::RAW_SYMBOL)
+    {
+      for (const auto& arg : args[i])
+      {
+        d_lbind.process(arg);
+      }
+      continue;
+    }
+    d_lbind.process(args[i]);
+  }
+  // no update to be made
   return false;
 }
 
@@ -183,14 +192,17 @@ void LeanPrinter::printLetList(std::ostream& out)
 {
   std::vector<Node> letList;
   d_lbind.letify(letList);
+  out << (!letList.empty() ? "\n" : "");
   for (TNode n : letList)
   {
     size_t id = d_lbind.getId(n);
     Trace("test-lean") << "printLetList, guy with id " << id << ": " << n
                        << "\n";
     Assert(id != 0);
-    out << "def let" << id << " := ";
+    out << "def let" << id << "' := ";
     printTerm(out, n, false);
+    out << "#check let" << id << "'\n";
+    // out << "\nmacro \"let " << id << "\" : term => `(@let" << id << "'"
   }
 }
 
@@ -437,19 +449,6 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
     out << "}\n";
   }
 
-  // No lets for now
-
-  // // compute the term lets. For this consider the converted assertions
-  // for (const Node& a : assertions)
-  // {
-  //   d_lbind.process(d_lnc.convert(a));
-  // }
-  // // Traverse the proof node to letify the (converted) conclusions of
-  // explicit
-  // // proof steps. This traversal will collect the skolems to de defined.
-  // ProofNodeUpdater updater(d_env, *(d_cb.get()), false, false);
-  // updater.process(innerPf);
-
   // To provide more information, we use differente prefixes to whether the
   // added assumptions are coming from holes or from rewrites. These are the
   // first two arrays, the last is for the original assumptions
@@ -488,6 +487,12 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
     convertedAssumptions[2].push_back(d_lnc.convert(assumptions[i]));
     d_lbind.process(convertedAssumptions[2].back());
   }
+
+  // Traverse the proof node to letify the (converted) conclusions of explicit
+  // proof steps. This traversal will collect the skolems to de defined.
+  ProofNodeUpdater updater(d_env, *(d_cb.get()), false, false);
+  updater.process(innerPf);
+
   printLetList(out);
   // print theorem statement, which is to get proofs of all the assumptions
   // and conclude a proof of False. The assumptions are args[3..]

@@ -42,22 +42,11 @@ class LeanLetUpdaterPfCallback : public ProofNodeUpdaterCallback
                        std::map<Node, Node>& skMap,
                        std::set<LeanRule>& letRules);
   ~LeanLetUpdaterPfCallback();
-  /**
-   * Initialize, called once for each new ProofNode to process. This
-   * initializes static information to be used by successive calls to update.
-   */
-  void initializeUpdate();
-  /** Update the proof node iff has the LEAN_RULE id. */
+
+  /** Update let map according to terms in step pn. */
   bool shouldUpdate(std::shared_ptr<ProofNode> pn,
                     const std::vector<Node>& fa,
                     bool& continueUpdate) override;
-  /** Update the proof rule application. */
-  bool update(Node res,
-              PfRule id,
-              const std::vector<Node>& children,
-              const std::vector<Node>& args,
-              CDProof* cdp,
-              bool& continueUpdate) override;
 
  protected:
   LetBinding& d_lbind;
