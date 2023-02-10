@@ -44,9 +44,9 @@ std::unordered_map<Kind, std::string> s_kindToString = {
     {kind::NOT, "Not"},
     {kind::STRING_LENGTH, "mkLength"},
     {kind::EQUAL, "Eq"},
+    {kind::DISTINCT, "Ne"},
     {kind::XOR, "xor"},
     {kind::IMPLIES, "->"},
-    {kind::DISTINCT, "distinct"},
     {kind::EXISTS, "exists"},
     {kind::FORALL, "forall"},
     {kind::LAMBDA, "fun"},
@@ -475,16 +475,17 @@ Node LeanNodeConverter::convert(Node n)
           // integer constant... due to particularities of Lean the coercion
           // algorithm (between Nat and Int) is less powerful with (Eq n (+ x
           // y)), when n is a non-negative integer and x or y is an integer
-          // term, which well make n a nat and not try coercing it to int. But
+          // term, which will make n a nat and not try coercing it to int. But
           // (binrel% Eq n (+ x y)) will do the coercion.
         case kind::EQUAL:
+        case kind::DISTINCT:
         {
           TypeNode childrenType = cur[0].getType();
           TypeNode fType;
           Node op;
-          // when both children are non-negative integer values v, we the first
-          // one to "(Int.ofNat v)". This avoids that Lean infers the equality
-          // being between natural numbers.
+          // when both children are non-negative integer values v, we change
+          // first one to "(Int.ofNat v)". This avoids that Lean infers the
+          // equality being between natural numbers.
           //
           // Note that rational constants that are integral need to pass the
           // test as well
@@ -506,7 +507,8 @@ Node LeanNodeConverter::convert(Node n)
             fType = nm->mkFunctionType(
                 {nm->sExprType(), childrenType, childrenType},
                 nm->booleanType());
-            children.insert(children.begin(), mkInternalSymbol("Eq"));
+            children.insert(children.begin(),
+                            mkInternalSymbol(s_kindToString[k]));
             op = mkInternalSymbol("binrel%", fType);
           }
           else
@@ -533,7 +535,6 @@ Node LeanNodeConverter::convert(Node n)
         case kind::BITVECTOR_SUB:
         case kind::BITVECTOR_ULT:
         case kind::BITVECTOR_ULE:
-        case kind::DISTINCT:
         case kind::SELECT:
         case kind::XOR:
         case kind::NONLINEAR_MULT:
@@ -657,6 +658,10 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     case kind::EQUAL:
     {
       return mkInternalSymbol("Eq");
+    }
+    case kind::DISTINCT:
+    {
+      return mkInternalSymbol("Ne");
     }
     case kind::OR:
     {
