@@ -60,6 +60,7 @@ std::unordered_map<Kind, std::string> s_kindToString = {
     {kind::MULT, "HMul.hMul"},
     {kind::DIVISION, "HDiv.hDiv"},
     {kind::INTS_DIVISION, "HDiv.hDiv"},
+    {kind::INTS_DIVISION_TOTAL, "HDiv.hDiv"},
 };
 
 // have underlying node converter *not* force type preservation
@@ -330,6 +331,7 @@ Node LeanNodeConverter::convert(Node n)
         case kind::SUB:
         case kind::DIVISION:
         case kind::INTS_DIVISION:
+        case kind::INTS_DIVISION_TOTAL:
         {
           TypeNode tn = cur[0].getType();
           res = mkBinArithApp(k,
@@ -696,6 +698,7 @@ Node LeanNodeConverter::mkPrintableOp(Kind k)
     {
       return mkInternalSymbol("HMul.hMul");
     }
+    case kind::INTS_DIVISION_TOTAL:
     case kind::INTS_DIVISION:
     case kind::DIVISION:
     {
