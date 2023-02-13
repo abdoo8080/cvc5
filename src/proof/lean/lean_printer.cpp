@@ -444,7 +444,7 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
     {
       continue;
     }
-    out << "variable {" << s << " : ";
+    out << "variable {" << s.getName() << " : ";
     printSort(out, s.getType());
     out << "}\n";
   }
