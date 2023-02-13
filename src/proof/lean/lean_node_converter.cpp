@@ -268,6 +268,11 @@ Node LeanNodeConverter::convert(Node n)
           }
           break;
         }
+        case kind::VARIABLE:
+        {
+          res = nm->mkRawSymbol(cur.getName(), cur.getType());
+          break;
+        }
         case kind::BOUND_VARIABLE:
         {
           res = cur;
