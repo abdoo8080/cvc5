@@ -434,7 +434,7 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
   }
   for (const auto& s : sts)
   {
-    out << "variable {" << s << " : Type u}\n";
+    out << "variable {" << s << " : Type u} [Nonempty " << s << "]\n";
   }
   // uninterpreted functions
   for (const Node& s : syms)
