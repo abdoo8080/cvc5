@@ -393,7 +393,7 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
          "Smt.Reconstruction.Certifying\n\n";
   // increase recursion depth and heartbeats
   out << "\n\nset_option maxRecDepth 10000\nset_option maxHeartbeats 500000\n\n";
-
+  uint64_t thId;
   const std::vector<Node>& assumptions = pfn->getArguments();
   // The proof we will print is the one under the scope
   std::shared_ptr<ProofNode> innerPf = pfn->getChildren()[0];
@@ -403,6 +403,7 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
   for (const Node& a : assumptions)
   {
     expr::getSymbols(a, syms, visited);
+    thId += a.getId();
   }
   // uninterpreted sorts
   std::unordered_set<TypeNode> sts;
@@ -496,6 +497,7 @@ void LeanPrinter::print(std::ostream& out, std::shared_ptr<ProofNode> pfn)
   printLetList(out);
   // print theorem statement, which is to get proofs of all the assumptions
   // and conclude a proof of False. The assumptions are args[3..]
+  // out << "\ntheorem th" << thId << " : ";
   out << "\ntheorem th0 : ";
   for (size_t j = 0; j < 3; ++j)
   {
