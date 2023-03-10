@@ -328,6 +328,23 @@ Node LeanNodeConverter::convert(Node n)
           res = nm->mkNode(kind::SEXPR, resChildren);
           break;
         }
+        // casts
+        case kind::TO_REAL:
+        {
+          // If argument is int, cast, otherwise, remove
+          TypeNode tn = cur[0].getType();
+          if (!tn.isInteger())
+          {
+            res = children[0];
+            break;
+          }
+          res = nm->mkNode(
+              kind::APPLY_UF,
+              mkInternalSymbol("Rat.ofInt",
+                               nm->mkFunctionType(tn, cur.getType())),
+              children[0]);
+          break;
+        }
         // binary arith operators
         case kind::GEQ:
         case kind::GT:
@@ -487,6 +504,8 @@ Node LeanNodeConverter::convert(Node n)
         case kind::EQUAL:
         case kind::DISTINCT:
         {
+          // TODO: introduce casts when equality between int/real
+
           TypeNode childrenType = cur[0].getType();
           TypeNode fType;
           Node op;
