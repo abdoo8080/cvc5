@@ -16,6 +16,7 @@
 #include "expr/sygus_datatype.h"
 
 #include <sstream>
+
 #include "expr/skolem_manager.h"
 
 using namespace cvc5::internal::kind;
@@ -26,16 +27,19 @@ SygusDatatype::SygusDatatype(const std::string& name) : d_dt(DType(name)) {}
 
 std::string SygusDatatype::getName() const { return d_dt.getName(); }
 
-void SygusDatatype::addConstructor(Node op,
-                                   const std::string& name,
-                                   const std::vector<TypeNode>& argTypes,
-                                   int weight)
+void SygusDatatype::addConstructor(
+    Node op,
+    const std::string& name,
+    const std::vector<TypeNode>& argTypes,
+    int weight,
+    const std::unordered_map<Node, Node>& weights)
 {
   d_cons.push_back(SygusDatatypeConstructor());
   d_cons.back().d_op = op;
   d_cons.back().d_name = name;
   d_cons.back().d_argTypes = argTypes;
   d_cons.back().d_weight = weight;
+  d_cons.back().d_weights = weights;
 }
 
 void SygusDatatype::addAnyConstantConstructor(TypeNode tn)
@@ -50,12 +54,15 @@ void SygusDatatype::addAnyConstantConstructor(TypeNode tn)
   builtinArg.push_back(tn);
   addConstructor(av, cname, builtinArg, 0);
 }
-void SygusDatatype::addConstructor(Kind k,
-                                   const std::vector<TypeNode>& argTypes,
-                                   int weight)
+
+void SygusDatatype::addConstructor(
+    Kind k,
+    const std::vector<TypeNode>& argTypes,
+    int weight,
+    const std::unordered_map<Node, Node>& weights)
 {
   NodeManager* nm = NodeManager::currentNM();
-  addConstructor(nm->operatorOf(k), kindToString(k), argTypes, weight);
+  addConstructor(nm->operatorOf(k), kindToString(k), argTypes, weight, weights);
 }
 
 size_t SygusDatatype::getNumConstructors() const { return d_cons.size(); }
@@ -84,7 +91,8 @@ void SygusDatatype::initializeDatatype(TypeNode sygusType,
     d_dt.addSygusConstructor(d_cons[i].d_op,
                              d_cons[i].d_name,
                              d_cons[i].d_argTypes,
-                             d_cons[i].d_weight);
+                             d_cons[i].d_weight,
+                             d_cons[i].d_weights);
   }
   Trace("sygus-type-cons") << "...built datatype " << d_dt << " ";
 }

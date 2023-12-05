@@ -106,7 +106,7 @@ void SygusGrammarNorm::TypeObject::addConsInfo(
   }
 
   d_sdt.addConstructor(
-      sygus_op, cons.getName(), consTypes, cons.getWeight());
+      sygus_op, cons.getName(), consTypes, cons.getWeight(), cons.getWeights());
 }
 
 void SygusGrammarNorm::TypeObject::initializeDatatype(

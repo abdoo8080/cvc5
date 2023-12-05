@@ -32,8 +32,10 @@ struct SygusAnyConstAttributeId
 };
 typedef expr::Attribute<SygusAnyConstAttributeId, bool> SygusAnyConstAttribute;
 
-DTypeConstructor::DTypeConstructor(std::string name,
-                                   unsigned weight)
+DTypeConstructor::DTypeConstructor(
+    std::string name,
+    unsigned weight,
+    const std::unordered_map<Node, Node>& weights)
     :  // We don't want to introduce a new data member, because eventually
        // we're going to be a constant stuffed inside a node.  So we stow
        // the tester name away inside the constructor name until
@@ -41,7 +43,8 @@ DTypeConstructor::DTypeConstructor(std::string name,
       d_name(name),
       d_tester(),
       d_args(),
-      d_weight(weight)
+      d_weight(weight),
+      d_weights(weights)
 {
   Assert(name != "");
 }
@@ -149,6 +152,12 @@ unsigned DTypeConstructor::getWeight() const
 {
   Assert(isResolved());
   return d_weight;
+}
+
+const std::unordered_map<Node, Node>& DTypeConstructor::getWeights() const
+{
+  Assert(isResolved());
+  return d_weights;
 }
 
 size_t DTypeConstructor::getNumArgs() const { return d_args.size(); }

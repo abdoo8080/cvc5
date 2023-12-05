@@ -103,6 +103,8 @@ libcvc5_add_sources(
   sygus_grammar.h
   variadic_trie.cpp
   variadic_trie.h
+  weight_symbol.cpp
+  weight_symbol.h
 )
 
 libcvc5_add_sources(GENERATED

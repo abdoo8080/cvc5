@@ -23,6 +23,8 @@
 
 namespace cvc5::internal {
 
+using NodeMap = std::unordered_map<internal::Node, internal::Node>;
+
 /**
  * A Sygus Grammar. This class can be used to define a context-free grammar
  * of Nodes. Its interface coincides with the definition of grammars
@@ -43,29 +45,39 @@ class SygusGrammar
    * Add \p rule to the set of rules corresponding to \p ntSym.
    * @param ntSym The non-terminal to which the rule is added.
    * @param rule The rule to add.
+   * @param weights The weights of this rule.
    */
-  void addRule(const Node& ntSym, const Node& rule);
+  void addRule(const Node& ntSym,
+               const Node& rule,
+               const NodeMap& weights = {});
 
   /**
    * Add \p rules to the set of rules corresponding to \p ntSym.
    * @param ntSym The non-terminal to which the rules are added.
    * @param rules The rules to add.
+   * @param weights The weights of each rule in `rules`.
    */
-  void addRules(const Node& ntSym, const std::vector<Node>& rules);
+  void addRules(const Node& ntSym,
+                const std::vector<Node>& rules,
+                const std::vector<NodeMap>& weights = {});
 
   /**
    * Allow \p ntSym to be an arbitrary constant of type \p tn.
    * @param ntSym The non-terminal allowed to be any constant.
    * @param tn The type of allowed constants.
+   * @param weights The weights of any constant.
    */
-  void addAnyConstant(const Node& ntSym, const TypeNode& tn);
+  void addAnyConstant(const Node& ntSym,
+                      const TypeNode& tn,
+                      const NodeMap& weights = {});
 
   /**
    * Allow \p ntSym to be any input variable to corresponding
    * synth-fun/synth-inv with the same type as \p ntSym.
    * @param ntSym The non-terminal allowed to be any input variable.
+   * @param weights The weights of any variable.
    */
-  void addAnyVariable(const Node& ntSym);
+  void addAnyVariable(const Node& ntSym, const NodeMap& weights = {});
 
   /**
    * Remove \p rule from the set of rules corresponding to \p ntSym.
@@ -98,7 +110,7 @@ class SygusGrammar
   /**
    * @return The rules for non-terminal ntSym
    */
-  const std::vector<Node>& getRulesFor(const Node& ntSym) const;
+  std::vector<Node> getRulesFor(const Node& ntSym) const;
 
   /**
    * @return A string representation of this grammar.
@@ -106,12 +118,12 @@ class SygusGrammar
   std::string toString() const;
 
  private:
-  /** Input variables to the corresponding function/invariant to synthesize.*/
+  /** Input variables to the corresponding function/invariant to synthesize. */
   std::vector<Node> d_sygusVars;
   /** The non-terminal symbols of this grammar. */
   std::vector<Node> d_ntSyms;
-  /** Mapping from non-terminal symbols to their production rules. */
-  std::unordered_map<Node, std::vector<Node>> d_rules;
+  /** Map from non-terminal symbols to their production rules and weights. */
+  std::unordered_map<Node, std::vector<std::pair<Node, NodeMap>>> d_rules;
   /** The datatype type constructed by this grammar. */
   TypeNode d_datatype;
 };

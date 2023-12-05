@@ -120,6 +120,19 @@ typerule DT_SYGUS_BOUND ::cvc5::internal::theory::datatypes::DtBoundTypeRule
 operator DT_SYGUS_EVAL 1: "datatypes sygus evaluation function"
 typerule DT_SYGUS_EVAL ::cvc5::internal::theory::datatypes::DtSygusEvalTypeRule
 
+operator DT_SYGUS_WEIGHT 2 "datatypes sygus weight"
+typerule DT_SYGUS_WEIGHT ::cvc5::internal::theory::datatypes::DtSygusWeightTypeRule
+
+constant WEIGHT_SYMBOL_OP \
+  class \
+  WeightSymbol \
+  ::cvc5::internal::WeightSymbolHashFunction \
+  "expr/weight_symbol.h" \
+  "the weight symbol operator; payload is an instance of the cvc5::internal::WeightSymbol class"
+parameterized WEIGHT_SYMBOL WEIGHT_SYMBOL_OP 0 "a symbol denoting the weight of a function to synthesize"
+
+typerule WEIGHT_SYMBOL_OP ::cvc5::internal::theory::datatypes::WeightSymbolOpTypeRule
+typerule WEIGHT_SYMBOL ::cvc5::internal::theory::datatypes::WeightSymbolTypeRule
 
 # Kinds for match terms. For example, the match term
 #   (match l (((cons h t) h) (nil 0))) 

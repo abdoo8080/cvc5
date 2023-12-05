@@ -15,6 +15,7 @@
 
 #include "theory/quantifiers/sygus/sygus_enumerator_callback.h"
 
+#include "expr/dtype_cons.h"
 #include "theory/datatypes/sygus_datatype_utils.h"
 #include "theory/quantifiers/sygus/example_eval_cache.h"
 #include "theory/quantifiers/sygus/sygus_stats.h"
@@ -47,6 +48,7 @@ bool SygusEnumeratorCallback::addTerm(const Node& n,
   // and the builtin terms
   // First, must be unique up to rewriting
   Node cval = getCacheValue(n, bn);
+  Trace("sygus-enum-exc") << "cached val: " << cval << std::endl;
   if (bterms.find(cval) != bterms.end())
   {
     Trace("sygus-enum-exc") << "Exclude (by rewriting): " << bn << std::endl;
@@ -57,10 +59,6 @@ bool SygusEnumeratorCallback::addTerm(const Node& n,
   bterms.insert(cval);
 
   // callback-specific add term
-  if (!addTermInternal(n, bn, cval))
-  {
-    return false;
-  }
   return true;
 }
 
@@ -68,7 +66,41 @@ Node SygusEnumeratorCallback::getCacheValue(const Node& n, const Node& bn)
 {
   // By default, we cache based on the rewritten form.
   // Further criteria for uniqueness (e.g. weights) may go here.
-  return d_tds == nullptr ? extendedRewrite(bn) : d_tds->rewriteNode(bn);
+  std::vector<Node> weights;
+  for (const std::shared_ptr<DTypeConstructor>& cons :
+       n.getType().getDType().getConstructors())
+  {
+    for (const std::pair<const Node, Node>& pair : cons->getWeights())
+    {
+      if (std::find(weights.cbegin(), weights.cend(), pair.first)
+          == weights.cend())
+      {
+        weights.push_back(pair.first);
+      }
+    }
+  }
+  std::vector<Node> cvals;
+  if (d_eec != nullptr)
+  {
+    if (d_stats != nullptr)
+    {
+      ++(d_stats->d_enumTermsExampleEval);
+    }
+    d_eec->evaluateVec(n, cvals);
+  }
+  if (cvals.empty())
+  {
+    cvals.push_back(d_tds == nullptr ? extendedRewrite(bn)
+                                     : d_tds->rewriteNode(bn));
+  }
+  NodeManager* nm = NodeManager::currentNM();
+  for (const Node& weight : weights)
+  {
+    Node wn = nm->mkNode(Kind::DT_SYGUS_WEIGHT, weight, n);
+    cvals.push_back(d_tds == nullptr ? extendedRewrite(wn)
+                                     : d_tds->rewriteNode(wn));
+  }
+  return nm->mkNode(Kind::SEXPR, cvals);
 }
 
 bool SygusEnumeratorCallback::addTermInternal(const Node& n,
