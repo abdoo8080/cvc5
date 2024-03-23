@@ -1037,7 +1037,7 @@ class CVC5_EXPORT Op
    * @param i The position of the index to return.
    * @return The index at position i.
    */
-  Term operator[](size_t i);
+  Term operator[](size_t i) const;
 
   /**
    * Get the string representation of this operator.
@@ -1090,7 +1090,7 @@ class CVC5_EXPORT Op
    *              getNumIndicesHelper().
    * @return The index at position index.
    */
-  Term getIndexHelper(size_t index);
+  Term getIndexHelper(size_t index) const;
 
   /**
    * The associated term manager.

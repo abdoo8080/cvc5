@@ -2142,9 +2142,9 @@ size_t Op::getNumIndicesHelper() const
   return size;
 }
 
-Term Op::operator[](size_t index) { return getIndexHelper(index); }
+Term Op::operator[](size_t index) const { return getIndexHelper(index); }
 
-Term Op::getIndexHelper(size_t index)
+Term Op::getIndexHelper(size_t index) const
 {
   CVC5_API_TRY_CATCH_BEGIN;
   CVC5_API_CHECK_NOT_NULL;
