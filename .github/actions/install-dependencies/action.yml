@@ -29,7 +29,11 @@ runs:
           libedit-dev \
           libgmp-dev \
           libtinfo-dev \
-          libfl-dev
+          libfl-dev \
+          clang-15 \
+          lld-15 \
+          libc++-15-dev \
+          libc++abi-15-dev
         echo "SED=sed" >> $GITHUB_ENV
         echo "::endgroup::"
 
