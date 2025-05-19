@@ -360,8 +360,8 @@ done
 #--------------------------------------------------------------------------#
 
 if [ $werror != default ]; then
-  export CFLAGS=-Werror
-  export CXXFLAGS=-Werror
+  export CFLAGS="$CFLAGS -Werror"
+  export CXXFLAGS="$CXXFLAGS -Werror"
 fi
 
 [ $buildtype != default ] \
