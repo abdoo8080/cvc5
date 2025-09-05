@@ -11,6 +11,8 @@ inputs:
     type: boolean
   shell:
     default: bash
+  msystem:
+    default: MINGW64
 
 runs:
   using: composite
@@ -29,7 +31,11 @@ runs:
           libedit-dev \
           libgmp-dev \
           libtinfo-dev \
-          libfl-dev
+          libfl-dev \
+          clang-15 \
+          lld-15 \
+          libc++-15-dev \
+          libc++abi-15-dev
         echo "SED=sed" >> $GITHUB_ENV
         echo "::endgroup::"
 
@@ -75,8 +81,8 @@ runs:
         echo "$(pwd)" >> $GITHUB_PATH
         echo "$(pwd)/upstream/emscripten" >> $GITHUB_PATH
 
-    - name: Install Windows software
-      if: runner.os == 'Windows' && inputs.windows-build == 'true'
+    - name: Install Windows software (MINGW64)
+      if: runner.os == 'Windows' && inputs.windows-build == 'true' && inputs.msystem == 'MINGW64'
       uses: msys2/setup-msys2@v2
       with:
         update: true
@@ -89,6 +95,22 @@ runs:
           mingw-w64-x86_64-cmake
           mingw-w64-x86_64-gcc
           mingw-w64-x86_64-gmp
+          zip
+
+    - name: Install Windows software (CLANG64)
+      if: runner.os == 'Windows' && inputs.windows-build == 'true' && inputs.msystem == 'CLANG64'
+      uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        msystem: CLANG64
+        path-type: inherit
+        install: |
+          make
+          mingw-w64-clang-x86_64-autotools
+          mingw-w64-clang-x86_64-ccache
+          mingw-w64-clang-x86_64-cmake
+          mingw-w64-clang-x86_64-clang
+          mingw-w64-clang-x86_64-gmp
           zip
 
     - name: Set up num_proc variable for Linux and Windows

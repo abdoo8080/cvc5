@@ -93,7 +93,7 @@ if(NOT CaDiCaL_FOUND_SYSTEM)
   # avoid configure script and instantiate the makefile manually the configure
   # scripts unnecessarily fails for cross compilation thus we do the bare
   # minimum from the configure script here
-  set(CaDiCaL_CXXFLAGS "-fPIC -O3 -DNDEBUG -DQUIET -std=c++11")
+  set(CaDiCaL_CXXFLAGS "$ENV{CXXFLAGS} -D_FILE_OFFSET_BITS=64 -Wno-error -fPIC -O3 -DNDEBUG -DQUIET -std=c++11")
   if(CMAKE_CROSSCOMPILING_MACOS)
     set(CaDiCaL_CXXFLAGS "${CaDiCaL_CXXFLAGS} -arch ${CMAKE_OSX_ARCHITECTURES}")
   endif()
@@ -194,5 +194,9 @@ else()
   # uses the cvc5 static library.
   if(NOT BUILD_SHARED_LIBS)
     install(FILES ${CaDiCaL_LIBRARIES} TYPE ${LIB_BUILD_TYPE})
+    if(WIN32)
+      find_library(UCRT_LIBRARIES NAMES ucrt)
+      install(FILES ${UCRT_LIBRARIES} TYPE ${LIB_BUILD_TYPE})
+    endif()
   endif()
 endif()

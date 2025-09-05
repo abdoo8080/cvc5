@@ -1,6 +1,8 @@
 name: Run tests
 description: Run all available tests
 inputs:
+  test-env:
+    default: ""
   build-dir:
     default: build/
   check-examples:
@@ -40,7 +42,8 @@ runs:
         echo "#include <cvc5/cvc5.h>" > /tmp/test.cpp
         echo "using namespace cvc5;" >> /tmp/test.cpp
         echo "int main() { TermManager tm; Solver s(tm); return 0; }" >> /tmp/test.cpp
-        g++ -std=c++17 /tmp/test.cpp -I install/include -L install/lib -lcvc5
+        export CXX=g++ ${{ inputs.test-env }}
+        "$CXX" $CXXFLAGS -std=c++17 /tmp/test.cpp -I install/include -L install/lib -lcvc5
 
     - name: Python Install Check
       shell: ${{ inputs.shell }}
@@ -64,8 +67,9 @@ runs:
           export PATH="${{ inputs.build-dir }}/install/bin:$PATH"
           export CMAKE_GENERATOR="MSYS Makefiles"
         fi
-        export CFLAGS=-Werror
-        export CXXFLAGS=-Werror
+        export PATH="$PATH" ${{ inputs.test-env }}
+        export CFLAGS="$CFLAGS -Werror"
+        export CXXFLAGS="$CXXFLAGS -Werror"
         cmake .. -DCMAKE_PREFIX_PATH=${{ inputs.build-dir }}/install/lib/cmake \
           -DPython_EXECUTABLE=$(command -v python3)
         make -j${{ env.num_proc }}

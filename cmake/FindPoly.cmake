@@ -142,7 +142,8 @@ if(NOT Poly_FOUND_SYSTEM)
     set(POLY_PATCH_CMD ${POLY_PATCH_CMD}
       ${POLY_PATCH_KWD}
         sed -ri.orig
-          "/TARGETS (poly|polyxx|static_poly|static_polyxx) /d"
+          -e "/TARGETS (poly|polyxx|static_poly|static_polyxx) /d"
+          -e "s/-Werror//g"
           <SOURCE_DIR>/src/CMakeLists.txt
     )
 
@@ -156,12 +157,15 @@ if(NOT Poly_FOUND_SYSTEM)
       "${DEPS_BASE}/lib/libpicpolyxx${CMAKE_STATIC_LIBRARY_SUFFIX}")
   endif()
 
+  set(POLY_CFLAGS "$ENV{CFLAGS} -Wno-error")
+  set(POLY_CXXFLAGS "$ENV{CXXFLAGS} -Wno-error")
   # Disable a warning triggered by the Emscripten compiler due to code in
   # a GMP header used by LibPoly.
   set(POLY_CXX_FLAGS "")
   if(NOT(WASM STREQUAL "OFF"))
     set(POLY_CXX_FLAGS -DCMAKE_CXX_FLAGS=-Wno-error=deprecated-literal-operator)
   endif()
+
   # We pass the full path of GMP to LibPoly, s.t. we can ensure that LibPoly is
   # able to find the correct version of GMP if we built it locally. This is
   # primarily important for cross-compiling cvc5, because LibPoly's search
@@ -173,6 +177,10 @@ if(NOT Poly_FOUND_SYSTEM)
     URL_HASH SHA256=146adc0d3f6fe8038adb6b8b69dd16114a4be12f520d5c1fb333f3746d233abe
     ${POLY_PATCH_CMD}
     CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release
+               -DCMAKE_C_COMPILER=$ENV{CC}
+               -DCMAKE_CXX_COMPILER=$ENV{CXX}
+               -DCMAKE_C_FLAGS=${POLY_CFLAGS}
+               -DCMAKE_CXX_FLAGS=${POLY_CXXFLAGS}
                -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
                -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
                -DLIBPOLY_BUILD_PYTHON_API=OFF
