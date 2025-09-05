@@ -404,8 +404,8 @@ done
 #--------------------------------------------------------------------------#
 
 if [ $werror != default ]; then
-  export CFLAGS=-Werror
-  export CXXFLAGS=-Werror
+  export CFLAGS="$CFLAGS -Werror"
+  export CXXFLAGS="$CXXFLAGS -Werror"
   cmake_opts="$cmake_opts -DTREAT_WARNING_AS_ERROR=$werror"
 fi
 

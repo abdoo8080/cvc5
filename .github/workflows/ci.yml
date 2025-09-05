@@ -21,7 +21,7 @@ jobs:
             python-bindings: true
             java-bindings: true
             check-examples: true
-            package-name: cvc5-Linux-x86_64
+            package-name: cvc5-Linux-x86_64-gnu
             exclude_regress: 3-4
             run_regression_args: --tester base --tester model --tester synth --tester abduct --tester dump
 
@@ -44,7 +44,7 @@ jobs:
             python-bindings: true
             java-bindings: true
             check-examples: true
-            package-name: cvc5-Linux-arm64
+            package-name: cvc5-Linux-arm64-gnu
             exclude_regress: 3-4
             run_regression_args: --tester base --tester model --tester synth --tester abduct --tester dump
 
@@ -91,16 +91,29 @@ jobs:
           - name: win64:production
             os: windows-latest
             config: production --auto-download --all-bindings
-            cache-key: production-win64-native
+            cache-key: production-win64-native-gcc
             strip-bin: strip
             python-bindings: true
             java-bindings: true
             windows-build: true
             shell: 'msys2 {0}'
+            msystem: MINGW64
             check-examples: true
-            package-name: cvc5-Win64-x86_64
+            package-name: cvc5-Win64-x86_64-gnu
             exclude_regress: 1-4
             run_regression_args: --tester base --tester model --tester synth --tester abduct --tester dump
+
+          - name: win64:production-clang
+            os: windows-latest
+            config: production --auto-download -DBUILD_GMP=1
+            cache-key: production-win64-native-clang
+            strip-bin: strip
+            build-shared: false
+            build-static: true
+            windows-build: true
+            shell: 'msys2 {0}'
+            msystem: CLANG64
+            package-name: cvc5-Win64-x86_64
 
           - name: win64:production-cross
             os: ubuntu-latest
@@ -120,10 +133,20 @@ jobs:
 
           - name: ubuntu:production-clang
             os: ubuntu-22.04
-            env: CC=clang CXX=clang++
-            config: production --auto-download --no-poly
-            cache-key: productionclang
+            env: CC=clang-15 CXX=clang++-15 CXXFLAGS=-stdlib=libc++
+            config: production --auto-download -DBUILD_GMP=1
+            cache-key: production-clang
             check-examples: true
+            package-name: cvc5-Linux-x86_64
+            exclude_regress: 3-4
+            run_regression_args: --tester base --tester model --tester synth --tester abduct --tester dump
+
+          - name: ubuntu:production-clang-arm64
+            os: ubuntu-22.04-arm
+            env: CC=clang-15 CXX=clang++-15 CXXFLAGS=-stdlib=libc++
+            config: production --auto-download -DBUILD_GMP=1
+            cache-key: production-arm64-clang
+            package-name: cvc5-Linux-arm64
             exclude_regress: 3-4
             run_regression_args: --tester base --tester model --tester synth --tester abduct --tester dump
 
@@ -142,8 +165,8 @@ jobs:
 
           - name: ubuntu:production-dbg-clang
             os: ubuntu-22.04
-            env: CC=clang CXX=clang++
-            config: production --auto-download --assertions --tracing --cln --gpl
+            env: CC=clang-15 CXX=clang++-15
+            config: production --auto-download --assertions --tracing --cln --gpl --no-poly
             cache-key: dbgclang
             exclude_regress: 3-4
             run_regression_args: --tester cpc --tester alethe --tester base --tester model --tester synth --tester abduct --tester unsat-core --tester dump
@@ -232,6 +255,7 @@ jobs:
         windows-build: ${{ matrix.build.windows-build }}
         wasm-build: ${{ matrix.build.wasm-build }}
         shell: ${{ matrix.build.shell }}
+        msystem: ${{ matrix.build.msystem }}
 
     - name: Install pyGithub
       if: matrix.build.package-name || matrix.build.wasm-pkg-name
@@ -266,6 +290,7 @@ jobs:
       if: matrix.build.run_regression_args
       uses: ./.github/actions/run-tests
       with:
+        test-env: ${{ matrix.build.env }}
         build-dir: ${{ steps.configure-and-build.outputs.shared-build-dir }}
         check-examples: ${{ matrix.build.check-examples }}
         check-python-bindings: ${{ matrix.build.python-bindings }}
@@ -277,6 +302,7 @@ jobs:
       if: matrix.build.run_regression_args
       uses: ./.github/actions/run-tests
       with:
+        test-env: ${{ matrix.build.env }}
         build-dir: ${{ steps.configure-and-build.outputs.static-build-dir }}
         check-examples: false
         check-install: false
@@ -293,7 +319,7 @@ jobs:
 
     - name: Create and add shared package to latest and release
       id: create-shared-package
-      if: matrix.build.package-name && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+      if: matrix.build.package-name && !startsWith(matrix.build.build-shared, 'false') && (github.ref == 'refs/heads/lean' || startsWith(github.ref, 'refs/tags/'))
       uses: ./.github/actions/add-package
       with:
         build-dir: ${{ steps.configure-and-build.outputs.shared-build-dir }}
@@ -302,10 +328,11 @@ jobs:
         github-token-latest: ${{ secrets.GITHUB_TOKEN }}
         github-token-release: ${{ secrets.ACTION_USER_TOKEN }}
         shell: ${{ matrix.build.shell }}
+        msystem: ${{ matrix.build.msystem }}
 
     - name: Create and add static package to latest and release
       id: create-static-package
-      if: matrix.build.package-name && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+      if: matrix.build.package-name && !startsWith(matrix.build.build-static, 'false') && (github.ref == 'refs/heads/lean' || startsWith(github.ref, 'refs/tags/'))
       uses: ./.github/actions/add-package
       with:
         build-dir: ${{ steps.configure-and-build.outputs.static-build-dir }}
@@ -314,6 +341,7 @@ jobs:
         github-token-latest: ${{ secrets.GITHUB_TOKEN }}
         github-token-release: ${{ secrets.ACTION_USER_TOKEN }}
         shell: ${{ matrix.build.shell }}
+        msystem: ${{ matrix.build.msystem }}
 
     - name: Create and add WASM to latest and release
       if: matrix.build.wasm-pkg-name && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
@@ -326,7 +354,7 @@ jobs:
         shell: ${{ matrix.build.shell }}
 
     - name: Create and add JAR to latest and release
-      if: matrix.build.java-bindings && matrix.build.package-name && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+      if: matrix.build.java-bindings && matrix.build.package-name && (github.ref == 'refs/heads/lean' || startsWith(github.ref, 'refs/tags/'))
       uses: ./.github/actions/add-jar
       with:
         install-path: ${{ steps.create-static-package.outputs.install-path }}
