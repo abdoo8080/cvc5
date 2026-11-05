@@ -50,23 +50,48 @@ TEST_F(TestApiBlackInputParser, constructSymbolManager)
 
 TEST_F(TestApiBlackInputParser, getSolver)
 {
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   ASSERT_EQ(p.getSolver(), d_solver.get());
 }
 
 TEST_F(TestApiBlackInputParser, getSymbolManager)
 {
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   // a symbol manager is allocated
   ASSERT_NE(p.getSymbolManager(), nullptr);
 
-  InputParser p2(d_solver.get(), d_symman.get());
-  ASSERT_EQ(p2.getSymbolManager(), d_symman.get());
+  // the parser keeps its own copy of the given symbol manager, which shares
+  // its symbol table
+  InputParser p2(d_solver, d_symman.get());
+  SymbolManager* sm = p2.getSymbolManager();
+  ASSERT_NE(sm, d_symman.get());
+  std::stringstream out;
+  parseLogicCommand(p2, "QF_LIA").invoke(d_solver.get(), sm, out);
+  ASSERT_TRUE(d_symman->isLogicSet());
+  ASSERT_EQ(d_symman->getLogic(), "QF_LIA");
+}
+
+TEST_F(TestApiBlackInputParser, constructInputParser)
+{
+  // both constructors share ownership of the solver
+  std::shared_ptr<Solver> slv = std::make_shared<Solver>(d_tm);
+  std::weak_ptr<Solver> weak = slv;
+  auto p = std::make_unique<InputParser>(slv);
+  auto p2 = std::make_unique<InputParser>(slv, d_symman.get());
+  slv.reset();
+  ASSERT_FALSE(weak.expired());
+  ASSERT_EQ(p->getSolver(), weak.lock().get());
+  ASSERT_EQ(p2->getSolver(), weak.lock().get());
+  // the solver is released once no parser uses it anymore
+  p.reset();
+  ASSERT_FALSE(weak.expired());
+  p2.reset();
+  ASSERT_TRUE(weak.expired());
 }
 
 TEST_F(TestApiBlackInputParser, setFileInput)
 {
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   ASSERT_THROW(
       p.setFileInput(modes::InputLanguage::SMT_LIB_2_6, "nonexistent.smt2"),
       CVC5ApiException);
@@ -74,7 +99,7 @@ TEST_F(TestApiBlackInputParser, setFileInput)
 
 TEST_F(TestApiBlackInputParser, setStreamInput)
 {
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   std::stringstream ss;
   ss << "(set-logic QF_LIA)" << std::endl;
   ss << "(declare-fun a () Bool)" << std::endl;
@@ -98,7 +123,7 @@ TEST_F(TestApiBlackInputParser, setStreamInput)
 TEST_F(TestApiBlackInputParser, setAndAppendIncrementalStringInput)
 {
   std::stringstream out;
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
                               "input_parser_black");
   ASSERT_EQ(p.done(), false);
@@ -124,7 +149,7 @@ TEST_F(TestApiBlackInputParser, setAndAppendIncrementalStringInput)
 TEST_F(TestApiBlackInputParser, setAndAppendIncrementalStringInputInterleave)
 {
   std::stringstream out;
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
                               "input_parser_black");
   ASSERT_EQ(p.done(), false);
@@ -149,7 +174,7 @@ TEST_F(TestApiBlackInputParser, setAndAppendIncrementalStringInputInterleave)
 
 TEST_F(TestApiBlackInputParser, appendIncrementalNoSet)
 {
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   ASSERT_THROW(p.appendIncrementalStringInput("(set-logic ALL)"),
                CVC5ApiException);
 }
@@ -157,7 +182,7 @@ TEST_F(TestApiBlackInputParser, appendIncrementalNoSet)
 TEST_F(TestApiBlackInputParser, setStringInput)
 {
   std::stringstream out;
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   Command cmd;
   p.setStringInput(modes::InputLanguage::SMT_LIB_2_6,
                    "(set-logic ALL)",
@@ -171,7 +196,7 @@ TEST_F(TestApiBlackInputParser, setStringInput)
 
 TEST_F(TestApiBlackInputParser, nextCommand)
 {
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   ASSERT_THROW(p.nextCommand(), CVC5ApiException);
   std::stringstream ss;
   p.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ss, "input_parser_black");
@@ -181,7 +206,7 @@ TEST_F(TestApiBlackInputParser, nextCommand)
 
 TEST_F(TestApiBlackInputParser, nextCommandNoInput)
 {
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
                               "input_parser_black");
   Command cmd = p.nextCommand();
@@ -192,7 +217,7 @@ TEST_F(TestApiBlackInputParser, nextCommandNoInput)
 
 TEST_F(TestApiBlackInputParser, nextTerm)
 {
-  InputParser p(d_solver.get());
+  InputParser p(d_solver);
   ASSERT_THROW(p.nextTerm(), CVC5ApiException);
   std::stringstream ss;
   p.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ss, "input_parser_black");
@@ -202,7 +227,7 @@ TEST_F(TestApiBlackInputParser, nextTerm)
 TEST_F(TestApiBlackInputParser, nextTerm2)
 {
   std::stringstream out;
-  InputParser p(d_solver.get(), d_symman.get());
+  InputParser p(d_solver, d_symman.get());
   p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
                               "input_parser_black");
   // parse a declaration command
@@ -226,7 +251,7 @@ TEST_F(TestApiBlackInputParser, nextTerm2)
 TEST_F(TestApiBlackInputParser, multipleParsers)
 {
   std::stringstream out;
-  InputParser p(d_solver.get(), d_symman.get());
+  InputParser p(d_solver, d_symman.get());
   // set a logic for the parser
   Command cmd = parseLogicCommand(p, "QF_LIA");
   ASSERT_NO_THROW(cmd.invoke(d_solver.get(), d_symman.get(), out));
@@ -239,30 +264,30 @@ TEST_F(TestApiBlackInputParser, multipleParsers)
 
   // possible to construct another parser with the same solver and symbol
   // manager
-  InputParser p2(d_solver.get(), p.getSymbolManager());
+  InputParser p2(d_solver, p.getSymbolManager());
 
   // possible to construct another parser with a fresh solver
-  Solver s2(d_tm);
-  InputParser p3(&s2, d_symman.get());
+  std::shared_ptr<Solver> s2 = std::make_shared<Solver>(d_tm);
+  InputParser p3(s2, d_symman.get());
   p3.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
                                "input_parser_black");
   // logic is automatically set on the solver
-  ASSERT_EQ(s2.isLogicSet(), true);
-  ASSERT_EQ(s2.getLogic(), "QF_LIA");
+  ASSERT_EQ(s2->isLogicSet(), true);
+  ASSERT_EQ(s2->getLogic(), "QF_LIA");
   // we cannot set the logic since it has already been set
   ASSERT_THROW(parseLogicCommand(p3, "QF_LRA"), ParserException);
 
   // using a solver with the same logic is allowed
-  Solver s3(d_tm);
-  s3.setLogic("QF_LIA");
-  InputParser p4(&s3, d_symman.get());
+  std::shared_ptr<Solver> s3 = std::make_shared<Solver>(d_tm);
+  s3->setLogic("QF_LIA");
+  InputParser p4(s3, d_symman.get());
   p4.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
                                "input_parser_black");
 
   // using a solver with a different logic is not allowed
-  Solver s4(d_tm);
-  s4.setLogic("QF_LRA");
-  InputParser p5(&s4, d_symman.get());
+  std::shared_ptr<Solver> s4 = std::make_shared<Solver>(d_tm);
+  s4->setLogic("QF_LRA");
+  InputParser p5(s4, d_symman.get());
   ASSERT_THROW(p5.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
                                             "input_parser_black"),
                CVC5ApiException);
@@ -293,7 +318,7 @@ TEST_F(TestApiBlackInputParser, ParserExceptions)
 
 TEST_F(TestApiBlackInputParser, incrementalSetString)
 {
-  InputParser p(d_solver.get(), d_symman.get());
+  InputParser p(d_solver, d_symman.get());
   Command cmd;
   std::stringstream out;
   std::vector<std::string> strs{"(set-logic ALL)",
@@ -314,7 +339,7 @@ TEST_F(TestApiBlackInputParser, incrementalSetString)
 
 TEST_F(TestApiBlackInputParser, getDeclaredTermsAndSorts)
 {
-  InputParser p(d_solver.get(), d_symman.get());
+  InputParser p(d_solver, d_symman.get());
   Command cmd;
   std::stringstream out;
   p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,

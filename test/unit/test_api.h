@@ -33,7 +33,7 @@ class TestApi : public ::testing::Test
     d_uninterpreted = d_tm.mkUninterpretedSort("u");
   }
   cvc5::TermManager d_tm;
-  std::unique_ptr<cvc5::Solver> d_solver;
+  std::shared_ptr<cvc5::Solver> d_solver;
   Sort d_bool;
   Sort d_int;
   Sort d_real;

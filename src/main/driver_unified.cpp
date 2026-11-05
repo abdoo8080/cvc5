@@ -54,7 +54,7 @@ std::unique_ptr<CommandExecutor> pExecutor;
 
 }  // namespace cvc5::main
 
-int runCvc5(int argc, char* argv[], std::unique_ptr<cvc5::Solver>& solver)
+int runCvc5(int argc, char* argv[], std::shared_ptr<cvc5::Solver>& solver)
 {
   // Initialize the signal handlers
   signal_handlers::install();

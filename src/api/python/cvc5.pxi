@@ -21,6 +21,7 @@ from cpython.unicode cimport PyUnicode_DATA, PyUnicode_KIND, PyUnicode_READ, PyU
 from libc.stdint cimport int32_t, int64_t, uint32_t, uint64_t
 
 from libcpp cimport bool as c_bool
+from libcpp.memory cimport make_shared, shared_ptr
 from libcpp.pair cimport pair
 from libcpp.set cimport set as c_set
 from libcpp.string cimport string
@@ -366,7 +367,7 @@ cdef class InputParser:
         else:
             self.sm = sm
 
-        self.cip = new c_InputParser(solver.csolver, self.sm.csm)
+        self.cip = new c_InputParser(solver.csolver_ptr, self.sm.csm)
 
     def __dealloc__(self):
         del self.cip
@@ -2271,6 +2272,9 @@ cdef class Solver:
         Wrapper class for :cpp:class:`cvc5::Solver`.
     """
     cdef c_Solver* csolver
+    # Owns csolver, and shares its ownership with the input parsers created
+    # from this solver.
+    cdef shared_ptr[c_Solver] csolver_ptr
     cdef TermManager tm
 
     def __cinit__(self, TermManager tm = None):
@@ -2278,10 +2282,11 @@ cdef class Solver:
           self.tm = TermManager()
         else:
           self.tm = tm
-        self.csolver = new c_Solver(dereference(self.tm.ctm))
+        self.csolver_ptr = make_shared[c_Solver](dereference(self.tm.ctm))
+        self.csolver = self.csolver_ptr.get()
 
     def __dealloc__(self):
-        del self.csolver
+        self.csolver_ptr.reset()
 
     def getTermManager(self):
         """

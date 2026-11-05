@@ -18,6 +18,7 @@ from libcpp.set cimport set
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 from libcpp.map cimport map
+from libcpp.memory cimport shared_ptr
 from libcpp.optional cimport optional
 from libcpp.pair cimport pair
 from cvc5kinds cimport Kind, SortKind
@@ -736,7 +737,7 @@ cdef extern from "<cvc5/cvc5_parser.h>" namespace "cvc5::parser":
         bint isNull() except +
 
     cdef cppclass InputParser:
-        InputParser(Solver* solver, SymbolManager* sm) except +
+        InputParser(shared_ptr[Solver] solver, SymbolManager* sm) except +
         void setFileInput(InputLanguage lang, const string& filename) except +
         void setStringInput(InputLanguage lang, const string& input, const string& name) except +
         void setIncrementalStringInput(InputLanguage lang, const string& name) except +

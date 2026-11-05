@@ -31,8 +31,20 @@ JNIEXPORT jlong JNICALL Java_io_github_cvc5_Solver_newSolver(JNIEnv* env,
 {
   CVC5_JAVA_API_TRY_CATCH_BEGIN;
   TermManager* tm = reinterpret_cast<TermManager*>(tmPointer);
-  ApiSolver* solver = new ApiSolver(*tm);
-  return reinterpret_cast<jlong>(solver);
+  JavaVM* vm = nullptr;
+  env->GetJavaVM(&vm);
+  // The native solver is shared by the Java solver and the input parsers
+  // created from it. It is destroyed once none of them uses it anymore, and
+  // only then are its pointers and global references deleted, so that they
+  // remain valid for as long as the native solver may call back into Java.
+  // This always happens during a call to deletePointer() of the Java solver or
+  // of an input parser, i.e., on a Java thread.
+  std::shared_ptr<ApiSolver> solver(new ApiSolver(*tm), [vm](ApiSolver* s) {
+    s->deletePointers(getEnv(vm));
+    delete s;
+  });
+  solver->d_self = solver;
+  return reinterpret_cast<jlong>(solver.get());
   CVC5_JAVA_API_TRY_CATCH_END_RETURN(env, 0);
 }
 
@@ -41,13 +53,14 @@ JNIEXPORT jlong JNICALL Java_io_github_cvc5_Solver_newSolver(JNIEnv* env,
  * Method:    deletePointer
  * Signature: (J)V
  */
-JNIEXPORT void JNICALL Java_io_github_cvc5_Solver_deletePointer(JNIEnv* env,
+JNIEXPORT void JNICALL Java_io_github_cvc5_Solver_deletePointer(JNIEnv*,
                                                                 jclass,
                                                                 jlong pointer)
 {
   ApiSolver* api_solver = reinterpret_cast<ApiSolver*>(pointer);
-  api_solver->deletePointers(env);
-  delete api_solver;
+  // Drop the reference held by the Java solver. This destroys the native
+  // solver unless an input parser still uses it, see newSolver().
+  api_solver->d_self.reset();
 }
 
 /*

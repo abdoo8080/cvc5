@@ -104,6 +104,22 @@ struct Cvc5SymbolManager
   uint32_t d_refs = 1;
 };
 
+namespace {
+/**
+ * Get a shared pointer to the C++ solver wrapped by a solver instance, which
+ * keeps the solver instance alive: it holds a reference to the solver
+ * instance, and drops it once the pointer is released.
+ * @param cvc5 The solver instance.
+ * @return The pointer to the wrapped C++ solver.
+ */
+std::shared_ptr<cvc5::Solver> share_solver(Cvc5* cvc5)
+{
+  cvc5->inc_ref();
+  return std::shared_ptr<cvc5::Solver>(
+      &cvc5->d_solver, [cvc5](cvc5::Solver*) { cvc5->dec_ref(); });
+}
+}  // namespace
+
 /** Wrapper for cvc5 C++ parser. */
 struct Cvc5InputParser
 {
@@ -128,20 +144,22 @@ struct Cvc5InputParser
    * @param sm   The associated symbol manager.
    */
   Cvc5InputParser(Cvc5* cvc5, Cvc5SymbolManager* sm)
-      : d_parser(new cvc5::parser::InputParser(&cvc5->d_solver, &sm->d_sm)),
+      : d_parser(new cvc5::parser::InputParser(share_solver(cvc5), &sm->d_sm)),
         d_cvc5(cvc5),
         d_sm(sm)
   {
-    // The parser keeps solver and symbol manager alive, it holds references
-    // to the wrapped C++ instances.
+    // The parser keeps solver and symbol manager alive (it returns them via
+    // `cvc5_parser_get_solver()` and `cvc5_parser_get_sm()`). The wrapped C++
+    // parser shares ownership of the C++ solver (see `share_solver()`) and
+    // keeps its own copy of the C++ symbol manager.
     d_cvc5->inc_ref();
     d_sm->inc_ref();
   }
   /** Destructor. */
   ~Cvc5InputParser()
   {
-    // Destroy the wrapped C++ parser first, it holds references to the C++
-    // solver and symbol manager instances wrapped by `d_cvc5` and `d_sm`.
+    // Destroy the wrapped C++ parser first, which drops its own reference to
+    // `d_cvc5`.
     d_parser.reset();
     d_sm->dec_ref();
     d_cvc5->dec_ref();

@@ -388,9 +388,9 @@ TEST_F(TestApiBlackUncovered, SynthResult)
 TEST_F(TestApiBlackUncovered, Parser)
 {
   parser::Command command;
-  Solver solver(d_tm);
-  parser::InputParser inputParser(&solver);
-  ASSERT_EQ(inputParser.getSolver(), &solver);
+  std::shared_ptr<Solver> solver = std::make_shared<Solver>(d_tm);
+  parser::InputParser inputParser(solver);
+  ASSERT_EQ(inputParser.getSolver(), solver.get());
   ASSERT_NE(inputParser.getSymbolManager(), nullptr);
   std::stringstream ss;
   ss << command << std::endl;

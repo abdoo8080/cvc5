@@ -12,7 +12,9 @@
  * A symbol manager keeps the internal node manager alive (it holds its own
  * copy of the term manager). Terms and sorts obtained through the parser must
  * therefore remain usable after the parser, symbol manager, solver and term
- * manager that produced them have been deterministically freed.
+ * manager that produced them have been deterministically freed. An input
+ * parser keeps its native solver and its own copy of its native symbol manager
+ * alive, so it must remain usable after they have been released.
  *
  * Mirrors test/unit/api/cpp/api_parser_lifetime_black.cpp.
  */
@@ -136,5 +138,59 @@ class ParserLifetimeTest
     assertEquals(MULT, t.getKind());
     assertTrue(t.getSort().isInteger());
     assertDoesNotThrow(() -> t.toString());
+  }
+
+  @Test
+  void parserOutlivesSolver() throws CVC5ApiException
+  {
+    TermManager tm = new TermManager();
+    Solver solver = new Solver(tm);
+    SymbolManager sm = new SymbolManager(tm);
+    InputParser p = new InputParser(solver, sm);
+    p.setIncrementalStringInput(InputLanguage.SMT_LIB_2_6, "parser_lifetime");
+    p.appendIncrementalStringInput("(set-logic ALL)\n");
+    p.appendIncrementalStringInput("(declare-fun x () Int)\n");
+    Command cmd = p.nextCommand();
+    cmd.invoke(solver, sm);
+    cmd = p.nextCommand();
+    cmd.invoke(solver, sm);
+    solver.deletePointer();
+    // The solver is released here; the parser keeps the native solver alive
+    // and must still be usable, also with a new input.
+    p.appendIncrementalStringInput("(+ x 1)\n");
+    Term t1 = p.nextTerm();
+    p.setStringInput(InputLanguage.SMT_LIB_2_6, "(* x 2)", "parser_lifetime");
+    Term t2 = p.nextTerm();
+    p.deletePointer();
+    sm.deletePointer();
+    tm.deletePointer();
+    assertEquals(ADD, t1.getKind());
+    assertEquals(MULT, t2.getKind());
+  }
+
+  @Test
+  void parserOutlivesSymbolManager() throws CVC5ApiException
+  {
+    TermManager tm = new TermManager();
+    Solver solver = new Solver(tm);
+    SymbolManager sm = new SymbolManager(tm);
+    InputParser p = new InputParser(solver, sm);
+    p.setIncrementalStringInput(InputLanguage.SMT_LIB_2_6, "parser_lifetime");
+    p.appendIncrementalStringInput("(set-logic ALL)\n");
+    p.appendIncrementalStringInput("(declare-fun x () Int)\n");
+    Command cmd = p.nextCommand();
+    cmd.invoke(solver, sm);
+    cmd = p.nextCommand();
+    cmd.invoke(solver, sm);
+    sm.deletePointer();
+    // The symbol manager is released here; the parser keeps its own copy,
+    // which shares the symbol table, and must still be usable, also with a new
+    // input.
+    p.appendIncrementalStringInput("(+ x 1)\n");
+    Term t1 = p.nextTerm();
+    p.setStringInput(InputLanguage.SMT_LIB_2_6, "(* x 2)", "parser_lifetime");
+    Term t2 = p.nextTerm();
+    assertEquals(ADD, t1.getKind());
+    assertEquals(MULT, t2.getKind());
   }
 }

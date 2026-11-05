@@ -39,17 +39,24 @@ import io.github.cvc5.modes.InputLanguage;
  * Upon setting an input source, if either the solver (resp. symbol
  * manager) has its logic set, then the symbol manager (resp. solver) is set to
  * use that logic, if its logic is not already set.
+ *
+ * The input parser shares ownership of the native solver, and keeps its own
+ * copy of the native symbol manager, which shares its symbol table. It thus
+ * remains usable after its solver or symbol manager has been released (e.g.,
+ * via {@code deletePointer()}).
  */
 public class InputParser extends AbstractPointer implements AutoCloseable
 {
   /**
-   * The solver of this parser. The native parser only borrows the native
-   * solver, so the wrapper is kept reachable here.
+   * The solver of this parser. The native parser shares ownership of the
+   * native solver, which may call back into the plugins and oracles that the
+   * Java solver keeps alive, so the wrapper is kept reachable here as well.
    */
   private final Solver d_solver;
   /**
-   * The symbol manager of this parser, kept reachable for the same reason as
-   * {@link #d_solver}.
+   * The symbol manager of this parser, returned by
+   * {@link #getSymbolManager()}. The native parser keeps its own copy of the
+   * native symbol manager.
    */
   private final SymbolManager d_sm;
 

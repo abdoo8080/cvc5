@@ -34,7 +34,7 @@ class CommandExecutor
    * The solver object, which is allocated by this class and is used for
    * executing most commands (e.g. check-sat).
    */
-  std::unique_ptr<cvc5::Solver>& d_solver;
+  std::shared_ptr<cvc5::Solver>& d_solver;
   /**
    * The symbol manager, which is allocated by this class. This manages
    * all things related to definitions of symbols and their impact on behaviors
@@ -53,7 +53,7 @@ class CommandExecutor
   bool d_parseOnly;
 
  public:
-  CommandExecutor(std::unique_ptr<cvc5::Solver>& solver);
+  CommandExecutor(std::shared_ptr<cvc5::Solver>& solver);
 
   virtual ~CommandExecutor();
 
@@ -70,7 +70,7 @@ class CommandExecutor
   }
 
   /** Get a pointer to the solver object owned by this CommandExecutor. */
-  cvc5::Solver* getSolver() { return d_solver.get(); }
+  std::shared_ptr<cvc5::Solver> getSolver() { return d_solver; }
 
   /** Get a pointer to the symbol manager owned by this CommandExecutor */
   parser::SymbolManager* getSymbolManager() { return d_symman.get(); }

@@ -670,7 +670,7 @@ struct CVC5_EXPORT Cvc5
    *
    * A reference is held by the user (returned by `cvc5_new()` and dropped via
    * `cvc5_delete()`) and by each `Cvc5InputParser` instance created from this
-   * solver.
+   * solver, as well as by the C++ parser it wraps.
    */
   void inc_ref();
   /**

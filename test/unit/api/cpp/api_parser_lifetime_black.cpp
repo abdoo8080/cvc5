@@ -12,7 +12,9 @@
  * A SymbolManager keeps the internal node manager alive (it holds its own
  * copy of the term manager). Terms and sorts obtained through the parser
  * must therefore remain usable after the parser, symbol manager, solver and
- * term manager that produced them have been destroyed.
+ * term manager that produced them have been destroyed. An InputParser keeps
+ * its solver and its own copy of its symbol manager alive, so it must remain
+ * usable after the caller has released them.
  */
 
 #include <cvc5/cvc5.h>
@@ -51,9 +53,9 @@ TEST_F(TestApiBlackParserLifetime, declaredSymbolsOutliveParserAndManagers)
   std::vector<Sort> sorts;
   {
     TermManager tm;
-    Solver slv(tm);
+    std::shared_ptr<Solver> slv = std::make_shared<Solver>(tm);
     SymbolManager sm(tm);
-    InputParser p(&slv, &sm);
+    InputParser p(slv, &sm);
     p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
                                 "parser_lifetime");
     p.appendIncrementalStringInput("(set-logic ALL)\n");
@@ -64,7 +66,7 @@ TEST_F(TestApiBlackParserLifetime, declaredSymbolsOutliveParserAndManagers)
     Command cmd = p.nextCommand();
     while (!cmd.isNull())
     {
-      cmd.invoke(&slv, &sm, out);
+      cmd.invoke(slv.get(), &sm, out);
       cmd = p.nextCommand();
     }
     terms = sm.getDeclaredTerms();
@@ -92,18 +94,18 @@ TEST_F(TestApiBlackParserLifetime, parsedTermOutlivesParserAndManagers)
   Term t;
   {
     TermManager tm;
-    Solver slv(tm);
+    std::shared_ptr<Solver> slv = std::make_shared<Solver>(tm);
     SymbolManager sm(tm);
-    InputParser p(&slv, &sm);
+    InputParser p(slv, &sm);
     p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
                                 "parser_lifetime");
     std::stringstream out;
     p.appendIncrementalStringInput("(set-logic ALL)\n");
     p.appendIncrementalStringInput("(declare-fun x () Int)\n");
     Command cmd = p.nextCommand();
-    cmd.invoke(&slv, &sm, out);
+    cmd.invoke(slv.get(), &sm, out);
     cmd = p.nextCommand();
-    cmd.invoke(&slv, &sm, out);
+    cmd.invoke(slv.get(), &sm, out);
     p.appendIncrementalStringInput("(+ x 1)\n");
     t = p.nextTerm();
   }
@@ -121,18 +123,18 @@ TEST_F(TestApiBlackParserLifetime,
   Term t;
   {
     TermManager tm;
-    Solver slv(tm);
+    std::shared_ptr<Solver> slv = std::make_shared<Solver>(tm);
     // This parser allocates and owns its own symbol manager.
-    InputParser p(&slv);
+    InputParser p(slv);
     p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
                                 "parser_lifetime");
     std::stringstream out;
     p.appendIncrementalStringInput("(set-logic ALL)\n");
     p.appendIncrementalStringInput("(declare-fun x () Int)\n");
     Command cmd = p.nextCommand();
-    cmd.invoke(&slv, p.getSymbolManager(), out);
+    cmd.invoke(slv.get(), p.getSymbolManager(), out);
     cmd = p.nextCommand();
-    cmd.invoke(&slv, p.getSymbolManager(), out);
+    cmd.invoke(slv.get(), p.getSymbolManager(), out);
     p.appendIncrementalStringInput("(* x 2)\n");
     t = p.nextTerm();
   }
@@ -143,6 +145,70 @@ TEST_F(TestApiBlackParserLifetime,
   ASSERT_EQ(t.getKind(), Kind::MULT);
   ASSERT_TRUE(t.getSort().isInteger());
   ASSERT_NO_THROW(t.toString());
+}
+
+TEST_F(TestApiBlackParserLifetime, parserOutlivesSolver)
+{
+  Term t1, t2;
+  std::weak_ptr<Solver> weak;
+  {
+    TermManager tm;
+    std::shared_ptr<Solver> slv = std::make_shared<Solver>(tm);
+    weak = slv;
+    SymbolManager sm(tm);
+    InputParser p(slv, &sm);
+    p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
+                                "parser_lifetime");
+    std::stringstream out;
+    p.appendIncrementalStringInput("(set-logic ALL)\n");
+    p.appendIncrementalStringInput("(declare-fun x () Int)\n");
+    Command cmd = p.nextCommand();
+    cmd.invoke(slv.get(), &sm, out);
+    cmd = p.nextCommand();
+    cmd.invoke(slv.get(), &sm, out);
+    slv.reset();
+    // The caller has dropped its pointer to the solver; the parser keeps the
+    // solver alive and must still be usable, also with a new input.
+    ASSERT_FALSE(weak.expired());
+    p.appendIncrementalStringInput("(+ x 1)\n");
+    t1 = p.nextTerm();
+    p.setStringInput(
+        modes::InputLanguage::SMT_LIB_2_6, "(* x 2)", "parser_lifetime");
+    t2 = p.nextTerm();
+  }
+  // The parser releases the solver when it is destroyed.
+  ASSERT_TRUE(weak.expired());
+  ASSERT_EQ(t1.getKind(), Kind::ADD);
+  ASSERT_EQ(t2.getKind(), Kind::MULT);
+}
+
+TEST_F(TestApiBlackParserLifetime, parserOutlivesSymbolManager)
+{
+  TermManager tm;
+  std::shared_ptr<Solver> slv = std::make_shared<Solver>(tm);
+  std::unique_ptr<SymbolManager> sm = std::make_unique<SymbolManager>(tm);
+  InputParser p(slv, sm.get());
+  p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
+                              "parser_lifetime");
+  std::stringstream out;
+  p.appendIncrementalStringInput("(set-logic ALL)\n");
+  p.appendIncrementalStringInput("(declare-fun x () Int)\n");
+  Command cmd = p.nextCommand();
+  cmd.invoke(slv.get(), sm.get(), out);
+  cmd = p.nextCommand();
+  cmd.invoke(slv.get(), sm.get(), out);
+  sm.reset();
+  // The caller's symbol manager is destroyed; the parser keeps its own copy,
+  // which shares the symbol table, and must still be usable, also with a new
+  // input.
+  p.appendIncrementalStringInput("(+ x 1)\n");
+  Term t1 = p.nextTerm();
+  p.setStringInput(
+      modes::InputLanguage::SMT_LIB_2_6, "(* x 2)", "parser_lifetime");
+  Term t2 = p.nextTerm();
+  ASSERT_EQ(t1.getKind(), Kind::ADD);
+  ASSERT_EQ(t2.getKind(), Kind::MULT);
+  ASSERT_EQ(p.getSymbolManager()->getDeclaredTerms().size(), 1);
 }
 
 }  // namespace test

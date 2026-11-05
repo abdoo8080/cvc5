@@ -50,7 +50,7 @@ class TestMainBlackInteractiveShell : public TestInternal
     d_sout.reset(nullptr);
     // ensure that command executor is destroyed before solver
     d_cexec.reset(nullptr);
-    d_solver.reset(nullptr);
+    d_solver.reset();
   }
 
   /**
@@ -82,7 +82,7 @@ class TestMainBlackInteractiveShell : public TestInternal
   std::unique_ptr<std::stringstream> d_sout;
   std::unique_ptr<main::CommandExecutor> d_cexec;
   cvc5::TermManager d_tm;
-  std::unique_ptr<cvc5::Solver> d_solver;
+  std::shared_ptr<cvc5::Solver> d_solver;
 };
 
 TEST_F(TestMainBlackInteractiveShell, assert_true)

@@ -21,14 +21,14 @@ using namespace cvc5::parser;
 int main()
 {
   TermManager tm;
-  Solver slv(tm);
+  std::shared_ptr<Solver> slv = std::make_shared<Solver>(tm);
 
   SymbolManager sm(tm);
 
-  slv.setLogic("QF_BV");
+  slv->setLogic("QF_BV");
 
   // construct an input parser associated the solver above
-  InputParser parser(&slv, &sm);
+  InputParser parser(slv, &sm);
 
   std::string input1("(declare-const x (_ BitVec 4))\n(assert (= x #b0001))\n");
 
@@ -45,17 +45,17 @@ int main()
     {
       break;
     }
-    cmd.invoke(&slv, &sm, std::cout);
+    cmd.invoke(slv.get(), &sm, std::cout);
   }
-  Result result = slv.checkSat();
+  Result result = slv->checkSat();
   std::cout << "Result:" << result << std::endl;
 
   std::string input2("(assert (= x #b0101))");
   parser.appendIncrementalStringInput(input2);
   cmd = parser.nextCommand();
   assert(!cmd.isNull());
-  cmd.invoke(&slv, &sm, std::cout);
-  result = slv.checkSat();
+  cmd.invoke(slv.get(), &sm, std::cout);
+  result = slv->checkSat();
   std::cout << "Result:" << result << std::endl;
   assert(result.isUnsat());
   return 0;

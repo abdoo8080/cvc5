@@ -51,7 +51,7 @@ void setNoLimitCPU()
 #endif /* ! __WIN32__ */
 }
 
-CommandExecutor::CommandExecutor(std::unique_ptr<cvc5::Solver>& solver)
+CommandExecutor::CommandExecutor(std::shared_ptr<cvc5::Solver>& solver)
     : d_solver(solver),
       d_symman(new SymbolManager(d_solver->getTermManager())),
       d_result(),

@@ -44,7 +44,7 @@ class TestParserBlack : public TestInternal
   void TearDown() override
   {
     d_symman.reset(nullptr);
-    d_solver.reset(nullptr);
+    d_solver.reset();
   }
 
   /* Set up declaration context for expr inputs */
@@ -83,7 +83,7 @@ class TestParserBlack : public TestInternal
   {
     d_solver.reset(new cvc5::Solver(d_tm));
     d_symman.reset(new SymbolManager(d_tm));
-    InputParser parser(d_solver.get(), d_symman.get());
+    InputParser parser(d_solver, d_symman.get());
     std::stringstream ss;
     ss << goodInput;
     parser.setStreamInput(
@@ -110,7 +110,7 @@ class TestParserBlack : public TestInternal
     d_solver.reset(new cvc5::Solver(d_tm));
     d_solver->setOption("strict-parsing", strictMode ? "true" : "false");
     d_symman.reset(new SymbolManager(d_tm));
-    InputParser parser(d_solver.get(), d_symman.get());
+    InputParser parser(d_solver, d_symman.get());
     std::stringstream ss;
     ss << badInput;
     parser.setStreamInput(d_lang, ss, "parser_black");
@@ -137,7 +137,7 @@ class TestParserBlack : public TestInternal
   {
     d_solver.reset(new cvc5::Solver(d_tm));
     d_symman.reset(new SymbolManager(d_tm));
-    InputParser parser(d_solver.get(), d_symman.get());
+    InputParser parser(d_solver, d_symman.get());
     setupContext(parser);
 
     std::stringstream ss;
@@ -166,7 +166,7 @@ class TestParserBlack : public TestInternal
     d_solver.reset(new cvc5::Solver(d_tm));
     d_solver->setOption("strict-parsing", strictMode ? "true" : "false");
     d_symman.reset(new SymbolManager(d_tm));
-    InputParser parser(d_solver.get(), d_symman.get());
+    InputParser parser(d_solver, d_symman.get());
     setupContext(parser);
     std::stringstream ss;
     ss << badExpr;
@@ -182,7 +182,7 @@ class TestParserBlack : public TestInternal
 
   modes::InputLanguage d_lang;
   cvc5::TermManager d_tm;
-  std::unique_ptr<cvc5::Solver> d_solver;
+  std::shared_ptr<cvc5::Solver> d_solver;
   std::unique_ptr<SymbolManager> d_symman;
 };
 

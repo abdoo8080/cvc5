@@ -182,27 +182,27 @@ std::ostream& operator<<(std::ostream& out, const Command& c)
 /* InputParser                                                                */
 /* -------------------------------------------------------------------------- */
 
-InputParser::InputParser(Solver* solver, SymbolManager* sm)
-    : d_solver(solver),
-      d_allocSm(nullptr),
-      d_sm(sm),
+InputParser::InputParser(std::shared_ptr<Solver> solver, SymbolManager* sm)
+    : d_solver(std::move(solver)),
+      d_sm(*sm),
       d_usingIStringStream(false),
       d_istringLang(modes::InputLanguage::SMT_LIB_2_6)
 {
   initialize();
 }
 
-InputParser::InputParser(Solver* solver)
-    : d_solver(solver),
-      d_allocSm(new SymbolManager(solver->getTermManager())),
-      d_sm(d_allocSm.get())
+InputParser::InputParser(std::shared_ptr<Solver> solver)
+    : d_solver(std::move(solver)),
+      d_sm(d_solver->getTermManager()),
+      d_usingIStringStream(false),
+      d_istringLang(modes::InputLanguage::SMT_LIB_2_6)
 {
   initialize();
 }
 
 void InputParser::initialize()
 {
-  SymManager* sm = d_sm->toSymManager();
+  SymManager* sm = d_sm.toSymManager();
   // process the forced logic
   auto info = d_solver->getOptionInfo("force-logic");
   if (info.setByUser)
@@ -239,7 +239,7 @@ void InputParser::initializeInternal()
 {
   // reset to false
   d_usingIStringStream = false;
-  SymManager* sm = d_sm->toSymManager();
+  SymManager* sm = d_sm.toSymManager();
   bool slvLogicSet = d_solver->isLogicSet();
   bool smLogicSet = sm->isLogicSet();
   bool initParserLogic = false;
@@ -283,9 +283,9 @@ void InputParser::initializeInternal()
   }
 }
 
-Solver* InputParser::getSolver() { return d_solver; }
+Solver* InputParser::getSolver() { return d_solver.get(); }
 
-SymbolManager* InputParser::getSymbolManager() { return d_sm; }
+SymbolManager* InputParser::getSymbolManager() { return &d_sm; }
 
 Command InputParser::nextCommand()
 {
@@ -313,7 +313,7 @@ void InputParser::setFileInput(modes::InputLanguage lang,
   //////// all checks before this line
   Trace("parser") << "setFileInput(" << lang << ", " << filename << ")"
                   << std::endl;
-  d_parser = Parser::mkParser(lang, d_solver, d_sm->toSymManager());
+  d_parser = Parser::mkParser(lang, d_solver.get(), d_sm.toSymManager());
   initializeInternal();
   d_parser->setFileInput(filename);
   ////////
@@ -328,7 +328,7 @@ void InputParser::setStreamInput(modes::InputLanguage lang,
   //////// all checks before this line
   Trace("parser") << "setStreamInput(" << lang << ", ..., " << name << ")"
                   << std::endl;
-  d_parser = Parser::mkParser(lang, d_solver, d_sm->toSymManager());
+  d_parser = Parser::mkParser(lang, d_solver.get(), d_sm.toSymManager());
   initializeInternal();
   d_parser->setStreamInput(input, name);
   ////////
@@ -344,7 +344,7 @@ void InputParser::setStringInput(modes::InputLanguage lang,
   Trace("parser") << "setStringInput(" << lang << ", ..., " << name << ")"
                   << std::endl;
   // initialize the parser
-  d_parser = Parser::mkParser(lang, d_solver, d_sm->toSymManager());
+  d_parser = Parser::mkParser(lang, d_solver.get(), d_sm.toSymManager());
   initializeInternal();
   setStringInputInternal(input, name);
   ////////
@@ -361,7 +361,7 @@ void InputParser::setIncrementalStringInputInternal(modes::InputLanguage lang,
                                                     const std::string& name)
 {
   // initialize the parser
-  d_parser = Parser::mkParser(lang, d_solver, d_sm->toSymManager());
+  d_parser = Parser::mkParser(lang, d_solver.get(), d_sm.toSymManager());
   initializeInternal();
   d_istringStream.str("");
   d_istringStream.clear();

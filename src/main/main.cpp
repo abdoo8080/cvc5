@@ -31,7 +31,7 @@ using namespace cvc5::main;
 int main(int argc, char* argv[])
 {
   cvc5::TermManager tm;
-  std::unique_ptr<cvc5::Solver> solver = std::make_unique<cvc5::Solver>(tm);
+  std::shared_ptr<cvc5::Solver> solver = std::make_shared<cvc5::Solver>(tm);
   try
   {
     return runCvc5(argc, argv, solver);

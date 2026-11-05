@@ -24,10 +24,10 @@ using namespace std;
 
 void testGetInfo(cvc5::Solver* solver, const char* s);
 
-void testGetInfo(cvc5::Solver& solver, const char* s)
+void testGetInfo(std::shared_ptr<cvc5::Solver> solver, const char* s)
 {
-  SymbolManager sm(solver.getTermManager());
-  InputParser p(&solver, &sm);
+  SymbolManager sm(solver->getTermManager());
+  InputParser p(solver, &sm);
   std::stringstream ssi;
   ssi << "(get-info " << s << ")";
   p.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ssi, "<internal>");
@@ -35,7 +35,7 @@ void testGetInfo(cvc5::Solver& solver, const char* s)
   assert(!c.isNull());
   std::cout << c << std::endl;
   std::stringstream ss;
-  c.invoke(&solver, &sm, ss);
+  c.invoke(solver.get(), &sm, ss);
   c = p.nextCommand();
   assert(c.isNull());
   std::cout << ss.str();
@@ -44,9 +44,9 @@ void testGetInfo(cvc5::Solver& solver, const char* s)
 int main()
 {
   cvc5::TermManager tm;
-  cvc5::Solver solver(tm);
-  solver.setOption("input-language", "smtlib2");
-  solver.setOption("output-language", "smtlib2");
+  std::shared_ptr<cvc5::Solver> solver = std::make_shared<cvc5::Solver>(tm);
+  solver->setOption("input-language", "smtlib2");
+  solver->setOption("output-language", "smtlib2");
   testGetInfo(solver, ":error-behavior");
   testGetInfo(solver, ":name");
   testGetInfo(solver, ":authors");

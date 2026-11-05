@@ -15,6 +15,8 @@
 #include <cvc5/cvc5.h>
 #include <jni.h>
 
+#include <memory>
+
 class ApiSolver : public cvc5::Solver
 {
  public:
@@ -42,6 +44,14 @@ class ApiSolver : public cvc5::Solver
    * Delete pointers and global references.
    */
   void deletePointers(JNIEnv* env);
+
+  /**
+   * The reference to this solver held by the Java solver object. Input parsers
+   * share ownership of their solver, so this solver is only destroyed once the
+   * Java solver has been released (which resets this reference) and no input
+   * parser uses it anymore. See Java_io_github_cvc5_Solver_newSolver().
+   */
+  std::shared_ptr<ApiSolver> d_self;
 
  private:
   /**

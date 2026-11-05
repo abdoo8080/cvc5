@@ -50,6 +50,8 @@ class SymManager;
  * A symbol manager can be provided when constructing an InputParser, in which
  * case that InputParser has symbols of this symbol manager preloaded.
  *
+ * Copies of a symbol manager share its symbol table and meta-information.
+ *
  * The symbol manager's interface is otherwise not publicly available.
  */
 class CVC5_EXPORT SymbolManager
@@ -218,25 +220,43 @@ class CVC5_EXPORT InputParser
   /**
    * Construct an input parser
    *
+   * This input parser shares ownership of the solver, and keeps it alive until
+   * this input parser is destroyed. It keeps its own copy of the symbol
+   * manager, which shares the symbol table of `sm` (see `getSymbolManager()`),
+   * so `sm` may be destroyed before this input parser.
+   *
    * @param solver The solver (e.g. for constructing terms and sorts)
    * @param sm The symbol manager, which contains a symbol table that maps
    *           symbols to terms and sorts. Must have a logic that is compatible
    *           with the solver.
    */
-  InputParser(Solver* solver, SymbolManager* sm);
+  InputParser(std::shared_ptr<Solver> solver, SymbolManager* sm);
   /**
    * Construct an input parser with an initially empty symbol manager.
+   *
+   * This input parser shares ownership of the solver, and keeps it alive until
+   * this input parser is destroyed.
+   *
    * @param solver The solver (e.g. for constructing terms and sorts)
    */
-  InputParser(Solver* solver);
+  InputParser(std::shared_ptr<Solver> solver);
 
   /**
    * Get the associated solver instance of this input parser.
+   *
+   * The returned pointer is only valid as long as this input parser is alive.
+   *
    * @return The solver instance.
    */
   Solver* getSolver();
   /**
    * Get the associated symbol manager of this input parser.
+   *
+   * This is the input parser's own copy of the symbol manager it was
+   * constructed with (or of the one it constructed), which shares its symbol
+   * table. The returned pointer is only valid as long as this input parser is
+   * alive; copy the symbol manager to keep it.
+   *
    * @return The associated symbol manager.
    */
   SymbolManager* getSymbolManager();
@@ -328,12 +348,19 @@ class CVC5_EXPORT InputParser
    * is constructed.
    */
   void initializeInternal();
-  /** Solver */
-  Solver* d_solver;
-  /** The allocated symbol manager */
-  std::unique_ptr<SymbolManager> d_allocSm;
-  /** Symbol manager */
-  SymbolManager* d_sm;
+  /**
+   * The solver. The internal parser only keeps a raw pointer to it, so this
+   * member must be declared before `d_parser`, so that it is destroyed after
+   * it.
+   */
+  std::shared_ptr<Solver> d_solver;
+  /**
+   * The symbol manager: a copy of the one given on construction, which shares
+   * its symbol table, or a new one. The internal parser only keeps a raw
+   * pointer to its implementation, so this member must also be declared
+   * before `d_parser`.
+   */
+  SymbolManager d_sm;
   /** A stringstream, for incremental string inputs */
   std::stringstream d_istringStream;
   /** Are we initialized to use the above string stream? */

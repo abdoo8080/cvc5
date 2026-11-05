@@ -21,13 +21,14 @@ using namespace cvc5::parser;
 int main()
 {
   TermManager tm;
-  Solver slv(tm);
+  // the input parser below shares ownership of the solver
+  std::shared_ptr<Solver> slv = std::make_shared<Solver>(tm);
 
   // set that we should print success after each successful command
-  slv.setOption("print-success", "true");
+  slv->setOption("print-success", "true");
 
   // construct an input parser associated the solver above
-  InputParser parser(&slv);
+  InputParser parser(slv);
 
   std::stringstream ss;
   ss << "(set-logic QF_LIA)" << std::endl;
@@ -54,12 +55,12 @@ int main()
     std::cout << "Executing command " << cmd << ":" << std::endl;
     // invoke the command on the solver and the symbol manager, print the result
     // to std::cout
-    cmd.invoke(&slv, sm, std::cout);
+    cmd.invoke(slv.get(), sm, std::cout);
   }
   std::cout << "Finished parsing commands" << std::endl;
 
   // now, check sat with the solver
-  Result r = slv.checkSat();
+  Result r = slv->checkSat();
   std::cout << "expected: unsat" << std::endl;
   std::cout << "result: " << r << std::endl;
 }

@@ -32,6 +32,13 @@ cvc5 1.5.0 prerelease
     default, as documented. This also affects iterating over `Statistics` in
     the Java API (`Statistics.iterator()`). Pass `true` for both arguments to
     visit all statistics.
+  * The constructors of `InputParser` now take a `std::shared_ptr<Solver>`
+    instead of a `Solver*`, and the parser shares ownership of the solver. The
+    parser also keeps its own copy of the given symbol manager, which shares
+    its symbol table, and `InputParser::getSymbolManager()` now returns a
+    pointer to this copy. Previously, the caller had to keep the solver and
+    the symbol manager alive for as long as the parser was alive.
+    **Note**: this is a breaking change.
     
 - **Java API**
   * Native memory is now released automatically: the native object behind a
@@ -62,6 +69,11 @@ cvc5 1.5.0 prerelease
   * The helper functions `Utils.getSorts()`, `Utils.getTerms()` and
     `Utils.getProofs()`, which wrap raw native pointers, are no longer public.
   * The minimum required Java version is now 11 (previously 8).
+  * An `InputParser` now remains usable after its solver or symbol manager
+    has been released via `deletePointer()` or `close()`: the native solver is
+    only freed once the parsers created from it have been released as well.
+    Previously, the parser used the freed native objects, which could crash
+    the JVM.
 
 - Fixed a race in builds with CoCoA support when solvers are created
   concurrently in different threads: the initialization of the CoCoA global

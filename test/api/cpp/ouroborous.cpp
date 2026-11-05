@@ -69,14 +69,14 @@ std::string parse(std::string instr,
       "(declare-fun a () (Array U (Array U U)))\n";
 
   cvc5::TermManager tm;
-  cvc5::Solver solver(tm);
+  std::shared_ptr<cvc5::Solver> solver = std::make_shared<cvc5::Solver>(tm);
 
   modes::InputLanguage ilang = modes::InputLanguage::SMT_LIB_2_6;
 
-  solver.setOption("input-language", input_language);
-  solver.setOption("output-language", output_language);
+  solver->setOption("input-language", input_language);
+  solver->setOption("output-language", output_language);
   SymbolManager symman(tm);
-  InputParser parser(&solver, &symman);
+  InputParser parser(solver, &symman);
   std::stringstream ss;
   ss << declarations;
   parser.setStreamInput(ilang, ss, "internal-buffer");
@@ -92,7 +92,7 @@ std::string parse(std::string instr,
       break;
     }
     // invoke the command, which may bind symbols
-    c.invoke(&solver, &symman, tmp);
+    c.invoke(solver.get(), &symman, tmp);
   }
   assert(parser.done());  // parser should be done
   std::stringstream ssi;

@@ -37,7 +37,7 @@ class TestWithSmtParser : public TestInternal
     d_solver.reset(new cvc5::Solver(d_tm));
     d_solver->setLogic("ALL");
     d_symman.reset(new parser::SymbolManager(d_tm));
-    d_ip.reset(new parser::InputParser(d_solver.get(), d_symman.get()));
+    d_ip.reset(new parser::InputParser(d_solver, d_symman.get()));
   }
 
   void TearDown() override
@@ -47,7 +47,7 @@ class TestWithSmtParser : public TestInternal
   }
 
   cvc5::TermManager d_tm;
-  std::unique_ptr<cvc5::Solver> d_solver;
+  std::shared_ptr<cvc5::Solver> d_solver;
   std::unique_ptr<parser::SymbolManager> d_symman;
   std::unique_ptr<cvc5::parser::InputParser> d_ip;
 

@@ -12,8 +12,10 @@
 # A symbol manager keeps the internal node manager alive (it holds its own
 # copy of the term manager). Terms and sorts obtained through the parser must
 # therefore remain usable after the parser, symbol manager, solver and term
-# manager that produced them are dropped. CPython's deterministic reference
-# counting (``del`` + ``gc.collect()``) lets us trigger this precisely.
+# manager that produced them are dropped. An input parser keeps its solver and
+# its own copy of its symbol manager alive, so it must remain usable after they
+# are dropped. CPython's deterministic reference counting (``del`` +
+# ``gc.collect()``) lets us trigger this precisely.
 #
 # Note: the Python wrappers also hold a reference to the TermManager, so these
 # tests primarily exercise that binding-level keepalive; the underlying native
@@ -130,3 +132,59 @@ def test_parsed_term_outlives_parser_with_internal_symbol_manager():
     assert t.getKind() == Kind.MULT
     assert t.getSort().isInteger()
     assert str(t)
+
+
+def test_parser_outlives_solver():
+    tm = TermManager()
+    solver = Solver(tm)
+    sm = SymbolManager(tm)
+    p = InputParser(solver, sm)
+    p.setIncrementalStringInput(cvc5.InputLanguage.SMT_LIB_2_6,
+                                "parser_lifetime")
+    p.appendIncrementalStringInput("(set-logic ALL)\n")
+    p.appendIncrementalStringInput("(declare-fun x () Int)\n")
+    cmd = p.nextCommand()
+    cmd.invoke(solver, sm)
+    cmd = p.nextCommand()
+    cmd.invoke(solver, sm)
+    del solver
+    gc.collect()
+    # The solver is dropped here; the parser keeps it alive and must still be
+    # usable, also with a new input.
+    p.appendIncrementalStringInput("(+ x 1)\n")
+    t1 = p.nextTerm()
+    p.setStringInput(cvc5.InputLanguage.SMT_LIB_2_6, "(* x 2)",
+                     "parser_lifetime")
+    t2 = p.nextTerm()
+    del p
+    del sm
+    del tm
+    gc.collect()
+    assert t1.getKind() == Kind.ADD
+    assert t2.getKind() == Kind.MULT
+
+
+def test_parser_outlives_symbol_manager():
+    tm = TermManager()
+    solver = Solver(tm)
+    sm = SymbolManager(tm)
+    p = InputParser(solver, sm)
+    p.setIncrementalStringInput(cvc5.InputLanguage.SMT_LIB_2_6,
+                                "parser_lifetime")
+    p.appendIncrementalStringInput("(set-logic ALL)\n")
+    p.appendIncrementalStringInput("(declare-fun x () Int)\n")
+    cmd = p.nextCommand()
+    cmd.invoke(solver, sm)
+    cmd = p.nextCommand()
+    cmd.invoke(solver, sm)
+    del sm
+    gc.collect()
+    # The symbol manager is dropped here; the parser keeps it alive and must
+    # still be usable, also with a new input.
+    p.appendIncrementalStringInput("(+ x 1)\n")
+    t1 = p.nextTerm()
+    p.setStringInput(cvc5.InputLanguage.SMT_LIB_2_6, "(* x 2)",
+                     "parser_lifetime")
+    t2 = p.nextTerm()
+    assert t1.getKind() == Kind.ADD
+    assert t2.getKind() == Kind.MULT

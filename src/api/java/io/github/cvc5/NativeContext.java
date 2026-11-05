@@ -59,13 +59,12 @@ import java.util.function.LongConsumer;
  *     manager concurrently on its own thread.</li>
  * </ul>
  *
- * <p>Native functions that borrow a pointer for longer than a single call
- * (e.g., the input parser, which keeps raw pointers to its solver and symbol
- * manager) are backed by strong Java references from the borrowing wrapper to
- * the borrowed wrappers, so the borrowed objects cannot be reclaimed first.
- * For all other native calls, the arguments are copied before the call can
- * re-enter Java code, and a native object is never freed in the middle of a
- * native call on the same thread unless that call re-enters Java code.</p>
+ * <p>Native calls that keep a native object beyond the call share ownership
+ * of it (e.g., an input parser shares ownership of its solver and keeps its
+ * own copy of its symbol manager), so native objects may be freed in any
+ * order. For all other native calls, the arguments are copied before the call
+ * can re-enter Java code, and a native object is never freed in the middle of
+ * a native call on the same thread unless that call re-enters Java code.</p>
  */
 final class NativeContext
 {

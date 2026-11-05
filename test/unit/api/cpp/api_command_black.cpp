@@ -36,7 +36,7 @@ class TestApiBlackCommand : public TestParser
   {
     std::stringstream ss;
     ss << cmdStr << std::endl;
-    InputParser parser(d_solver.get(), d_symman.get());
+    InputParser parser(d_solver, d_symman.get());
     parser.setStreamInput(
         modes::InputLanguage::SMT_LIB_2_6, ss, "command_black");
     return parser.nextCommand();

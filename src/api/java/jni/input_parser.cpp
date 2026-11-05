@@ -13,6 +13,7 @@
 #include <cvc5/cvc5.h>
 #include <cvc5/cvc5_parser.h>
 
+#include "api_solver.h"
 #include "api_utilities.h"
 #include "io_github_cvc5_InputParser.h"
 
@@ -28,10 +29,12 @@ JNIEXPORT jlong JNICALL Java_io_github_cvc5_InputParser_newInputParser(
     JNIEnv* env, jclass, jlong solverPointer, jlong symbolManagerPointer)
 {
   CVC5_JAVA_API_TRY_CATCH_BEGIN;
-  Solver* solver = reinterpret_cast<Solver*>(solverPointer);
+  ApiSolver* solver = reinterpret_cast<ApiSolver*>(solverPointer);
   SymbolManager* symbolManager =
       reinterpret_cast<SymbolManager*>(symbolManagerPointer);
-  InputParser* parser = new InputParser(solver, symbolManager);
+  // The parser shares ownership of the native solver with the Java solver,
+  // and keeps its own copy of the native symbol manager.
+  InputParser* parser = new InputParser(solver->d_self, symbolManager);
   return reinterpret_cast<jlong>(parser);
   CVC5_JAVA_API_TRY_CATCH_END_RETURN(env, 0);
 }

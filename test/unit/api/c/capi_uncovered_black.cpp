@@ -384,8 +384,8 @@ TEST_F(TestCApiBlackUncovered, plugin_uncovered_default)
 TEST_F(TestCApiBlackUncovered, parser)
 {
   parser::Command command;
-  Solver solver(d_tm);
-  parser::InputParser parser(&solver);
+  std::shared_ptr<Solver> solver = std::make_shared<Solver>(d_tm);
+  parser::InputParser parser(solver);
   (void)parser.getSolver();
   (void)parser.getSymbolManager();
   std::stringstream ss;
