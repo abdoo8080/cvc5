@@ -18,6 +18,7 @@ from libcpp.set cimport set
 from libcpp.string cimport string
 from libcpp.vector cimport vector
 from libcpp.map cimport map
+from libcpp.memory cimport shared_ptr
 from libcpp.optional cimport optional
 from libcpp.pair cimport pair
 from cvc5kinds cimport Kind, SortKind
@@ -485,7 +486,7 @@ cdef extern from "<cvc5/cvc5.h>" namespace "cvc5":
         Term getValueSepHeap() except +
         Term getValueSepNil() except +
         Term declarePool(const string& name, Sort sort, vector[Term]& initValue) except +
-        void addPlugin(Plugin& p) except +
+        void addPlugin(shared_ptr[Plugin] p) except +
         void pop(uint32_t nscopes) except +
         void push(uint32_t nscopes) except +
         void reset() except +

@@ -32,6 +32,10 @@ cvc5 1.5.0 prerelease
     default, as documented. This also affects iterating over `Statistics` in
     the Java API (`Statistics.iterator()`). Pass `true` for both arguments to
     visit all statistics.
+  * `Solver::addPlugin()` now takes a `std::shared_ptr<Plugin>` instead of a
+    `Plugin&`, and the solver shares ownership of the plugin. Previously, the
+    caller had to keep the plugin alive for as long as the solver was alive.
+    **Note**: this is a breaking change.
     
 - **Java API**
   * Native memory is now released automatically: the native object behind a
@@ -62,6 +66,12 @@ cvc5 1.5.0 prerelease
   * The helper functions `Utils.getSorts()`, `Utils.getTerms()` and
     `Utils.getProofs()`, which wrap raw native pointers, are no longer public.
   * The minimum required Java version is now 11 (previously 8).
+
+- **Python API**
+  * Plugins are no longer leaked: a `Plugin` object is now freed once it is no
+    longer referenced, and a solver releases the plugins added to it when it
+    is freed. Previously, plugins were never freed, and neither were the term
+    managers they were created with.
 
 - Fixed a race in builds with CoCoA support when solvers are created
   concurrently in different threads: the initialization of the CoCoA global

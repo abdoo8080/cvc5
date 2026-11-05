@@ -24,10 +24,11 @@
 ##
 
 import gc
+import weakref
 import pytest
 import cvc5
 
-from cvc5 import Kind, TermManager, Solver
+from cvc5 import Kind, TermManager, Solver, Plugin
 
 
 def test_sort_outlives_term_manager():
@@ -186,3 +187,51 @@ def test_proof_outlives_solver_and_term_manager():
     proof.getRule()
     proof.getResult()
     proof.getChildren()
+
+
+class PluginUnsat(Plugin):
+    def __init__(self, tm):
+        super().__init__(tm)
+        self.tm = tm
+
+    def check(self):
+        # add the "false" lemma.
+        return [self.tm.mkFalse()]
+
+    def getName(self):
+        return "PluginUnsat"
+
+
+def test_solver_keeps_plugin_alive():
+    # The solver keeps the plugins added to it alive, so a plugin keeps
+    # working after the caller has dropped its reference to it, and it is
+    # released when the solver is destroyed. Nothing keeps the plugin, or its
+    # term manager, alive beyond that.
+    class WeakTermManager(TermManager):
+        # supports weak references, unlike TermManager
+        pass
+
+    tm = WeakTermManager()
+    solver = Solver(tm)
+    solver.setOption("sat-solver", "minisat")
+    p = PluginUnsat(tm)
+    plugin = weakref.ref(p)
+    solver.addPlugin(p)
+    del p
+    gc.collect()
+    # The caller's reference is dropped here; the plugin must still be used.
+    assert plugin() is not None
+    assert solver.checkSat().isUnsat()
+    del solver
+    gc.collect()
+    # The solver is destroyed here; it must have released the plugin.
+    assert plugin() is None
+    # A plugin that is not added to any solver is freed once unreferenced.
+    unused = weakref.ref(PluginUnsat(tm))
+    gc.collect()
+    assert unused() is None
+    term_manager = weakref.ref(tm)
+    del tm
+    gc.collect()
+    # The term manager is no longer referenced, so it must have been freed.
+    assert term_manager() is None

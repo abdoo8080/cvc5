@@ -35,11 +35,7 @@ class ApiSolver : public cvc5::Solver
    */
   jweak addWeakGlobalReference(JNIEnv* env, jobject object);
   /**
-   * Store a plugin pointer to be deleted later.
-   */
-  void addPluginPointer(jlong pluginPointer);
-  /**
-   * Delete pointers and global references.
+   * Delete global references.
    */
   void deletePointers(JNIEnv* env);
 
@@ -49,11 +45,6 @@ class ApiSolver : public cvc5::Solver
    * the deletePointers method is called.
    */
   std::vector<jweak> d_weakGlobalReferences;
-  /**
-   * A vector of ApiPlugin pointers that need to be freed when
-   * the deletePointers method is called.
-   */
-  std::vector<jlong> d_pluginPointers;
 };
 
 #endif  // CVC5__API_SOLVER_H

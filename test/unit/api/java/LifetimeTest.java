@@ -201,4 +201,35 @@ class LifetimeTest
     assertDoesNotThrow(() -> proof.getResult());
     assertDoesNotThrow(() -> proof.getChildren());
   }
+
+  @Test
+  void solverKeepsPluginAlive()
+  {
+    // The solver keeps the plugins added to it alive, so a plugin keeps
+    // working after the caller has dropped its reference to it, and it is
+    // released when the solver is destroyed.
+    TermManager tm = new TermManager();
+    Solver solver = new Solver(tm);
+    solver.setOption("sat-solver", "minisat");
+    // The caller does not keep a reference to the plugin.
+    solver.addPlugin(new AbstractPlugin(tm) {
+      @Override
+      public Term[] check()
+      {
+        // add the "false" lemma.
+        return new Term[] {tm.mkFalse()};
+      }
+      @Override
+      public String getName()
+      {
+        return "PluginUnsat";
+      }
+    });
+    // The plugin must still be used.
+    assertTrue(solver.checkSat().isUnsat());
+    // Deterministically free the native solver, which releases the native
+    // plugin, and the term manager.
+    solver.deletePointer();
+    tm.deletePointer();
+  }
 }

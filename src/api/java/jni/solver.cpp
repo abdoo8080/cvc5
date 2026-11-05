@@ -1044,9 +1044,7 @@ Java_io_github_cvc5_Solver_addPlugin(JNIEnv* env,
   jweak pluginReference = api_solver->addWeakGlobalReference(env, plugin);
   JavaVM* vm = nullptr;
   env->GetJavaVM(&vm);
-  ApiPlugin* p = new ApiPlugin(*tm, vm, pluginReference);
-  api_solver->addPluginPointer(reinterpret_cast<jlong>(p));
-  api_solver->addPlugin(*p);
+  api_solver->addPlugin(std::make_shared<ApiPlugin>(*tm, vm, pluginReference));
 
   CVC5_JAVA_API_TRY_CATCH_END(env);
 }

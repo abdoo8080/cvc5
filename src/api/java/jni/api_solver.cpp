@@ -14,8 +14,6 @@
 
 #include <cvc5/cvc5.h>
 
-#include "api_plugin.h"
-
 using namespace cvc5;
 
 ApiSolver::ApiSolver(TermManager& tm) : Solver(tm) {}
@@ -27,22 +25,11 @@ jweak ApiSolver::addWeakGlobalReference(JNIEnv* env, jobject object)
   return reference;
 }
 
-void ApiSolver::addPluginPointer(jlong pluginPointer)
-{
-  d_pluginPointers.push_back(pluginPointer);
-}
-
 void ApiSolver::deletePointers(JNIEnv* env)
 {
   for (jweak ref : d_weakGlobalReferences)
   {
     env->DeleteWeakGlobalRef(ref);
   }
-  for (jlong p : d_pluginPointers)
-  {
-    ApiPlugin* plugin = reinterpret_cast<ApiPlugin*>(p);
-    delete plugin;
-  }
   d_weakGlobalReferences.clear();
-  d_pluginPointers.clear();
 }

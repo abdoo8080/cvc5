@@ -2603,9 +2603,9 @@ class PluginUnsat : public Plugin
 TEST_F(TestApiBlackSolver, pluginUnsat)
 {
   d_solver->setOption("sat-solver", "minisat");
-  PluginUnsat pu(d_tm);
+  auto pu = std::make_shared<PluginUnsat>(d_tm);
   d_solver->addPlugin(pu);
-  ASSERT_TRUE(pu.getName() == "PluginUnsat");
+  ASSERT_TRUE(pu->getName() == "PluginUnsat");
   // should be unsat since the plugin above asserts "false" as a lemma
   ASSERT_TRUE(d_solver->checkSat().isUnsat());
 }
@@ -2644,7 +2644,7 @@ TEST_F(TestApiBlackSolver, pluginListen)
   d_solver->setOption("sat-solver", "minisat");
   // Allow notifications for unit clauses added before the main solve.
   d_solver->setOption("plugin-notify-sat-clause-in-solve", "false");
-  PluginListen pl(d_tm);
+  auto pl = std::make_shared<PluginListen>(d_tm);
   d_solver->addPlugin(pl);
   Term x = d_tm.mkConst(d_string, "x");
   Term y = d_tm.mkConst(d_string, "y");
@@ -2657,8 +2657,8 @@ TEST_F(TestApiBlackSolver, pluginListen)
   d_solver->assertFormula(lc);
   ASSERT_TRUE(d_solver->checkSat().isSat());
   // above input formulas should induce a theory lemma and SAT clause learning
-  ASSERT_TRUE(pl.hasSeenTheoryLemma());
-  ASSERT_TRUE(pl.hasSeenSatClause());
+  ASSERT_TRUE(pl->hasSeenTheoryLemma());
+  ASSERT_TRUE(pl->hasSeenSatClause());
 }
 
 TEST_F(TestApiBlackSolver, pluginListenCadical)
@@ -2666,7 +2666,7 @@ TEST_F(TestApiBlackSolver, pluginListenCadical)
   cvc5::Solver solver(d_tm);
   solver.setOption("sat-solver", "cadical");
   solver.setOption("plugin-notify-sat-clause-in-solve", "true");
-  PluginListen pl(d_tm);
+  auto pl = std::make_shared<PluginListen>(d_tm);
   solver.addPlugin(pl);
   Sort bv1 = d_tm.mkBitVectorSort(8);
   Sort bv16 = d_tm.mkBitVectorSort(8);
@@ -2685,8 +2685,19 @@ TEST_F(TestApiBlackSolver, pluginListenCadical)
   solver.assertFormula(eq2);
   ASSERT_TRUE(solver.checkSat().isUnsat());
   // above input formulas should induce a theory lemma and SAT clause learning
-  ASSERT_TRUE(pl.hasSeenTheoryLemma());
-  ASSERT_TRUE(pl.hasSeenSatClause());
+  ASSERT_TRUE(pl->hasSeenTheoryLemma());
+  ASSERT_TRUE(pl->hasSeenSatClause());
+}
+
+TEST_F(TestApiBlackSolver, addPlugin)
+{
+  ASSERT_THROW(d_solver->addPlugin(nullptr), CVC5ApiException);
+  ASSERT_TRUE(d_solver->checkSat().isSat());
+  // plugins cannot be added once the solver is fully initialized, and the
+  // solver does not keep a plugin that it rejected
+  auto pl = std::make_shared<PluginListen>(d_tm);
+  ASSERT_THROW(d_solver->addPlugin(pl), CVC5ApiException);
+  ASSERT_EQ(pl.use_count(), 1);
 }
 
 TEST_F(TestApiBlackSolver, verticalBars)

@@ -214,5 +214,41 @@ TEST_F(TestApiBlackLifetime, proofOutlivesSolverAndTermManager)
   ASSERT_NO_THROW(proof.getChildren());
 }
 
+/** A plugin that asserts "false" as a lemma. */
+class PluginUnsat : public Plugin
+{
+ public:
+  PluginUnsat(TermManager& tm) : Plugin(tm), d_tm(tm) {}
+  std::vector<Term> check() override { return {d_tm.mkFalse()}; }
+  std::string getName() override { return "PluginUnsat"; }
+
+ private:
+  /** Reference to the term manager */
+  TermManager& d_tm;
+};
+
+TEST_F(TestApiBlackLifetime, solverKeepsPluginAlive)
+{
+  // The solver shares ownership of the plugins added to it, so a plugin keeps
+  // working after the caller has dropped its pointer to it, and it is released
+  // when the solver is destroyed.
+  std::weak_ptr<Plugin> plugin;
+  {
+    TermManager tm;
+    Solver slv(tm);
+    slv.setOption("sat-solver", "minisat");
+    {
+      auto p = std::make_shared<PluginUnsat>(tm);
+      plugin = p;
+      slv.addPlugin(p);
+    }
+    // The caller's pointer is dropped here; the plugin must still be used.
+    ASSERT_FALSE(plugin.expired());
+    ASSERT_TRUE(slv.checkSat().isUnsat());
+  }
+  // The solver is destroyed here; it must have released the plugin.
+  ASSERT_TRUE(plugin.expired());
+}
+
 }  // namespace test
 }  // namespace cvc5::internal

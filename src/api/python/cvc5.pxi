@@ -21,6 +21,7 @@ from cpython.unicode cimport PyUnicode_DATA, PyUnicode_KIND, PyUnicode_READ, PyU
 from libc.stdint cimport int32_t, int64_t, uint32_t, uint64_t
 
 from libcpp cimport bool as c_bool
+from libcpp.memory cimport make_shared, shared_ptr, static_pointer_cast
 from libcpp.pair cimport pair
 from libcpp.set cimport set as c_set
 from libcpp.string cimport string
@@ -2204,7 +2205,7 @@ cdef class Plugin:
 
         Wrapper class for :cpp:class:`cvc5::Plugin`.
     """
-    cdef c_PyPlugin* cplugin
+    cdef shared_ptr[c_PyPlugin] cplugin
     cdef TermManager tm
 
     # Ensure that both __init__ and __cinit__ have the same signature
@@ -2213,10 +2214,8 @@ cdef class Plugin:
 
     def __cinit__(self, TermManager tm not None):
         self.tm = tm
-        self.cplugin = new c_PyPlugin(<cpy_ref.PyObject*>self, dereference(tm.ctm))
-
-    def __dealloc__(self):
-        del self.cplugin
+        self.cplugin = make_shared[c_PyPlugin](
+            <cpy_ref.PyObject*>self, dereference(tm.ctm))
 
     def __term_manager(self):
         return self.tm
@@ -2229,7 +2228,7 @@ cdef class Plugin:
             :return: The list of lemmas to add to the SAT solver.
         """
         lemmas = []
-        for l in self.cplugin.plugin_check():
+        for l in dereference(self.cplugin).plugin_check():
             lemmas.append(_term(self.tm, l))
         return lemmas
 
@@ -2240,7 +2239,7 @@ cdef class Plugin:
 
             :param cl: The learned clause.
         """
-        self.cplugin.plugin_notifySatClause(cl.cterm)
+        dereference(self.cplugin).plugin_notifySatClause(cl.cterm)
 
     def notifyTheoryLemma(self, Term lem not None):
         """
@@ -2249,7 +2248,7 @@ cdef class Plugin:
 
             :param lem: The theory lemma.
         """
-        self.cplugin.plugin_notifyTheoryLemma(lem.cterm)
+        dereference(self.cplugin).plugin_notifyTheoryLemma(lem.cterm)
 
     def getName(self):
         """
@@ -2272,6 +2271,10 @@ cdef class Solver:
     """
     cdef c_Solver* csolver
     cdef TermManager tm
+    # The plugins added to this solver, which are kept alive for as long as
+    # the C++ solver may call them. They are released after csolver has been
+    # deleted, since __dealloc__ is called before attributes are released.
+    cdef list plugins
 
     def __cinit__(self, TermManager tm = None):
         if not tm:
@@ -2279,6 +2282,7 @@ cdef class Solver:
         else:
           self.tm = tm
         self.csolver = new c_Solver(dereference(self.tm.ctm))
+        self.plugins = []
 
     def __dealloc__(self):
         del self.csolver
@@ -4508,8 +4512,9 @@ cdef class Solver:
 
             :param p: The plugin to add to this solver.
         """
-        cdef c_Plugin* ptr = <c_Plugin*> p.cplugin
-        self.csolver.addPlugin(dereference(ptr))
+        self.csolver.addPlugin(
+            static_pointer_cast[c_Plugin, c_PyPlugin](p.cplugin))
+        self.plugins.append(p)
 
     def pop(self, nscopes=1):
         """

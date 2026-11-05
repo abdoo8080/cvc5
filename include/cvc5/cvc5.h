@@ -6461,10 +6461,14 @@ class CVC5_EXPORT Solver
   /**
    * Add plugin to this solver. Its callbacks will be called throughout the
    * lifetime of this solver.
+   *
+   * This solver shares ownership of the plugin, and keeps it alive until this
+   * solver is destroyed.
+   *
    * @warning This function is experimental and may change in future versions.
    * @param p The plugin to add to this solver.
    */
-  void addPlugin(Plugin& p);
+  void addPlugin(std::shared_ptr<Plugin> p);
   /**
    * Pop (a) level(s) from the assertion stack.
    *
@@ -7163,6 +7167,13 @@ class CVC5_EXPORT Solver
 
   /** Keep a copy of the original option settings (for resets). */
   std::unique_ptr<internal::Options> d_originalOptions;
+  /**
+   * The plugins added via addPlugin(). The SMT engine only keeps raw pointers
+   * to them, so this member must be declared before `d_slv`, so that it is
+   * destroyed after it. Plugins are kept across resets, even though they are
+   * not registered with the new SMT engine.
+   */
+  std::vector<std::shared_ptr<Plugin>> d_plugins;
   /** The SMT engine of this solver. */
   std::unique_ptr<internal::SolverEngine> d_slv;
   /** The random number generator of this solver. */

@@ -21,13 +21,7 @@ PyPlugin::PyPlugin(PyObject* obj, TermManager& tm)
   {
     throw std::runtime_error("Error executing import_cvc5__cvc5_python_base");
   }
-  else
-  {
-    Py_XINCREF(this->m_obj);
-  }
 }
-
-PyPlugin::~PyPlugin() { Py_XDECREF(this->m_obj); }
 
 std::vector<Term> PyPlugin::check()
 {

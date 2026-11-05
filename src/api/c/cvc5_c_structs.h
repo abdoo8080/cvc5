@@ -713,15 +713,6 @@ struct CVC5_EXPORT Cvc5
    */
   void deregister(cvc5_proof_t* proof);
 
-  class PluginCpp;
-  /**
-   * The plugins added to this solver.
-   * @note The solver only keeps raw pointers to its plugins and never removes
-   *       them, so all plugins must be kept alive for as long as the solver.
-   *       This member must thus be declared before `d_solver` so that it is
-   *       destroyed after it.
-   */
-  std::vector<std::unique_ptr<PluginCpp>> d_plugins;
   /** The associated cvc5 instance. */
   cvc5::Solver d_solver;
   /** The associated term manager. */

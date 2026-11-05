@@ -363,7 +363,7 @@ TEST_F(TestCApiBlackUncovered, plugin_uncovered_default)
   d_solver->setOption("sat-solver", "minisat");
   // Allow notifications for unit clauses added before the main solve.
   d_solver->setOption("plugin-notify-sat-clause-in-solve", "false");
-  PluginListen pl(d_tm);
+  auto pl = std::make_shared<PluginListen>(d_tm);
   d_solver->addPlugin(pl);
   Sort stringSort = d_tm.getStringSort();
   Term x = d_tm.mkConst(stringSort, "x");
@@ -377,8 +377,8 @@ TEST_F(TestCApiBlackUncovered, plugin_uncovered_default)
   d_solver->assertFormula(lc);
   ASSERT_TRUE(d_solver->checkSat().isSat());
   // above input formulas should induce a theory lemma and SAT clause learning
-  ASSERT_TRUE(pl.hasSeenTheoryLemma());
-  ASSERT_TRUE(pl.hasSeenSatClause());
+  ASSERT_TRUE(pl->hasSeenTheoryLemma());
+  ASSERT_TRUE(pl->hasSeenSatClause());
 }
 
 TEST_F(TestCApiBlackUncovered, parser)

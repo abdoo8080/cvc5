@@ -25,11 +25,16 @@ namespace cvc5 {
 class PyPlugin : public Plugin
 {
  public:
+  /**
+   * The Python plugin object, which holds this plugin. This is a borrowed
+   * reference, since a new reference would keep the Python object alive
+   * forever. Instead, the Python solvers that the Python object is added to
+   * keep it alive.
+   */
   PyObject* m_obj;
   TermManager& tm;
 
   PyPlugin(PyObject* obj, TermManager& tm);
-  virtual ~PyPlugin();
 
   virtual std::vector<Term> check();
   virtual void notifySatClause(const Term& cl);

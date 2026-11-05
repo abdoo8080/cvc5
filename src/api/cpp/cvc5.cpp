@@ -8434,10 +8434,15 @@ Term Solver::declareOracleFun(
   CVC5_API_TRY_CATCH_END;
 }
 
-void Solver::addPlugin(Plugin& p)
+void Solver::addPlugin(std::shared_ptr<Plugin> p)
 {
   CVC5_API_TRY_CATCH_BEGIN;
-  d_slv->addPlugin(p.d_pExtToInt.get());
+  CVC5_API_ARG_CHECK_NOT_NULLPTR(p);
+  //////// all checks before this line
+  d_slv->addPlugin(p->d_pExtToInt.get());
+  // only keep the plugin once the SMT engine has accepted it
+  d_plugins.push_back(std::move(p));
+  ////////
   CVC5_API_TRY_CATCH_END;
 }
 
