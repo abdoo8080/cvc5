@@ -8420,15 +8420,29 @@ Term Solver::declareOracleFun(
     type = d_tm.d_nm->mkFunctionType(types, type);
   }
   internal::Node fun = d_tm.mkConstHelper(type, symbol);
+  // This solver owns fn. The oracle that is registered with the node manager
+  // only refers to it weakly: fn may keep the node manager alive (e.g., if it
+  // captures a term), and the node manager may outlive this solver.
+  auto ownedFn =
+      std::make_shared<std::function<Term(const std::vector<Term>&)>>(
+          std::move(fn));
   // Wrap the terms-to-term function so that it is nodes-to-nodes. Note we
   // make the method return a vector of size one to conform to the interface
   // at the SolverEngine level.
   d_slv->declareOracleFun(
-      fun, [&, fn](const std::vector<internal::Node> nodes) {
+      fun,
+      [this, weakFn = std::weak_ptr(ownedFn)](
+          const std::vector<internal::Node> nodes) {
+        // If fn still exists, so does this solver, which owns it.
+        auto f = weakFn.lock();
+        CVC5_API_CHECK(f != nullptr)
+            << "cannot call oracle function after the solver that declared "
+               "it has been destroyed";
         std::vector<Term> terms = Term::nodeVectorToTerms(d_tm.d_nm, nodes);
-        Term output = fn(terms);
+        Term output = (*f)(terms);
         return Term::termVectorToNodes({output});
       });
+  d_oracleFuns.push_back(ownedFn);
   return Term(d_tm.d_nm, fun);
   ////////
   CVC5_API_TRY_CATCH_END;

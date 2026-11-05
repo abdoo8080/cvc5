@@ -6451,7 +6451,8 @@ class CVC5_EXPORT Solver
    * @param symbol The name of the oracle
    * @param sorts The sorts of the parameters to this function
    * @param sort The sort of the return value of this function
-   * @param fn The function that implements the oracle function.
+   * @param fn The function that implements the oracle function. It is owned
+   *           by this solver and destroyed together with it.
    * @return The oracle function
    */
   Term declareOracleFun(const std::string& symbol,
@@ -7163,6 +7164,15 @@ class CVC5_EXPORT Solver
 
   /** Keep a copy of the original option settings (for resets). */
   std::unique_ptr<internal::Options> d_originalOptions;
+  /**
+   * The oracle functions declared via declareOracleFun(). They are owned by
+   * this solver rather than by its SMT engine, so that they are kept across
+   * resets. The oracles registered with the node manager refer to them only
+   * weakly.
+   */
+  mutable std::vector<
+      std::shared_ptr<std::function<Term(const std::vector<Term>&)>>>
+      d_oracleFuns;
   /** The SMT engine of this solver. */
   std::unique_ptr<internal::SolverEngine> d_slv;
   /** The random number generator of this solver. */

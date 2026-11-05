@@ -10,6 +10,7 @@
  * Black box testing of the Solver class of the  C++ API.
  */
 
+#include <cvc5/cvc5_parser.h>
 #include <cvc5/cvc5_types.h>
 #include <gtest/gtest.h>
 
@@ -2578,6 +2579,67 @@ TEST_F(TestApiBlackSolver, declareOracleFunSat2)
   Term xval = d_solver->getValue(x);
   Term yval = d_solver->getValue(y);
   ASSERT_TRUE(xval != yval);
+}
+
+TEST_F(TestApiBlackSolver, declareOracleFunLifetime)
+{
+  // token is destroyed together with the function that captures it
+  std::shared_ptr<int> token = std::make_shared<int>(0);
+  std::weak_ptr<int> weakToken = token;
+  Term f;
+  {
+    Solver slv(d_tm);
+    slv.setOption("oracles", "true");
+    f = slv.declareOracleFun(
+        "f", {d_int}, d_int, [this, token](const std::vector<Term>&) {
+          return d_tm.mkInteger(*token);
+        });
+    token.reset();
+    ASSERT_FALSE(weakToken.expired());
+  }
+  // the solver destroys the function, while the term manager is still alive
+  ASSERT_TRUE(weakToken.expired());
+  // f can no longer be called, e.g., when another solver evaluates candidate
+  // solutions
+  d_solver->setOption("sygus", "true");
+  d_solver->setOption("oracles", "true");
+  Term g = d_solver->synthFun("g", {}, d_int);
+  d_solver->addSygusConstraint(d_tm.mkTerm(
+      Kind::EQUAL, {d_tm.mkTerm(Kind::APPLY_UF, {f, g}), d_tm.mkInteger(0)}));
+  ASSERT_THROW(d_solver->checkSynth(), CVC5ApiException);
+}
+
+TEST_F(TestApiBlackSolver, declareOracleFunReset)
+{
+  d_solver->setOption("oracles", "true");
+  // f is the function implementing (lambda ((x Int)) (+ x 1))
+  size_t calls = 0;
+  Term f = d_solver->declareOracleFun(
+      "f", {d_int}, d_int, [&](const std::vector<Term>& input) {
+        calls++;
+        if (input[0].isUInt32Value())
+        {
+          return d_tm.mkInteger(input[0].getUInt32Value() + 1);
+        }
+        return d_tm.mkInteger(0);
+      });
+  parser::SymbolManager sm(d_tm);
+  parser::InputParser p(d_solver.get(), &sm);
+  p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
+                              "declareOracleFunReset");
+  p.appendIncrementalStringInput("(reset)\n");
+  std::stringstream out;
+  p.nextCommand().invoke(d_solver.get(), &sm, out);
+  ASSERT_EQ(out.str(), "");
+  // f can still be called after a reset, e.g., to evaluate candidate solutions
+  d_solver->setOption("sygus", "true");
+  d_solver->setOption("oracles", "true");
+  Term g = d_solver->synthFun("g", {}, d_int);
+  d_solver->addSygusConstraint(d_tm.mkTerm(
+      Kind::EQUAL, {d_tm.mkTerm(Kind::APPLY_UF, {f, g}), d_tm.mkInteger(5)}));
+  // (f g) = 5
+  ASSERT_TRUE(d_solver->checkSynth().hasSolution());
+  ASSERT_GT(calls, 0);
 }
 
 class PluginUnsat : public Plugin

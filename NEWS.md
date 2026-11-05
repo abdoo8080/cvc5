@@ -32,6 +32,12 @@ cvc5 1.5.0 prerelease
     default, as documented. This also affects iterating over `Statistics` in
     the Java API (`Statistics.iterator()`). Pass `true` for both arguments to
     visit all statistics.
+  * The oracle function passed to `Solver::declareOracleFun()` is now owned by
+    the solver and destroyed together with it. Previously, it was only
+    destroyed together with the term manager and all objects created from it,
+    so that a function that captures a term or the term manager by value
+    caused a memory leak. If an oracle function is invoked after its solver
+    has been destroyed, e.g., by another solver, this now raises an exception.
     
 - **Java API**
   * Native memory is now released automatically: the native object behind a
