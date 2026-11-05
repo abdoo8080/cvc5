@@ -239,6 +239,9 @@ void InputParser::initializeInternal()
 {
   // reset to false
   d_usingIStringStream = false;
+  // d_parser was just replaced, so the stream of the previous input (if any)
+  // is no longer referred to and can be released
+  d_stream = nullptr;
   SymManager* sm = d_sm->toSymManager();
   bool slvLogicSet = d_solver->isLogicSet();
   bool smLogicSet = sm->isLogicSet();
@@ -321,16 +324,20 @@ void InputParser::setFileInput(modes::InputLanguage lang,
 }
 
 void InputParser::setStreamInput(modes::InputLanguage lang,
-                                 std::istream& input,
+                                 std::shared_ptr<std::istream> input,
                                  const std::string& name)
 {
   CVC5_API_TRY_CATCH_BEGIN;
+  CVC5_PARSER_API_CHECK(input != nullptr)
+      << "invalid null argument for 'input'";
   //////// all checks before this line
   Trace("parser") << "setStreamInput(" << lang << ", ..., " << name << ")"
                   << std::endl;
   d_parser = Parser::mkParser(lang, d_solver, d_sm->toSymManager());
   initializeInternal();
-  d_parser->setStreamInput(input, name);
+  // the internal parser only keeps a reference to the stream
+  d_stream = std::move(input);
+  d_parser->setStreamInput(*d_stream, name);
   ////////
   CVC5_API_TRY_CATCH_END;
 }

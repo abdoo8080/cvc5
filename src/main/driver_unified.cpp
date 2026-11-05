@@ -232,7 +232,11 @@ int runCvc5(int argc, char* argv[], std::unique_ptr<cvc5::Solver>& solver)
           pExecutor->getSolver(), pExecutor->getSymbolManager()));
       if (inputFromStdin)
       {
-        parser->setStreamInput(ilang, cin, filename);
+        // the parser does not own std::cin, hence the no-op deleter
+        parser->setStreamInput(
+            ilang,
+            std::shared_ptr<std::istream>(&cin, [](std::istream*) {}),
+            filename);
       }
       else
       {

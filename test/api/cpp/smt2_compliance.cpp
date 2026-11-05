@@ -28,8 +28,8 @@ void testGetInfo(cvc5::Solver& solver, const char* s)
 {
   SymbolManager sm(solver.getTermManager());
   InputParser p(&solver, &sm);
-  std::stringstream ssi;
-  ssi << "(get-info " << s << ")";
+  auto ssi = std::make_shared<std::stringstream>();
+  *ssi << "(get-info " << s << ")";
   p.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ssi, "<internal>");
   Command c = p.nextCommand();
   assert(!c.isNull());

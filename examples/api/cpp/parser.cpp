@@ -29,14 +29,14 @@ int main()
   // construct an input parser associated the solver above
   InputParser parser(&slv);
 
-  std::stringstream ss;
-  ss << "(set-logic QF_LIA)" << std::endl;
-  ss << "(declare-fun a () Int)" << std::endl;
-  ss << "(declare-fun b () Int)" << std::endl;
-  ss << "(declare-fun c () Int)" << std::endl;
-  ss << "(assert (> a (+ b c)))" << std::endl;
-  ss << "(assert (< a b))" << std::endl;
-  ss << "(assert (> c 0))" << std::endl;
+  auto ss = std::make_shared<std::stringstream>();
+  *ss << "(set-logic QF_LIA)" << std::endl;
+  *ss << "(declare-fun a () Int)" << std::endl;
+  *ss << "(declare-fun b () Int)" << std::endl;
+  *ss << "(declare-fun c () Int)" << std::endl;
+  *ss << "(assert (> a (+ b c)))" << std::endl;
+  *ss << "(assert (< a b))" << std::endl;
+  *ss << "(assert (> c 0))" << std::endl;
   parser.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ss, "MyStream");
 
   // get the symbol manager of the parser, used when invoking commands below

@@ -32,6 +32,12 @@ cvc5 1.5.0 prerelease
     default, as documented. This also affects iterating over `Statistics` in
     the Java API (`Statistics.iterator()`). Pass `true` for both arguments to
     visit all statistics.
+  * `InputParser::setStreamInput()` now takes a `std::shared_ptr<std::istream>`
+    instead of a `std::istream&`, and the parser shares ownership of the
+    stream. Previously, the caller had to keep the stream alive until the
+    parser was given another input or destroyed. A stream that is owned
+    elsewhere, e.g., `std::cin`, can be passed with a no-op deleter.
+    **Note**: this is a breaking change.
     
 - **Java API**
   * Native memory is now released automatically: the native object behind a

@@ -50,20 +50,20 @@ class TestParserBlack : public TestInternal
   /* Set up declaration context for expr inputs */
   void setupContext(InputParser& parser)
   {
-    std::stringstream ss;
-    ss << "(set-logic ALL)" << std::endl;
-    ss << "(declare-fun a () Bool)" << std::endl;
-    ss << "(declare-fun b () Bool)" << std::endl;
-    ss << "(declare-fun c () Bool)" << std::endl;
-    ss << "(declare-sort t 0)" << std::endl;
-    ss << "(declare-sort u 0)" << std::endl;
-    ss << "(declare-sort v 0)" << std::endl;
-    ss << "(declare-fun f (t) u)" << std::endl;
-    ss << "(declare-fun g (u) v)" << std::endl;
-    ss << "(declare-fun h (v) t)" << std::endl;
-    ss << "(declare-fun x () t)" << std::endl;
-    ss << "(declare-fun y () u)" << std::endl;
-    ss << "(declare-fun z () v)" << std::endl;
+    auto ss = std::make_shared<std::stringstream>();
+    *ss << "(set-logic ALL)" << std::endl;
+    *ss << "(declare-fun a () Bool)" << std::endl;
+    *ss << "(declare-fun b () Bool)" << std::endl;
+    *ss << "(declare-fun c () Bool)" << std::endl;
+    *ss << "(declare-sort t 0)" << std::endl;
+    *ss << "(declare-sort u 0)" << std::endl;
+    *ss << "(declare-sort v 0)" << std::endl;
+    *ss << "(declare-fun f (t) u)" << std::endl;
+    *ss << "(declare-fun g (u) v)" << std::endl;
+    *ss << "(declare-fun h (v) t)" << std::endl;
+    *ss << "(declare-fun x () t)" << std::endl;
+    *ss << "(declare-fun y () u)" << std::endl;
+    *ss << "(declare-fun z () v)" << std::endl;
     parser.setStreamInput(
         modes::InputLanguage::SMT_LIB_2_6, ss, "parser_black");
     Command cmd;
@@ -84,8 +84,8 @@ class TestParserBlack : public TestInternal
     d_solver.reset(new cvc5::Solver(d_tm));
     d_symman.reset(new SymbolManager(d_tm));
     InputParser parser(d_solver.get(), d_symman.get());
-    std::stringstream ss;
-    ss << goodInput;
+    auto ss = std::make_shared<std::stringstream>();
+    *ss << goodInput;
     parser.setStreamInput(
         modes::InputLanguage::SMT_LIB_2_6, ss, "parser_black");
     ASSERT_FALSE(parser.done());
@@ -111,8 +111,8 @@ class TestParserBlack : public TestInternal
     d_solver->setOption("strict-parsing", strictMode ? "true" : "false");
     d_symman.reset(new SymbolManager(d_tm));
     InputParser parser(d_solver.get(), d_symman.get());
-    std::stringstream ss;
-    ss << badInput;
+    auto ss = std::make_shared<std::stringstream>();
+    *ss << badInput;
     parser.setStreamInput(d_lang, ss, "parser_black");
     ASSERT_THROW(
         {
@@ -140,8 +140,8 @@ class TestParserBlack : public TestInternal
     InputParser parser(d_solver.get(), d_symman.get());
     setupContext(parser);
 
-    std::stringstream ss;
-    ss << goodExpr;
+    auto ss = std::make_shared<std::stringstream>();
+    *ss << goodExpr;
     parser.setStreamInput(d_lang, ss, "parser_black");
 
     ASSERT_FALSE(parser.done());
@@ -168,8 +168,8 @@ class TestParserBlack : public TestInternal
     d_symman.reset(new SymbolManager(d_tm));
     InputParser parser(d_solver.get(), d_symman.get());
     setupContext(parser);
-    std::stringstream ss;
-    ss << badExpr;
+    auto ss = std::make_shared<std::stringstream>();
+    *ss << badExpr;
     parser.setStreamInput(d_lang, ss, "parser_black");
     ASSERT_FALSE(parser.done());
     ASSERT_THROW(cvc5::Term e = parser.nextTerm();

@@ -77,8 +77,8 @@ std::string parse(std::string instr,
   solver.setOption("output-language", output_language);
   SymbolManager symman(tm);
   InputParser parser(&solver, &symman);
-  std::stringstream ss;
-  ss << declarations;
+  auto ss = std::make_shared<std::stringstream>();
+  *ss << declarations;
   parser.setStreamInput(ilang, ss, "internal-buffer");
   // we don't need to execute the commands, but we DO need to parse them to
   // get the declarations
@@ -95,9 +95,9 @@ std::string parse(std::string instr,
     c.invoke(&solver, &symman, tmp);
   }
   assert(parser.done());  // parser should be done
-  std::stringstream ssi;
-  ssi << instr;
-  parser.setStreamInput(ilang, ss, "internal-buffer");
+  auto ssi = std::make_shared<std::stringstream>();
+  *ssi << instr;
+  parser.setStreamInput(ilang, ssi, "internal-buffer");
   cvc5::Term e = parser.nextTerm();
   std::string s = e.toString();
   assert(parser.nextTerm().isNull());  // next expr should be null

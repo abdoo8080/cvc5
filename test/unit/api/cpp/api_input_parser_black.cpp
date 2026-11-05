@@ -75,10 +75,14 @@ TEST_F(TestApiBlackInputParser, setFileInput)
 TEST_F(TestApiBlackInputParser, setStreamInput)
 {
   InputParser p(d_solver.get());
-  std::stringstream ss;
-  ss << "(set-logic QF_LIA)" << std::endl;
-  ss << "(declare-fun a () Bool)" << std::endl;
-  ss << "(declare-fun b () Int)" << std::endl;
+  ASSERT_THROW(
+      p.setStreamInput(
+          modes::InputLanguage::SMT_LIB_2_6, nullptr, "input_parser_black"),
+      CVC5ApiException);
+  auto ss = std::make_shared<std::stringstream>();
+  *ss << "(set-logic QF_LIA)" << std::endl;
+  *ss << "(declare-fun a () Bool)" << std::endl;
+  *ss << "(declare-fun b () Int)" << std::endl;
   p.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ss, "input_parser_black");
   ASSERT_EQ(p.done(), false);
   Command cmd;
@@ -93,6 +97,48 @@ TEST_F(TestApiBlackInputParser, setStreamInput)
     ASSERT_NO_THROW(cmd.invoke(d_solver.get(), d_symman.get(), out));
   }
   ASSERT_EQ(p.done(), true);
+}
+
+TEST_F(TestApiBlackInputParser, setStreamInputLifetime)
+{
+  // sets a new stream with the given content as the input of p, and returns a
+  // weak pointer to it
+  auto setStream = [](InputParser& p, const std::string& input) {
+    auto ss = std::make_shared<std::stringstream>(input);
+    p.setStreamInput(
+        modes::InputLanguage::SMT_LIB_2_6, ss, "input_parser_black");
+    return std::weak_ptr<std::istream>(ss);
+  };
+  std::stringstream out;
+  std::weak_ptr<std::istream> stream;
+  {
+    InputParser p(d_solver.get(), d_symman.get());
+    // the parser keeps the stream alive after the caller dropped its pointer
+    stream = setStream(p, "(set-logic QF_LIA)\n(declare-fun a () Int)\n");
+    ASSERT_FALSE(stream.expired());
+    for (size_t i = 0; i < 2; i++)
+    {
+      Command cmd = p.nextCommand();
+      ASSERT_FALSE(cmd.isNull());
+      ASSERT_NO_THROW(cmd.invoke(d_solver.get(), d_symman.get(), out));
+    }
+    ASSERT_TRUE(p.nextCommand().isNull());
+    // configuring another input releases the stream
+    std::weak_ptr<std::istream> stream2 = setStream(p, "");
+    ASSERT_TRUE(stream.expired());
+    ASSERT_FALSE(stream2.expired());
+    p.setStringInput(
+        modes::InputLanguage::SMT_LIB_2_6, "", "input_parser_black");
+    ASSERT_TRUE(stream2.expired());
+    stream = setStream(p, "");
+    p.setIncrementalStringInput(modes::InputLanguage::SMT_LIB_2_6,
+                                "input_parser_black");
+    ASSERT_TRUE(stream.expired());
+    stream = setStream(p, "");
+    ASSERT_FALSE(stream.expired());
+  }
+  // destroying the parser releases the stream
+  ASSERT_TRUE(stream.expired());
 }
 
 TEST_F(TestApiBlackInputParser, setAndAppendIncrementalStringInput)
@@ -173,8 +219,9 @@ TEST_F(TestApiBlackInputParser, nextCommand)
 {
   InputParser p(d_solver.get());
   ASSERT_THROW(p.nextCommand(), CVC5ApiException);
-  std::stringstream ss;
-  p.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ss, "input_parser_black");
+  p.setStreamInput(modes::InputLanguage::SMT_LIB_2_6,
+                   std::make_shared<std::stringstream>(),
+                   "input_parser_black");
   Command cmd = p.nextCommand();
   ASSERT_EQ(cmd.isNull(), true);
 }
@@ -194,8 +241,9 @@ TEST_F(TestApiBlackInputParser, nextTerm)
 {
   InputParser p(d_solver.get());
   ASSERT_THROW(p.nextTerm(), CVC5ApiException);
-  std::stringstream ss;
-  p.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ss, "input_parser_black");
+  p.setStreamInput(modes::InputLanguage::SMT_LIB_2_6,
+                   std::make_shared<std::stringstream>(),
+                   "input_parser_black");
   ASSERT_EQ(p.nextTerm().isNull(), true);
 }
 

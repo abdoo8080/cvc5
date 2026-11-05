@@ -29,11 +29,11 @@ int main()
   // construct an input parser associated the solver above
   InputParser parser(&slv, &sm);
 
-  std::stringstream ss;
-  ss << "(set-logic QF_LIA)" << std::endl;
-  ss << "(declare-fun a () Int)" << std::endl;
-  ss << "(declare-fun b () Int)" << std::endl;
-  ss << "(declare-fun c () Bool)" << std::endl;
+  auto ss = std::make_shared<std::stringstream>();
+  *ss << "(set-logic QF_LIA)" << std::endl;
+  *ss << "(declare-fun a () Int)" << std::endl;
+  *ss << "(declare-fun b () Int)" << std::endl;
+  *ss << "(declare-fun c () Bool)" << std::endl;
   parser.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ss, "MyStream");
 
   // parse commands until finished
@@ -57,12 +57,12 @@ int main()
   // Now, construct a new parser with the same symbol manager. We will parse
   // terms with it.
   InputParser parser2(&slv, &sm);
-  std::stringstream ss2;
-  ss2 << "(+ a b)" << std::endl;
-  ss2 << "(- a 10)" << std::endl;
-  ss2 << "(>= 0 45)" << std::endl;
-  ss2 << "(and c c)" << std::endl;
-  ss2 << "true" << std::endl;
+  auto ss2 = std::make_shared<std::stringstream>();
+  *ss2 << "(+ a b)" << std::endl;
+  *ss2 << "(- a 10)" << std::endl;
+  *ss2 << "(>= 0 45)" << std::endl;
+  *ss2 << "(and c c)" << std::endl;
+  *ss2 << "true" << std::endl;
   parser2.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ss2, "MyStream2");
 
   // parse terms until finished

@@ -40,8 +40,8 @@ class TestApiBlackSymbolManager : public TestParser
   }
   void parseCommand(const std::string& cmds)
   {
-    std::stringstream ss;
-    ss << cmds << std::endl;
+    auto ss = std::make_shared<std::stringstream>();
+    *ss << cmds << std::endl;
     InputParser parser(d_solver.get(), d_symman.get());
     parser.setStreamInput(
         modes::InputLanguage::SMT_LIB_2_6, ss, "parser_black");

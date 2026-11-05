@@ -250,12 +250,20 @@ class CVC5_EXPORT InputParser
 
   /**
    * Configure given stream as input.
+   *
+   * This input parser shares ownership of the stream, and keeps it alive until
+   * another input is configured or this input parser is destroyed. To read
+   * from a stream that is owned elsewhere, e.g., `std::cin`, pass a
+   * `std::shared_ptr` with a no-op deleter, e.g.,
+   * `std::shared_ptr<std::istream>(&std::cin, [](std::istream*) {})`. The
+   * stream must then remain valid for that long.
+   *
    * @param lang  The input language.
    * @param input The input stream.
    * @param name  The name of the stream, for use in error messages.
    */
   void setStreamInput(modes::InputLanguage lang,
-                      std::istream& input,
+                      std::shared_ptr<std::istream> input,
                       const std::string& name);
 
   /**
@@ -342,6 +350,13 @@ class CVC5_EXPORT InputParser
   modes::InputLanguage d_istringLang;
   /** The last name argument passed to setIncrementalStringInput(). */
   std::string d_istringName;
+  /**
+   * The stream of the current input, if it was configured via
+   * setStreamInput(). The internal parser only keeps a reference to it, so
+   * this member must be declared before `d_parser`, so that it is destroyed
+   * after it.
+   */
+  std::shared_ptr<std::istream> d_stream;
   /** The parser */
   std::shared_ptr<Parser> d_parser;
 };

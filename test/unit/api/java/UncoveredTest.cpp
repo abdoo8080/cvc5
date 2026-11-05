@@ -392,8 +392,8 @@ TEST_F(TestApiBlackUncovered, Parser)
   parser::InputParser inputParser(&solver);
   ASSERT_EQ(inputParser.getSolver(), &solver);
   ASSERT_NE(inputParser.getSymbolManager(), nullptr);
-  std::stringstream ss;
-  ss << command << std::endl;
+  auto ss = std::make_shared<std::stringstream>();
+  *ss << command << std::endl;
   inputParser.setStreamInput(modes::InputLanguage::SMT_LIB_2_6, ss, "Parser");
   parser::ParserException defaultConstructor;
   std::string message = "error";
@@ -402,7 +402,7 @@ TEST_F(TestApiBlackUncovered, Parser)
   parser::ParserException stringConstructor(message);
   parser::ParserException cStringConstructor(cMessage);
   parser::ParserException exception(message, filename, 10, 11);
-  exception.toStream(ss);
+  exception.toStream(*ss);
   ASSERT_EQ(message, exception.getMessage());
   ASSERT_EQ(message, exception.getMessage());
   ASSERT_EQ(filename, exception.getFilename());
