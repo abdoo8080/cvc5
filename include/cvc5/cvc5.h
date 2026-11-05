@@ -3222,7 +3222,9 @@ namespace cvc5 {
  * configured via :ref:`err <lbl-option-err>`, :ref:`in <lbl-option-in>` and
  * :ref:`out <lbl-option-out>`. This class does not store the options itself,
  * but only acts as a wrapper to the solver object. It can thus no longer be
- * used after the solver object has been destroyed. \endverbatim
+ * used after the solver object has been destroyed. The streams it returns are
+ * only valid as long as the solver object is alive and the respective option
+ * is not changed. \endverbatim
  */
 class CVC5_EXPORT DriverOptions
 {
@@ -5992,6 +5994,10 @@ class CVC5_EXPORT Solver
   /**
    * Get the driver options, which provide access to options that can not be
    * communicated properly via getOption() and getOptionInfo().
+   *
+   * The returned object refers to this solver, and can no longer be used after
+   * this solver has been destroyed.
+   *
    * @return A DriverOptions object.
    */
   DriverOptions getDriverOptions() const;
@@ -7078,6 +7084,9 @@ class CVC5_EXPORT Solver
    * Tags can be enabled with the `output` option (and `-o <tag>` on the
    * command line). Raises an exception when an invalid tag is given.
    *
+   * The returned stream is only valid as long as this solver is alive and its
+   * regular output channel (the `out` option) is not changed.
+   *
    * @warning This function is experimental and may change in future versions.
    *
    * @param tag The output tag.
@@ -7093,6 +7102,11 @@ class CVC5_EXPORT Solver
 
   /**
    * Get the associated term manager instance.
+   *
+   * This is the solver's own copy of the term manager it was constructed with,
+   * which shares its state. The returned reference is only valid as long as
+   * this solver is alive; copy the term manager to keep it.
+   *
    * @return The term manager.
    */
   TermManager& getTermManager() const;
